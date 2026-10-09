@@ -15,9 +15,47 @@ internal sealed class DeviceSnapshotConfiguration : IEntityTypeConfiguration<Dev
         builder.Property(snapshot => snapshot.RecordedAt);
         builder.Property(snapshot => snapshot.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(snapshot => snapshot.ResponseTimeMs);
+        builder.Property(snapshot => snapshot.HasResources);
+        builder.Property(snapshot => snapshot.CpuUsagePercent);
+        builder.Property(snapshot => snapshot.MemoryTotalBytes);
+        builder.Property(snapshot => snapshot.MemoryUsedBytes);
+
+        builder.HasMany(snapshot => snapshot.Disks).WithOne().HasForeignKey("SnapshotId").IsRequired().OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(snapshot => snapshot.NetworkInterfaces).WithOne().HasForeignKey("SnapshotId").IsRequired().OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(snapshot => snapshot.Disks).UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.Navigation(snapshot => snapshot.NetworkInterfaces).UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasOne<Device>().WithMany().HasForeignKey(snapshot => snapshot.DeviceId).OnDelete(DeleteBehavior.Cascade);
         builder.HasIndex(snapshot => new { snapshot.DeviceId, snapshot.RecordedAt });
+    }
+}
+
+internal sealed class DiskUsageConfiguration : IEntityTypeConfiguration<DiskUsage>
+{
+    public void Configure(EntityTypeBuilder<DiskUsage> builder)
+    {
+        builder.ToTable("DiskSnapshots");
+        builder.HasKey(disk => disk.Id);
+
+        builder.Property(disk => disk.Name).HasMaxLength(ResourceUsage.MaxNameLength).IsRequired();
+        builder.Property(disk => disk.TotalBytes);
+        builder.Property(disk => disk.FreeBytes);
+    }
+}
+
+internal sealed class NetworkInterfaceUsageConfiguration : IEntityTypeConfiguration<NetworkInterfaceUsage>
+{
+    public void Configure(EntityTypeBuilder<NetworkInterfaceUsage> builder)
+    {
+        builder.ToTable("NetworkInterfaceSnapshots");
+        builder.HasKey(networkInterface => networkInterface.Id);
+
+        builder.Property(networkInterface => networkInterface.Name).HasMaxLength(ResourceUsage.MaxNameLength).IsRequired();
+        builder.Property(networkInterface => networkInterface.MacAddress).HasMaxLength(ResourceUsage.MaxAddressLength);
+        builder.Property(networkInterface => networkInterface.IpAddress).HasMaxLength(ResourceUsage.MaxAddressLength);
+        builder.Property(networkInterface => networkInterface.IsUp);
+        builder.Property(networkInterface => networkInterface.BytesSent);
+        builder.Property(networkInterface => networkInterface.BytesReceived);
     }
 }
 

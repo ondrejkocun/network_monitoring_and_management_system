@@ -14,7 +14,7 @@ The project is under development. This is what works today and what is still to 
 | Agent registration and periodic heartbeat over gRPC | Done |
 | Availability tracking (online/offline), outages, event log | Done |
 | Devices without an agent, checked by the server with ping | Done |
-| CPU, memory, disk and network interface metrics | Planned |
+| CPU, memory, disk and network interface metrics | Done |
 | Open ports, processes and active connections | Planned |
 | Network traffic capture | Planned |
 | Users, roles and access control | Planned |
@@ -38,9 +38,9 @@ flowchart LR
     Server -- ping --> Agentless
 ```
 
-- The **agent** runs on each monitored Windows device. It registers with the server once, receives its own key, and then reports at an interval the server dictates.
+- The **agent** runs on each monitored Windows device. It registers with the server once, receives its own key, and then reports at an interval the server dictates. Each report carries the processor load, memory use, local disks and network interfaces.
 - The **server** authenticates agents and stores what they report. Devices that cannot run an agent, such as routers and switches, it checks itself with ping once per interval. When a device has not been seen for several intervals, the server marks it offline, opens an outage and writes an event; the outage is closed when the device is seen again.
-- The **desktop application** is the administrator's console. It shows the devices and their status, adds devices without an agent, removes devices and changes the global synchronization interval.
+- The **desktop application** is the administrator's console. It shows the devices and their status, the latest system resources of the selected device, adds devices without an agent, removes devices and changes the global synchronization interval.
 
 The planned data model is described in [docs/datovy-model.md](docs/datovy-model.md) (in Slovak).
 
@@ -137,6 +137,7 @@ dotnet ef migrations add <Name> --project src/NetworkMonitoringSystem.Infrastruc
 ## Security notes
 
 - An agent registers with a shared enrollment token and is then issued its own random key; the server stores only a SHA-256 hash of that key.
+- Values measured by an agent are not trusted: the server limits them to valid ranges, shortens overlong texts and caps the number of disks and interfaces in one report.
 - A device whose agent is reporting cannot be registered again, so the enrollment token alone is not enough to take over a working device.
 - The agent keeps its identity in a file encrypted with Windows DPAPI for the account it runs under.
 - The agent refuses to connect to a server address that is not HTTPS.

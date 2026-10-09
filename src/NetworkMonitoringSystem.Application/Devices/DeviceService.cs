@@ -62,6 +62,13 @@ public sealed class DeviceService : IDeviceService
         return devices.Select(DeviceDto.FromDevice).ToList();
     }
 
+    public async Task<DeviceResourcesDto?> GetLatestResourcesAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var snapshot = await _history.GetLatestResourceSnapshotAsync(id, cancellationToken);
+
+        return snapshot is null ? null : DeviceResourcesDto.FromSnapshot(snapshot);
+    }
+
     public async Task<bool> RemoveDeviceAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var device = await _deviceRepository.GetByIdAsync(id, cancellationToken);

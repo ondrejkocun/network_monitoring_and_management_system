@@ -96,7 +96,10 @@ public sealed class AgentService : IAgentService
         return new AgentRegistration(new AgentCredentials(device.Id, agentKey), settings.SyncIntervalSeconds);
     }
 
-    public async Task<AgentHeartbeatResult> ReportHeartbeatAsync(AgentCredentials credentials, CancellationToken cancellationToken = default)
+    public async Task<AgentHeartbeatResult> ReportHeartbeatAsync(
+        AgentCredentials credentials,
+        SystemMetricsReport? metrics = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(credentials);
 
@@ -110,7 +113,11 @@ public sealed class AgentService : IAgentService
             throw new AgentAuthenticationException("Agent credentials are not valid.");
         }
 
-        await _recorder.RecordOnlineAsync(device, _timeProvider.GetUtcNow(), cancellationToken: cancellationToken);
+        await _recorder.RecordOnlineAsync(
+            device,
+            _timeProvider.GetUtcNow(),
+            resources: metrics?.ToResourceUsage(),
+            cancellationToken: cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var settings = await _settingsRepository.GetAsync(cancellationToken);

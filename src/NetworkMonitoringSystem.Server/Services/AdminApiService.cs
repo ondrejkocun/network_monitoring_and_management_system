@@ -59,6 +59,49 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         return new RemoveDeviceReply();
     }
 
+    public override async Task<DeviceResourcesReply> GetDeviceResources(GetDeviceResourcesRequest request, ServerCallContext context)
+    {
+        var resources = Guid.TryParse(request.Id, out var id)
+            ? await _deviceService.GetLatestResourcesAsync(id, context.CancellationToken)
+            : null;
+
+        if (resources is null)
+        {
+            return new DeviceResourcesReply { HasData = false };
+        }
+
+        var reply = new DeviceResourcesReply
+        {
+            HasData = true,
+            RecordedAt = Timestamp.FromDateTimeOffset(resources.RecordedAt),
+            MemoryTotalBytes = (ulong)resources.MemoryTotalBytes,
+            MemoryUsedBytes = (ulong)resources.MemoryUsedBytes,
+        };
+
+        if (resources.CpuUsagePercent is { } cpuUsagePercent)
+        {
+            reply.CpuUsagePercent = cpuUsagePercent;
+        }
+
+        reply.Disks.AddRange(resources.Disks.Select(disk => new DiskInfo
+        {
+            Name = disk.Name,
+            TotalBytes = (ulong)disk.TotalBytes,
+            FreeBytes = (ulong)disk.FreeBytes,
+        }));
+        reply.NetworkInterfaces.AddRange(resources.NetworkInterfaces.Select(networkInterface => new NetworkInterfaceInfo
+        {
+            Name = networkInterface.Name,
+            MacAddress = networkInterface.MacAddress ?? string.Empty,
+            IpAddress = networkInterface.IpAddress ?? string.Empty,
+            IsUp = networkInterface.IsUp,
+            BytesSent = (ulong)networkInterface.BytesSent,
+            BytesReceived = (ulong)networkInterface.BytesReceived,
+        }));
+
+        return reply;
+    }
+
     public override async Task<MonitoringSettingsInfo> GetMonitoringSettings(GetMonitoringSettingsRequest request, ServerCallContext context)
     {
         return ToSettingsInfo(await _settingsService.GetAsync(context.CancellationToken));

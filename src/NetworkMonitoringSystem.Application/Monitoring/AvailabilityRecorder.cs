@@ -23,13 +23,20 @@ public sealed class AvailabilityRecorder
         Device device,
         DateTimeOffset seenAt,
         int? responseTimeMs = null,
+        ResourceUsage? resources = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(device);
 
         var cameOnline = device.RecordContact(seenAt);
+        var snapshot = new DeviceSnapshot(device.Id, seenAt, DeviceStatus.Online, responseTimeMs);
 
-        _history.AddSnapshot(new DeviceSnapshot(device.Id, seenAt, DeviceStatus.Online, responseTimeMs));
+        if (resources is not null)
+        {
+            snapshot.SetResources(resources);
+        }
+
+        _history.AddSnapshot(snapshot);
 
         if (!cameOnline)
         {

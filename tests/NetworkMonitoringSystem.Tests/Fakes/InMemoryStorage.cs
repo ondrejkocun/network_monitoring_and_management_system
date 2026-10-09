@@ -71,6 +71,11 @@ public sealed class InMemoryMonitoringHistoryRepository : IMonitoringHistoryRepo
 
     public void AddEvent(MonitoringEvent monitoringEvent) => Events.Add(monitoringEvent);
 
+    public Task<DeviceSnapshot?> GetLatestResourceSnapshotAsync(Guid deviceId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Snapshots.LastOrDefault(snapshot => snapshot.DeviceId == deviceId && snapshot.HasResources));
+    }
+
     public Task<Outage?> GetOngoingOutageAsync(Guid deviceId, CancellationToken cancellationToken = default)
     {
         return Task.FromResult(Outages.LastOrDefault(outage => outage.DeviceId == deviceId && outage.IsOngoing));

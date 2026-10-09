@@ -22,6 +22,19 @@ public sealed class EfMonitoringHistoryRepository : IMonitoringHistoryRepository
 
     public void AddEvent(MonitoringEvent monitoringEvent) => _dbContext.Events.Add(monitoringEvent);
 
+    public Task<DeviceSnapshot?> GetLatestResourceSnapshotAsync(Guid deviceId, CancellationToken cancellationToken = default)
+    {
+        return _dbContext.DeviceSnapshots
+            .AsNoTracking()
+            .Include(snapshot => snapshot.Disks)
+            .Include(snapshot => snapshot.NetworkInterfaces)
+            .Where(snapshot => snapshot.DeviceId == deviceId && snapshot.HasResources)
+            .OrderByDescending(snapshot => snapshot.RecordedAt)
+            .ThenByDescending(snapshot => snapshot.Id)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public Task<Outage?> GetOngoingOutageAsync(Guid deviceId, CancellationToken cancellationToken = default)
     {
         return _dbContext.Outages

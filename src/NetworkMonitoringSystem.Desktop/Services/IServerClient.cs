@@ -14,6 +14,10 @@ public interface IServerClient
     /// <exception cref="ServerClientException">The server could not be reached or rejected the device.</exception>
     Task AddAgentlessDeviceAsync(string name, string ipAddress, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns the latest system resources of the device; <c>HasData</c> is false when there are none.</summary>
+    /// <exception cref="ServerClientException">The server could not be reached or refused the call.</exception>
+    Task<DeviceResourcesReply> GetDeviceResourcesAsync(string id, CancellationToken cancellationToken = default);
+
     /// <exception cref="ServerClientException">The server could not be reached or the device does not exist.</exception>
     Task RemoveDeviceAsync(string id, CancellationToken cancellationToken = default);
 

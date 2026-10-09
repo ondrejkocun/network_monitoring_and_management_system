@@ -2,28 +2,33 @@ using System.Runtime.InteropServices;
 using Grpc.Core;
 using Microsoft.Extensions.Options;
 using NetworkMonitoringSystem.Agent.Identity;
+using NetworkMonitoringSystem.Agent.Metrics;
 using NetworkMonitoringSystem.Contracts.Agents;
 
 namespace NetworkMonitoringSystem.Agent;
 
 /// <summary>
-/// Performs one round of communication with the server: registers the device if needed and reports that it is alive.
+/// Performs one round of communication with the server: registers the device if needed and reports
+/// that it is alive together with its measured system resources.
 /// </summary>
 public sealed class AgentReporter
 {
     private readonly AgentApi.AgentApiClient _client;
     private readonly IAgentIdentityStore _identityStore;
+    private readonly ISystemMetricsCollector _metricsCollector;
     private readonly AgentOptions _options;
     private readonly ILogger<AgentReporter> _logger;
 
     public AgentReporter(
         AgentApi.AgentApiClient client,
         IAgentIdentityStore identityStore,
+        ISystemMetricsCollector metricsCollector,
         IOptions<AgentOptions> options,
         ILogger<AgentReporter> logger)
     {
         _client = client;
         _identityStore = identityStore;
+        _metricsCollector = metricsCollector;
         _options = options.Value;
         _logger = logger;
     }
@@ -44,6 +49,7 @@ public sealed class AgentReporter
                 new HeartbeatRequest
                 {
                     Credentials = new AgentCredentials { DeviceId = identity.DeviceId, AgentKey = identity.AgentKey },
+                    Metrics = CollectMetrics(),
                 },
                 cancellationToken: cancellationToken);
 
@@ -67,6 +73,21 @@ public sealed class AgentReporter
         }
 
         return RetryInterval;
+    }
+
+    private SystemMetrics? CollectMetrics()
+    {
+        try
+        {
+            return _metricsCollector.Collect();
+        }
+        catch (Exception exception)
+        {
+            // A failed measurement must not stop the device from reporting that it is alive.
+            _logger.LogWarning(exception, "System resources could not be measured; reporting without them.");
+
+            return null;
+        }
     }
 
     private TimeSpan RetryInterval => TimeSpan.FromSeconds(Math.Max(1, _options.RetryIntervalSeconds));

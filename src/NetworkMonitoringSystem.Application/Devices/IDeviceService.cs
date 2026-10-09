@@ -8,6 +8,9 @@ public interface IDeviceService
 
     Task<IReadOnlyList<DeviceDto>> GetDevicesAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Returns the most recent system resources reported for the device, or null when there are none.</summary>
+    Task<DeviceResourcesDto?> GetLatestResourcesAsync(Guid id, CancellationToken cancellationToken = default);
+
     /// <summary>Removes the device together with its recorded snapshots and outages.</summary>
     /// <returns>False when no such device exists.</returns>
     Task<bool> RemoveDeviceAsync(Guid id, CancellationToken cancellationToken = default);

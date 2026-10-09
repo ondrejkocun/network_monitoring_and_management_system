@@ -250,6 +250,116 @@ public class MainWindowViewModelTests
         Assert.False(viewModel.RemoveDeviceCommand.CanExecute(null));
     }
 
+    [Fact]
+    public async Task SelectingDevice_ShowsItsLatestResources()
+    {
+        const ulong gigabyte = 1024UL * 1024 * 1024;
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "PC-01" });
+        _server.Resources["device-1"] = new DeviceResourcesReply
+        {
+            HasData = true,
+            RecordedAt = Timestamp.FromDateTimeOffset(new DateTimeOffset(2026, 10, 9, 11, 30, 0, TimeSpan.Zero)),
+            CpuUsagePercent = 12.34,
+            MemoryTotalBytes = 16 * gigabyte,
+            MemoryUsedBytes = 4 * gigabyte,
+            Disks = { new DiskInfo { Name = "C:\\", TotalBytes = 200 * gigabyte, FreeBytes = 50 * gigabyte } },
+            NetworkInterfaces =
+            {
+                new NetworkInterfaceInfo
+                {
+                    Name = "Ethernet", IpAddress = "192.168.50.20", MacAddress = "AA:BB:CC:DD:EE:FF",
+                    IsUp = true, BytesSent = 1536, BytesReceived = 3 * gigabyte,
+                },
+            },
+        };
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+        Assert.Null(viewModel.SelectedDeviceResources);
+        Assert.Equal("Vyberte zariadenie v zozname.", viewModel.ResourcesMessage);
+
+        viewModel.SelectedDevice = viewModel.Devices[0];
+
+        var resources = viewModel.SelectedDeviceResources;
+        Assert.NotNull(resources);
+        Assert.Equal(string.Empty, viewModel.ResourcesMessage);
+        Assert.Equal("12,3 %", resources.CpuText);
+        Assert.Equal("4 GB z 16 GB (25 %)", resources.MemoryText);
+
+        var disk = Assert.Single(resources.Disks);
+        Assert.Equal("C:\\", disk.Name);
+        Assert.Equal("150 GB z 200 GB (75 %)", disk.UsageText);
+        Assert.Equal("50 GB", disk.FreeText);
+
+        var networkInterface = Assert.Single(resources.NetworkInterfaces);
+        Assert.Equal("Ethernet", networkInterface.Name);
+        Assert.Equal("Aktívne", networkInterface.StateText);
+        Assert.Equal("1,5 kB", networkInterface.SentText);
+        Assert.Equal("3 GB", networkInterface.ReceivedText);
+    }
+
+    [Fact]
+    public async Task SelectingDeviceWithoutResources_ExplainsWhyNothingIsShown()
+    {
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "Router" });
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+
+        viewModel.SelectedDevice = viewModel.Devices[0];
+
+        Assert.Null(viewModel.SelectedDeviceResources);
+        Assert.Contains("neposlalo žiadne údaje", viewModel.ResourcesMessage);
+    }
+
+    [Fact]
+    public async Task SelectingAnotherDevice_ReplacesResources_AndDeselectingClearsThem()
+    {
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "PC-01" });
+        _server.Devices.Add(new DeviceInfo { Id = "device-2", Name = "PC-02" });
+        _server.Resources["device-1"] = new DeviceResourcesReply { HasData = true, CpuUsagePercent = 10 };
+        _server.Resources["device-2"] = new DeviceResourcesReply { HasData = true, CpuUsagePercent = 90 };
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+
+        viewModel.SelectedDevice = viewModel.Devices[0];
+        Assert.Equal("10 %", viewModel.SelectedDeviceResources!.CpuText);
+
+        viewModel.SelectedDevice = viewModel.Devices[1];
+        Assert.Equal("90 %", viewModel.SelectedDeviceResources!.CpuText);
+
+        viewModel.SelectedDevice = null;
+        Assert.Null(viewModel.SelectedDeviceResources);
+        Assert.Equal("Vyberte zariadenie v zozname.", viewModel.ResourcesMessage);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_ReloadsResourcesOfSelectedDevice()
+    {
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "PC-01" });
+        _server.Resources["device-1"] = new DeviceResourcesReply { HasData = true, CpuUsagePercent = 10 };
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+        viewModel.SelectedDevice = viewModel.Devices[0];
+        _server.Resources["device-1"] = new DeviceResourcesReply { HasData = true, CpuUsagePercent = 55 };
+
+        await viewModel.RefreshAsync();
+
+        Assert.Equal("55 %", viewModel.SelectedDeviceResources!.CpuText);
+    }
+
+    [Fact]
+    public async Task ResourcesWithoutCpuValue_ShowDash()
+    {
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "PC-01" });
+        _server.Resources["device-1"] = new DeviceResourcesReply { HasData = true };
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+
+        viewModel.SelectedDevice = viewModel.Devices[0];
+
+        Assert.Equal("–", viewModel.SelectedDeviceResources!.CpuText);
+        Assert.Equal("–", viewModel.SelectedDeviceResources.MemoryText);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("abc")]
@@ -294,6 +404,9 @@ public class MainWindowViewModelTests
 
         public List<string> RemovedDeviceIds { get; } = [];
 
+        /// <summary>Resources by device id; a device without an entry has none.</summary>
+        public Dictionary<string, DeviceResourcesReply> Resources { get; } = [];
+
         public int SyncIntervalSeconds { get; private set; } = 60;
 
         /// <summary>When set, every call fails with this exception.</summary>
@@ -314,6 +427,13 @@ public class MainWindowViewModelTests
             Devices.Add(new DeviceInfo { Name = name, IpAddress = ipAddress, MonitoringMode = MonitoringMode.Agentless });
 
             return Task.CompletedTask;
+        }
+
+        public Task<DeviceResourcesReply> GetDeviceResourcesAsync(string id, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            return Task.FromResult(Resources.TryGetValue(id, out var resources) ? resources : new DeviceResourcesReply { HasData = false });
         }
 
         public Task RemoveDeviceAsync(string id, CancellationToken cancellationToken = default)

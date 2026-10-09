@@ -54,7 +54,7 @@ public sealed class AgentlessDeviceChecker : IAgentlessDeviceChecker
             {
                 if (result.IsReachable)
                 {
-                    await _recorder.RecordOnlineAsync(device, now, result.ResponseTimeMs, cancellationToken);
+                    await _recorder.RecordOnlineAsync(device, now, result.ResponseTimeMs, cancellationToken: cancellationToken);
                 }
                 else
                 {

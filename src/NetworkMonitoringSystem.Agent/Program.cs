@@ -1,5 +1,6 @@
 using NetworkMonitoringSystem.Agent;
 using NetworkMonitoringSystem.Agent.Identity;
+using NetworkMonitoringSystem.Agent.Metrics;
 using NetworkMonitoringSystem.Contracts.Agents;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -18,6 +19,7 @@ builder.Services.AddGrpcClient<AgentApi.AgentApiClient>((services, options) =>
 });
 
 builder.Services.AddSingleton<IAgentIdentityStore, ProtectedFileIdentityStore>();
+builder.Services.AddSingleton<ISystemMetricsCollector, WindowsSystemMetricsCollector>();
 builder.Services.AddSingleton<AgentReporter>();
 builder.Services.AddHostedService<Worker>();
 

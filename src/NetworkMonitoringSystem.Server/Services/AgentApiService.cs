@@ -65,6 +65,7 @@ public sealed class AgentApiService : AgentApi.AgentApiBase
         {
             var result = await _agentService.ReportHeartbeatAsync(
                 new AgentCredentials(deviceId, request.Credentials.AgentKey),
+                ToReport(request.Metrics),
                 context.CancellationToken);
 
             return new HeartbeatReply { SyncIntervalSeconds = result.SyncIntervalSeconds };
@@ -76,6 +77,31 @@ public sealed class AgentApiService : AgentApi.AgentApiBase
             throw Unauthenticated();
         }
     }
+
+    private static SystemMetricsReport? ToReport(SystemMetrics? metrics)
+    {
+        if (metrics is null)
+        {
+            return null;
+        }
+
+        return new SystemMetricsReport(
+            metrics.HasCpuUsagePercent ? metrics.CpuUsagePercent : null,
+            ToInt64(metrics.MemoryTotalBytes),
+            ToInt64(metrics.MemoryUsedBytes),
+            metrics.Disks.Select(disk => new DiskReport(disk.Name, ToInt64(disk.TotalBytes), ToInt64(disk.FreeBytes))).ToList(),
+            metrics.NetworkInterfaces
+                .Select(networkInterface => new NetworkInterfaceReport(
+                    networkInterface.Name,
+                    networkInterface.MacAddress,
+                    networkInterface.IpAddress,
+                    networkInterface.IsUp,
+                    ToInt64(networkInterface.BytesSent),
+                    ToInt64(networkInterface.BytesReceived)))
+                .ToList());
+    }
+
+    private static long ToInt64(ulong value) => value > long.MaxValue ? long.MaxValue : (long)value;
 
     private static RpcException Unauthenticated()
     {

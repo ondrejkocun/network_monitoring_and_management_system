@@ -9,7 +9,7 @@ service AgentApi {
   // Enrolls the device and returns the identity the agent uses from then on.
   rpc Register (RegisterRequest) returns (RegisterReply);
 
-  // Tells the server that the device is alive.
+  // Tells the server that the device is alive and, when measured, how its system resources are used.
   rpc Heartbeat (HeartbeatRequest) returns (HeartbeatReply);
 }
 
@@ -31,6 +31,33 @@ message RegisterReply {
 
 message HeartbeatRequest {
   AgentCredentials credentials = 1;
+  // Not set when the agent could not measure the resources.
+  SystemMetrics metrics = 2;
+}
+
+message SystemMetrics {
+  // Average processor load since the previous report. Not set in the first report.
+  optional double cpu_usage_percent = 1;
+  uint64 memory_total_bytes = 2;
+  uint64 memory_used_bytes = 3;
+  repeated DiskMetrics disks = 4;
+  repeated NetworkInterfaceMetrics network_interfaces = 5;
+}
+
+message DiskMetrics {
+  string name = 1;
+  uint64 total_bytes = 2;
+  uint64 free_bytes = 3;
+}
+
+message NetworkInterfaceMetrics {
+  string name = 1;
+  string mac_address = 2;
+  string ip_address = 3;
+  bool is_up = 4;
+  // Cumulative counters since the interface was started.
+  uint64 bytes_sent = 5;
+  uint64 bytes_received = 6;
 }
 
 message HeartbeatReply {

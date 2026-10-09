@@ -8,6 +8,8 @@ namespace NetworkMonitoringSystem.Desktop.ViewModels;
 
 public sealed class MainWindowViewModel : ViewModelBase
 {
+    private const string NoDeviceSelectedMessage = "Vyberte zariadenie v zozname.";
+
     private readonly IServerClient _server;
     private readonly IConfirmationDialog _confirmation;
 
@@ -18,6 +20,9 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _syncIntervalHint = string.Empty;
     private bool _settingsLoaded;
     private DeviceRowViewModel? _selectedDevice;
+    private DeviceResourcesViewModel? _selectedDeviceResources;
+    private string _resourcesMessage = NoDeviceSelectedMessage;
+    private bool _isRebuildingList;
 
     public MainWindowViewModel(IServerClient server, IConfirmationDialog confirmation)
     {
@@ -55,9 +60,76 @@ public sealed class MainWindowViewModel : ViewModelBase
         get => _selectedDevice;
         set
         {
-            if (SetProperty(ref _selectedDevice, value))
+            // While the list is being rebuilt the view reports that nothing is selected; that is not the user's choice.
+            if (_isRebuildingList)
             {
-                RemoveDeviceCommand.RaiseCanExecuteChanged();
+                return;
+            }
+
+            var previousId = _selectedDevice?.Id;
+
+            if (!SetProperty(ref _selectedDevice, value))
+            {
+                return;
+            }
+
+            RemoveDeviceCommand.RaiseCanExecuteChanged();
+
+            // Resources of another device must not stay on screen; those of the same device are simply reloaded.
+            if (value?.Id != previousId)
+            {
+                SelectedDeviceResources = null;
+                ResourcesMessage = value is null ? NoDeviceSelectedMessage : "Načítavam…";
+            }
+
+            _ = LoadSelectedDeviceResourcesAsync();
+        }
+    }
+
+    /// <summary>The latest system resources of the selected device, or null when there are none to show.</summary>
+    public DeviceResourcesViewModel? SelectedDeviceResources
+    {
+        get => _selectedDeviceResources;
+        private set => SetProperty(ref _selectedDeviceResources, value);
+    }
+
+    /// <summary>Explains why no resources are shown; empty when they are.</summary>
+    public string ResourcesMessage
+    {
+        get => _resourcesMessage;
+        private set => SetProperty(ref _resourcesMessage, value);
+    }
+
+    /// <summary>Loads the latest system resources of the selected device from the server.</summary>
+    public async Task LoadSelectedDeviceResourcesAsync()
+    {
+        var device = SelectedDevice;
+
+        if (device is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var resources = await _server.GetDeviceResourcesAsync(device.Id);
+
+            // The answer may arrive after the user has selected another device.
+            if (SelectedDevice?.Id != device.Id)
+            {
+                return;
+            }
+
+            SelectedDeviceResources = resources.HasData ? new DeviceResourcesViewModel(resources) : null;
+            ResourcesMessage = resources.HasData
+                ? string.Empty
+                : "Zariadenie zatiaľ neposlalo žiadne údaje o prostriedkoch. Posiela ich len zariadenie s agentom.";
+        }
+        catch (ServerClientException exception)
+        {
+            if (SelectedDevice?.Id == device.Id && SelectedDeviceResources is null)
+            {
+                ResourcesMessage = Describe(exception);
             }
         }
     }
@@ -121,11 +193,20 @@ public sealed class MainWindowViewModel : ViewModelBase
             // The list is rebuilt, so the selection is carried over to the row of the same device.
             var selectedId = SelectedDevice?.Id;
 
-            Devices.Clear();
+            _isRebuildingList = true;
 
-            foreach (var device in devices)
+            try
             {
-                Devices.Add(new DeviceRowViewModel(device));
+                Devices.Clear();
+
+                foreach (var device in devices)
+                {
+                    Devices.Add(new DeviceRowViewModel(device));
+                }
+            }
+            finally
+            {
+                _isRebuildingList = false;
             }
 
             SelectedDevice = selectedId is null ? null : Devices.FirstOrDefault(device => device.Id == selectedId);

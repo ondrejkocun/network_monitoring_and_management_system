@@ -9,6 +9,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NetworkMonitoringSystem.Agent;
 using NetworkMonitoringSystem.Agent.Identity;
+using NetworkMonitoringSystem.Agent.Metrics;
+using AdminContracts = NetworkMonitoringSystem.Contracts.Admin;
 using NetworkMonitoringSystem.Contracts.Agents;
 using NetworkMonitoringSystem.Domain.Devices;
 using NetworkMonitoringSystem.Tests.Infrastructure;
@@ -99,6 +101,43 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
     }
 
     [Fact]
+    public async Task Heartbeat_StoresMeasuredResources_AndAdministratorCanReadThem()
+    {
+        var reporter = CreateReporter(Token);
+        await reporter.ReportOnceAsync(CancellationToken.None);
+        var identity = _identityStore.Load()!;
+        var admin = new AdminContracts.AdminApi.AdminApiClient(_channel);
+        var deviceId = Guid.Parse(identity.DeviceId);
+
+        // Registration alone carries no measurement; only a heartbeat adds one.
+        var measuredBefore = await CountMeasuredSnapshotsAsync(deviceId);
+        var heartbeatSentAt = DateTimeOffset.UtcNow.AddSeconds(-1);
+
+        await reporter.ReportOnceAsync(CancellationToken.None);
+
+        var resources = await admin.GetDeviceResourcesAsync(new AdminContracts.GetDeviceResourcesRequest { Id = identity.DeviceId });
+
+        Assert.True(resources.HasData);
+        Assert.True(resources.RecordedAt.ToDateTimeOffset() >= heartbeatSentAt);
+        Assert.True(resources.HasCpuUsagePercent);
+        Assert.InRange(resources.CpuUsagePercent, 0, 100);
+        Assert.True(resources.MemoryTotalBytes > 0);
+        Assert.InRange(resources.MemoryUsedBytes, 1UL, resources.MemoryTotalBytes);
+        Assert.NotEmpty(resources.Disks);
+        Assert.All(resources.Disks, disk => Assert.True(disk.FreeBytes <= disk.TotalBytes));
+        Assert.NotEmpty(resources.NetworkInterfaces);
+
+        Assert.Equal(measuredBefore + 1, await CountMeasuredSnapshotsAsync(deviceId));
+    }
+
+    private async Task<int> CountMeasuredSnapshotsAsync(Guid deviceId)
+    {
+        await using var dbContext = _database.CreateDbContext();
+
+        return await dbContext.DeviceSnapshots.CountAsync(snapshot => snapshot.DeviceId == deviceId && snapshot.HasResources);
+    }
+
+    [Fact]
     public async Task Report_WithWrongEnrollmentToken_DoesNotRegister()
     {
         var delay = await CreateReporter("wrong-token").ReportOnceAsync(CancellationToken.None);
@@ -147,6 +186,7 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
         return new AgentReporter(
             new AgentApi.AgentApiClient(_channel),
             _identityStore,
+            new WindowsSystemMetricsCollector(),
             Options.Create(new AgentOptions { EnrollmentToken = enrollmentToken, RetryIntervalSeconds = 7 }),
             NullLogger<AgentReporter>.Instance);
     }

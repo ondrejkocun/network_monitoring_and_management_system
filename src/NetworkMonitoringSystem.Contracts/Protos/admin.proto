@@ -16,6 +16,9 @@ service AdminApi {
   // Removes a device together with its recorded snapshots and outages.
   rpc RemoveDevice (RemoveDeviceRequest) returns (RemoveDeviceReply);
 
+  // Returns the most recent system resources reported by the device's agent.
+  rpc GetDeviceResources (GetDeviceResourcesRequest) returns (DeviceResourcesReply);
+
   rpc GetMonitoringSettings (GetMonitoringSettingsRequest) returns (MonitoringSettingsInfo);
 
   // Changes the global interval in which device state is synchronized and recorded.
@@ -67,6 +70,36 @@ message RemoveDeviceRequest {
 }
 
 message RemoveDeviceReply {
+}
+
+message GetDeviceResourcesRequest {
+  string id = 1;
+}
+
+message DeviceResourcesReply {
+  // False when the device has not reported any resources, for example because it has no agent.
+  bool has_data = 1;
+  google.protobuf.Timestamp recorded_at = 2;
+  optional double cpu_usage_percent = 3;
+  uint64 memory_total_bytes = 4;
+  uint64 memory_used_bytes = 5;
+  repeated DiskInfo disks = 6;
+  repeated NetworkInterfaceInfo network_interfaces = 7;
+}
+
+message DiskInfo {
+  string name = 1;
+  uint64 total_bytes = 2;
+  uint64 free_bytes = 3;
+}
+
+message NetworkInterfaceInfo {
+  string name = 1;
+  string mac_address = 2;
+  string ip_address = 3;
+  bool is_up = 4;
+  uint64 bytes_sent = 5;
+  uint64 bytes_received = 6;
 }
 
 message GetMonitoringSettingsRequest {
