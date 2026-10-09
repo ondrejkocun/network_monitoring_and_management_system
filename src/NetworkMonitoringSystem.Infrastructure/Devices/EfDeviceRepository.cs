@@ -63,4 +63,12 @@ public sealed class EfDeviceRepository : IDeviceRepository
 
         _dbContext.Devices.Add(device);
     }
+
+    public void Remove(Device device)
+    {
+        ArgumentNullException.ThrowIfNull(device);
+
+        // Snapshots and outages of the device are deleted by the database; events only lose the link to it.
+        _dbContext.Devices.Remove(device);
+    }
 }

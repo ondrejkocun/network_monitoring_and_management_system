@@ -16,6 +16,7 @@ public static class DependencyInjection
         services.AddScoped<AvailabilityRecorder>();
         services.AddScoped<IDeviceAvailabilityMonitor, DeviceAvailabilityMonitor>();
         services.AddScoped<IAgentlessDeviceChecker, AgentlessDeviceChecker>();
+        services.AddScoped<IMonitoringSettingsService, MonitoringSettingsService>();
 
         return services;
     }

@@ -1,22 +1,31 @@
 using System.Net;
 using NetworkMonitoringSystem.Application.Common;
+using NetworkMonitoringSystem.Application.Monitoring;
 using NetworkMonitoringSystem.Domain.Devices;
+using NetworkMonitoringSystem.Domain.Monitoring;
 
 namespace NetworkMonitoringSystem.Application.Devices;
 
 public sealed class DeviceService : IDeviceService
 {
     private readonly IDeviceRepository _deviceRepository;
+    private readonly IMonitoringHistoryRepository _history;
     private readonly IUnitOfWork _unitOfWork;
     private readonly TimeProvider _timeProvider;
 
-    public DeviceService(IDeviceRepository deviceRepository, IUnitOfWork unitOfWork, TimeProvider timeProvider)
+    public DeviceService(
+        IDeviceRepository deviceRepository,
+        IMonitoringHistoryRepository history,
+        IUnitOfWork unitOfWork,
+        TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(deviceRepository);
+        ArgumentNullException.ThrowIfNull(history);
         ArgumentNullException.ThrowIfNull(unitOfWork);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         _deviceRepository = deviceRepository;
+        _history = history;
         _unitOfWork = unitOfWork;
         _timeProvider = timeProvider;
     }
@@ -51,6 +60,29 @@ public sealed class DeviceService : IDeviceService
         var devices = await _deviceRepository.GetAllAsync(cancellationToken);
 
         return devices.Select(DeviceDto.FromDevice).ToList();
+    }
+
+    public async Task<bool> RemoveDeviceAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var device = await _deviceRepository.GetByIdAsync(id, cancellationToken);
+
+        if (device is null)
+        {
+            return false;
+        }
+
+        _deviceRepository.Remove(device);
+
+        // The event is not linked to the device, because the device no longer exists.
+        _history.AddEvent(new MonitoringEvent(
+            _timeProvider.GetUtcNow(),
+            MonitoringEventType.DeviceRemoved,
+            EventSeverity.Info,
+            $"Device '{device.Name}' was removed."));
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return true;
     }
 
     private static IPAddress? ParseIpAddress(string? ipAddress)

@@ -14,7 +14,8 @@ builder.Services
 builder.Services.Configure<AgentEnrollmentOptions>(
     builder.Configuration.GetSection(AgentEnrollmentOptions.SectionName));
 
-builder.Services.AddGrpc();
+builder.Services.AddGrpc()
+    .AddServiceOptions<AdminApiService>(options => options.Interceptors.Add<LocalOnlyInterceptor>());
 builder.Services.AddHostedService<AvailabilityMonitorService>();
 builder.Services.AddHostedService<AgentlessCheckService>();
 
@@ -28,6 +29,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapGrpcService<AgentApiService>();
+app.MapGrpcService<AdminApiService>();
 app.MapGet("/", () => "Network Monitoring & Management System server. Agents communicate with it over gRPC.");
 
 app.Run();

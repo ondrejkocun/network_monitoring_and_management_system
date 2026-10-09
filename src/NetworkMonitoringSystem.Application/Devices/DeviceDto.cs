@@ -11,7 +11,8 @@ public sealed record DeviceDto(
     DeviceStatus Status,
     DateTimeOffset? LastSeenAt,
     bool IsEnabled,
-    DateTimeOffset CreatedAt)
+    DateTimeOffset CreatedAt,
+    string? OperatingSystem)
 {
     public static DeviceDto FromDevice(Device device)
     {
@@ -26,6 +27,7 @@ public sealed record DeviceDto(
             device.Status,
             device.LastSeenAt,
             device.IsEnabled,
-            device.CreatedAt);
+            device.CreatedAt,
+            device.OperatingSystem);
     }
 }

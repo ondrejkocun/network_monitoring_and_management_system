@@ -19,7 +19,8 @@ The project is under development. This is what works today and what is still to 
 | Network traffic capture | Planned |
 | Users, roles and access control | Planned |
 | Remote commands with audit | Planned |
-| Desktop dashboard | Skeleton only |
+| Desktop application: device list, adding and removing devices, changing the interval | Done |
+| Desktop application: history, outages, events | Planned |
 
 ## Architecture
 
@@ -33,13 +34,13 @@ flowchart LR
 
     Agent -- "gRPC over HTTPS" --> Server
     Server --> Database
-    Desktop -. planned .-> Server
+    Desktop -- "gRPC over HTTPS" --> Server
     Server -- ping --> Agentless
 ```
 
 - The **agent** runs on each monitored Windows device. It registers with the server once, receives its own key, and then reports at an interval the server dictates.
 - The **server** authenticates agents and stores what they report. Devices that cannot run an agent, such as routers and switches, it checks itself with ping once per interval. When a device has not been seen for several intervals, the server marks it offline, opens an outage and writes an event; the outage is closed when the device is seen again.
-- The **desktop application** is the administrator's console.
+- The **desktop application** is the administrator's console. It shows the devices and their status, adds devices without an agent, removes devices and changes the global synchronization interval.
 
 The planned data model is described in [docs/datovy-model.md](docs/datovy-model.md) (in Slovak).
 
@@ -106,7 +107,13 @@ The server applies database migrations on startup in the development environment
 docker exec nms-database psql -U nms -d network_monitoring -c 'SELECT \"Name\", \"Status\", \"LastSeenAt\" FROM \"Devices\";'
 ```
 
-The desktop application starts with `dotnet run --project src/NetworkMonitoringSystem.Desktop`; it does not connect to the server yet.
+In a third terminal, start the desktop application:
+
+```powershell
+dotnet run --project src/NetworkMonitoringSystem.Desktop
+```
+
+It lists the devices and refreshes every five seconds. The server address is set in `src/NetworkMonitoringSystem.Desktop/appsettings.json`.
 
 ## Tests
 
@@ -133,4 +140,5 @@ dotnet ef migrations add <Name> --project src/NetworkMonitoringSystem.Infrastruc
 - A device whose agent is reporting cannot be registered again, so the enrollment token alone is not enough to take over a working device.
 - The agent keeps its identity in a file encrypted with Windows DPAPI for the account it runs under.
 - The agent refuses to connect to a server address that is not HTTPS.
+- The administration API used by the desktop application accepts connections only from the computer the server runs on, until users and access control are implemented.
 - The local database is published only on `127.0.0.1`.

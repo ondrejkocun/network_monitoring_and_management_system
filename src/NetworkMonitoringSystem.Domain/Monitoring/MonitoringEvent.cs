@@ -5,6 +5,8 @@ public enum MonitoringEventType
     AgentRegistered = 0,
     DeviceWentOnline = 1,
     DeviceWentOffline = 2,
+    SettingsChanged = 3,
+    DeviceRemoved = 4,
 }
 
 public enum EventSeverity

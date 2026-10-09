@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+option csharp_namespace = "NetworkMonitoringSystem.Contracts.Admin";
+
+package nms.admin.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Communication from the administrator's desktop application to the server.
+service AdminApi {
+  rpc ListDevices (ListDevicesRequest) returns (ListDevicesReply);
+
+  // Adds a device that cannot run an agent; the server checks it over the network.
+  rpc AddAgentlessDevice (AddAgentlessDeviceRequest) returns (DeviceInfo);
+
+  // Removes a device together with its recorded snapshots and outages.
+  rpc RemoveDevice (RemoveDeviceRequest) returns (RemoveDeviceReply);
+
+  rpc GetMonitoringSettings (GetMonitoringSettingsRequest) returns (MonitoringSettingsInfo);
+
+  // Changes the global interval in which device state is synchronized and recorded.
+  rpc UpdateSyncInterval (UpdateSyncIntervalRequest) returns (MonitoringSettingsInfo);
+}
+
+enum MonitoringMode {
+  MONITORING_MODE_UNSPECIFIED = 0;
+  MONITORING_MODE_AGENT = 1;
+  MONITORING_MODE_AGENTLESS = 2;
+}
+
+enum DeviceStatus {
+  DEVICE_STATUS_UNSPECIFIED = 0;
+  DEVICE_STATUS_UNKNOWN = 1;
+  DEVICE_STATUS_ONLINE = 2;
+  DEVICE_STATUS_OFFLINE = 3;
+}
+
+message DeviceInfo {
+  string id = 1;
+  string name = 2;
+  MonitoringMode monitoring_mode = 3;
+  // Empty when the device has no host name.
+  string host_name = 4;
+  // Empty when the device has no known IP address.
+  string ip_address = 5;
+  DeviceStatus status = 6;
+  // Not set when the device has never been seen.
+  google.protobuf.Timestamp last_seen_at = 7;
+  bool is_enabled = 8;
+  string operating_system = 9;
+}
+
+message ListDevicesRequest {
+}
+
+message ListDevicesReply {
+  repeated DeviceInfo devices = 1;
+}
+
+message AddAgentlessDeviceRequest {
+  string name = 1;
+  string ip_address = 2;
+}
+
+message RemoveDeviceRequest {
+  string id = 1;
+}
+
+message RemoveDeviceReply {
+}
+
+message GetMonitoringSettingsRequest {
+}
+
+message UpdateSyncIntervalRequest {
+  int32 sync_interval_seconds = 1;
+}
+
+message MonitoringSettingsInfo {
+  int32 sync_interval_seconds = 1;
+  int32 offline_after_missed_syncs = 2;
+  int32 min_sync_interval_seconds = 3;
+  int32 max_sync_interval_seconds = 4;
+}

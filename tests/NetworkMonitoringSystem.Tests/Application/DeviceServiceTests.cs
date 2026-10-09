@@ -2,6 +2,7 @@ namespace NetworkMonitoringSystem.Tests.Application;
 
 using NetworkMonitoringSystem.Application.Devices;
 using NetworkMonitoringSystem.Domain.Devices;
+using NetworkMonitoringSystem.Domain.Monitoring;
 using NetworkMonitoringSystem.Tests.Fakes;
 
 public class DeviceServiceTests
@@ -9,11 +10,12 @@ public class DeviceServiceTests
     private static readonly DateTimeOffset Now = new(2026, 10, 9, 12, 0, 0, TimeSpan.Zero);
 
     private readonly CountingUnitOfWork _unitOfWork = new();
+    private readonly InMemoryMonitoringHistoryRepository _history = new();
     private readonly DeviceService _service;
 
     public DeviceServiceTests()
     {
-        _service = new DeviceService(new InMemoryDeviceRepository(), _unitOfWork, new MutableTimeProvider(Now));
+        _service = new DeviceService(new InMemoryDeviceRepository(), _history, _unitOfWork, new MutableTimeProvider(Now));
     }
 
     [Fact]
@@ -67,6 +69,34 @@ public class DeviceServiceTests
         var device = await _service.GetDeviceAsync(Guid.NewGuid());
 
         Assert.Null(device);
+    }
+
+    [Fact]
+    public async Task RemoveDeviceAsync_RemovesDevice_AndWritesEvent()
+    {
+        var registered = await _service.RegisterDeviceAsync(
+            new RegisterDeviceRequest("Router", MonitoringMode.Agentless, IpAddress: "192.168.50.1"));
+
+        var removed = await _service.RemoveDeviceAsync(registered.Id);
+
+        Assert.True(removed);
+        Assert.Null(await _service.GetDeviceAsync(registered.Id));
+        Assert.Equal(2, _unitOfWork.SaveCount);
+
+        var removalEvent = Assert.Single(_history.Events);
+        Assert.Equal(MonitoringEventType.DeviceRemoved, removalEvent.Type);
+        Assert.Null(removalEvent.DeviceId);
+        Assert.Contains("Router", removalEvent.Message);
+    }
+
+    [Fact]
+    public async Task RemoveDeviceAsync_ReturnsFalse_WhenDeviceDoesNotExist()
+    {
+        var removed = await _service.RemoveDeviceAsync(Guid.NewGuid());
+
+        Assert.False(removed);
+        Assert.Empty(_history.Events);
+        Assert.Equal(0, _unitOfWork.SaveCount);
     }
 
     [Fact]

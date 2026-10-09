@@ -21,4 +21,6 @@ public interface IDeviceRepository
     Task<IReadOnlyList<Device>> GetAllAsync(CancellationToken cancellationToken = default);
 
     void Add(Device device);
+
+    void Remove(Device device);
 }

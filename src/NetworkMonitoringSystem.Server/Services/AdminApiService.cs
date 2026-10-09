@@ -1,0 +1,117 @@
+using Google.Protobuf.WellKnownTypes;
+using Grpc.Core;
+using NetworkMonitoringSystem.Application.Devices;
+using NetworkMonitoringSystem.Application.Monitoring;
+using NetworkMonitoringSystem.Contracts.Admin;
+using DomainDeviceStatus = NetworkMonitoringSystem.Domain.Devices.DeviceStatus;
+using DomainMonitoringMode = NetworkMonitoringSystem.Domain.Devices.MonitoringMode;
+
+namespace NetworkMonitoringSystem.Server.Services;
+
+/// <summary>
+/// gRPC endpoint for the administrator's desktop application. Translates between the wire contract
+/// and the application layer.
+/// </summary>
+public sealed class AdminApiService : AdminApi.AdminApiBase
+{
+    private readonly IDeviceService _deviceService;
+    private readonly IMonitoringSettingsService _settingsService;
+
+    public AdminApiService(IDeviceService deviceService, IMonitoringSettingsService settingsService)
+    {
+        _deviceService = deviceService;
+        _settingsService = settingsService;
+    }
+
+    public override async Task<ListDevicesReply> ListDevices(ListDevicesRequest request, ServerCallContext context)
+    {
+        var devices = await _deviceService.GetDevicesAsync(context.CancellationToken);
+
+        var reply = new ListDevicesReply();
+        reply.Devices.AddRange(devices.Select(ToDeviceInfo));
+
+        return reply;
+    }
+
+    public override async Task<DeviceInfo> AddAgentlessDevice(AddAgentlessDeviceRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var device = await _deviceService.RegisterDeviceAsync(
+                new RegisterDeviceRequest(request.Name, DomainMonitoringMode.Agentless, IpAddress: request.IpAddress),
+                context.CancellationToken);
+
+            return ToDeviceInfo(device);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
+        }
+    }
+
+    public override async Task<RemoveDeviceReply> RemoveDevice(RemoveDeviceRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.Id, out var id) || !await _deviceService.RemoveDeviceAsync(id, context.CancellationToken))
+        {
+            throw new RpcException(new Status(StatusCode.NotFound, "The device does not exist."));
+        }
+
+        return new RemoveDeviceReply();
+    }
+
+    public override async Task<MonitoringSettingsInfo> GetMonitoringSettings(GetMonitoringSettingsRequest request, ServerCallContext context)
+    {
+        return ToSettingsInfo(await _settingsService.GetAsync(context.CancellationToken));
+    }
+
+    public override async Task<MonitoringSettingsInfo> UpdateSyncInterval(UpdateSyncIntervalRequest request, ServerCallContext context)
+    {
+        try
+        {
+            return ToSettingsInfo(
+                await _settingsService.ChangeSyncIntervalAsync(request.SyncIntervalSeconds, context.CancellationToken));
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
+        }
+    }
+
+    private static DeviceInfo ToDeviceInfo(DeviceDto device)
+    {
+        return new DeviceInfo
+        {
+            Id = device.Id.ToString(),
+            Name = device.Name,
+            MonitoringMode = device.MonitoringMode switch
+            {
+                DomainMonitoringMode.Agent => MonitoringMode.Agent,
+                DomainMonitoringMode.Agentless => MonitoringMode.Agentless,
+                _ => MonitoringMode.Unspecified,
+            },
+            HostName = device.HostName ?? string.Empty,
+            IpAddress = device.IpAddress ?? string.Empty,
+            Status = device.Status switch
+            {
+                DomainDeviceStatus.Online => DeviceStatus.Online,
+                DomainDeviceStatus.Offline => DeviceStatus.Offline,
+                DomainDeviceStatus.Unknown => DeviceStatus.Unknown,
+                _ => DeviceStatus.Unspecified,
+            },
+            LastSeenAt = device.LastSeenAt is { } lastSeenAt ? Timestamp.FromDateTimeOffset(lastSeenAt) : null,
+            IsEnabled = device.IsEnabled,
+            OperatingSystem = device.OperatingSystem ?? string.Empty,
+        };
+    }
+
+    private static MonitoringSettingsInfo ToSettingsInfo(MonitoringSettingsDto settings)
+    {
+        return new MonitoringSettingsInfo
+        {
+            SyncIntervalSeconds = settings.SyncIntervalSeconds,
+            OfflineAfterMissedSyncs = settings.OfflineAfterMissedSyncs,
+            MinSyncIntervalSeconds = settings.MinSyncIntervalSeconds,
+            MaxSyncIntervalSeconds = settings.MaxSyncIntervalSeconds,
+        };
+    }
+}

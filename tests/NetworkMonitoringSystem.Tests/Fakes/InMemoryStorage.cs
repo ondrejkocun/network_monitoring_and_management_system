@@ -53,6 +53,8 @@ public sealed class InMemoryDeviceRepository : IDeviceRepository
     }
 
     public void Add(Device device) => _devices.Add(device);
+
+    public void Remove(Device device) => _devices.Remove(device);
 }
 
 public sealed class InMemoryMonitoringHistoryRepository : IMonitoringHistoryRepository
