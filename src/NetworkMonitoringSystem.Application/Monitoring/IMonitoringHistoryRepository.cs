@@ -18,8 +18,8 @@ public interface IMonitoringHistoryRepository
     Task<DeviceSnapshot?> GetLatestResourceSnapshotAsync(Guid deviceId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Deletes snapshots recorded, outages ended and events occurred before the given time, immediately
-    /// and without <see cref="Common.IUnitOfWork"/>. Outages that are still in progress are kept.
+    /// Deletes snapshots recorded, events occurred, and outages, process runs and port periods ended before
+    /// the given time, immediately and without <see cref="Common.IUnitOfWork"/>. What is still in progress is kept.
     /// </summary>
     Task<HistoryCleanupResult> DeleteOlderThanAsync(DateTimeOffset cutoff, CancellationToken cancellationToken = default);
 

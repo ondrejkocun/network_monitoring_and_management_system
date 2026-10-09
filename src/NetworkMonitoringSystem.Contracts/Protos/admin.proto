@@ -19,6 +19,9 @@ service AdminApi {
   // Returns the most recent system resources reported by the device's agent.
   rpc GetDeviceResources (GetDeviceResourcesRequest) returns (DeviceResourcesReply);
 
+  // Returns what the device's agent last reported as running: processes, open ports and connections.
+  rpc GetDeviceActivity (GetDeviceActivityRequest) returns (DeviceActivityReply);
+
   rpc GetMonitoringSettings (GetMonitoringSettingsRequest) returns (MonitoringSettingsInfo);
 
   // Changes the global interval in which device state is synchronized and recorded.
@@ -100,6 +103,47 @@ message NetworkInterfaceInfo {
   bool is_up = 4;
   uint64 bytes_sent = 5;
   uint64 bytes_received = 6;
+}
+
+message GetDeviceActivityRequest {
+  string id = 1;
+}
+
+message DeviceActivityReply {
+  repeated ProcessDetail processes = 1;
+  repeated ListeningPortDetail listening_ports = 2;
+  repeated ConnectionDetail connections = 3;
+}
+
+message ProcessDetail {
+  uint32 pid = 1;
+  string name = 2;
+  google.protobuf.Timestamp started_at = 3;
+  // Usage is recorded only for the most demanding processes.
+  bool has_usage = 4;
+  optional double cpu_usage_percent = 5;
+  uint64 memory_bytes = 6;
+}
+
+message ListeningPortDetail {
+  string protocol = 1;
+  string local_address = 2;
+  uint32 port = 3;
+  google.protobuf.Timestamp opened_at = 4;
+  // Zero and empty when the owning process is not known.
+  uint32 pid = 5;
+  string process_name = 6;
+}
+
+message ConnectionDetail {
+  string protocol = 1;
+  string local_address = 2;
+  uint32 local_port = 3;
+  string remote_address = 4;
+  uint32 remote_port = 5;
+  string state = 6;
+  uint32 pid = 7;
+  string process_name = 8;
 }
 
 message GetMonitoringSettingsRequest {

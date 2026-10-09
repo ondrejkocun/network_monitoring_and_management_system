@@ -138,6 +138,37 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
     }
 
     [Fact]
+    public async Task Heartbeat_StoresProcessesPortsAndConnections_AndAdministratorCanReadThem()
+    {
+        var reporter = CreateReporter(Token);
+        await reporter.ReportOnceAsync(CancellationToken.None);
+        var identity = _identityStore.Load()!;
+        var admin = new AdminContracts.AdminApi.AdminApiClient(_channel);
+
+        await reporter.ReportOnceAsync(CancellationToken.None);
+
+        var activity = await admin.GetDeviceActivityAsync(new AdminContracts.GetDeviceActivityRequest { Id = identity.DeviceId });
+
+        // The process running this test is one of the processes on this computer.
+        var thisProcess = Assert.Single(activity.Processes, process => process.Pid == (uint)Environment.ProcessId);
+        Assert.False(string.IsNullOrWhiteSpace(thisProcess.Name));
+        Assert.NotNull(thisProcess.StartedAt);
+        Assert.True(activity.Processes.Count > 10);
+        Assert.Contains(activity.Processes, process => process.HasUsage);
+
+        // Every Windows computer has listening ports, for example 135 of the RPC endpoint mapper.
+        Assert.NotEmpty(activity.ListeningPorts);
+        Assert.All(activity.ListeningPorts, port => Assert.InRange(port.Port, 0U, 65535U));
+        Assert.Contains(activity.ListeningPorts, port => port.ProcessName.Length > 0);
+
+        // A second identical report changes nothing: no process run or port period is duplicated.
+        await reporter.ReportOnceAsync(CancellationToken.None);
+        var again = await admin.GetDeviceActivityAsync(new AdminContracts.GetDeviceActivityRequest { Id = identity.DeviceId });
+        Assert.Single(again.Processes, process => process.Pid == (uint)Environment.ProcessId);
+        Assert.Equal(thisProcess.StartedAt, again.Processes.Single(process => process.Pid == (uint)Environment.ProcessId).StartedAt);
+    }
+
+    [Fact]
     public async Task Report_WithWrongEnrollmentToken_DoesNotRegister()
     {
         var delay = await CreateReporter("wrong-token").ReportOnceAsync(CancellationToken.None);
@@ -187,6 +218,7 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
             new AgentApi.AgentApiClient(_channel),
             _identityStore,
             new WindowsSystemMetricsCollector(),
+            new WindowsSystemActivityCollector(),
             Options.Create(new AgentOptions { EnrollmentToken = enrollmentToken, RetryIntervalSeconds = 7 }),
             NullLogger<AgentReporter>.Instance);
     }

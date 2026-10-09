@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+import "google/protobuf/timestamp.proto";
+
 option csharp_namespace = "NetworkMonitoringSystem.Contracts.Agents";
 
 package nms.agents.v1;
@@ -33,6 +35,49 @@ message HeartbeatRequest {
   AgentCredentials credentials = 1;
   // Not set when the agent could not measure the resources.
   SystemMetrics metrics = 2;
+  // Complete list of what is running on the device now. Not set when the agent could not read it.
+  SystemActivity activity = 3;
+}
+
+message SystemActivity {
+  repeated ProcessEntry processes = 1;
+  repeated ListeningPortEntry listening_ports = 2;
+  repeated ConnectionEntry connections = 3;
+}
+
+enum TransportProtocol {
+  TRANSPORT_PROTOCOL_UNSPECIFIED = 0;
+  TRANSPORT_PROTOCOL_TCP = 1;
+  TRANSPORT_PROTOCOL_UDP = 2;
+}
+
+message ProcessEntry {
+  uint32 pid = 1;
+  string name = 2;
+  // Not set when the agent is not allowed to read it, as with some system processes.
+  google.protobuf.Timestamp started_at = 3;
+  // Average processor load since the previous report. Not set when it cannot be measured yet.
+  optional double cpu_usage_percent = 4;
+  uint64 memory_bytes = 5;
+}
+
+message ListeningPortEntry {
+  TransportProtocol protocol = 1;
+  string local_address = 2;
+  uint32 port = 3;
+  // Process that opened the port.
+  uint32 pid = 4;
+}
+
+message ConnectionEntry {
+  TransportProtocol protocol = 1;
+  string local_address = 2;
+  uint32 local_port = 3;
+  string remote_address = 4;
+  uint32 remote_port = 5;
+  string state = 6;
+  // Process that owns the connection.
+  uint32 pid = 7;
 }
 
 message SystemMetrics {

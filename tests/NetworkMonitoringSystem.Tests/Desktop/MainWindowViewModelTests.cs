@@ -347,6 +347,76 @@ public class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task SelectingDevice_ShowsItsProcessesPortsAndConnections()
+    {
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "PC-01" });
+        _server.Activity["device-1"] = new DeviceActivityReply
+        {
+            Processes =
+            {
+                new ProcessDetail { Pid = 100, Name = "nginx", HasUsage = true, CpuUsagePercent = 12.5, MemoryBytes = 2048 },
+                new ProcessDetail { Pid = 200, Name = "notepad", MemoryBytes = 4096 },
+            },
+            ListeningPorts =
+            {
+                new ListeningPortDetail { Protocol = "TCP", LocalAddress = "0.0.0.0", Port = 80, Pid = 100, ProcessName = "nginx" },
+                new ListeningPortDetail { Protocol = "UDP", LocalAddress = "0.0.0.0", Port = 53 },
+            },
+            Connections =
+            {
+                new ConnectionDetail
+                {
+                    Protocol = "TCP", LocalAddress = "192.168.50.20", LocalPort = 50123,
+                    RemoteAddress = "2606:2800:220:1::1", RemotePort = 443, State = "ESTABLISHED", Pid = 100, ProcessName = "nginx",
+                },
+            },
+        };
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+        Assert.Null(viewModel.SelectedDeviceActivity);
+
+        viewModel.SelectedDevice = viewModel.Devices[0];
+
+        var activity = viewModel.SelectedDeviceActivity;
+        Assert.NotNull(activity);
+        Assert.Equal("Procesy (2)", activity.ProcessesHeader);
+        Assert.Equal("Otvorené porty (2)", activity.ListeningPortsHeader);
+        Assert.Equal("Spojenia (1)", activity.ConnectionsHeader);
+
+        Assert.Equal(("nginx", 100U, "12,5 %", "2 kB"), (activity.Processes[0].Name, activity.Processes[0].Pid, activity.Processes[0].CpuText, activity.Processes[0].MemoryText));
+        // Usage is shown only where the server recorded it.
+        Assert.Equal((string.Empty, string.Empty), (activity.Processes[1].CpuText, activity.Processes[1].MemoryText));
+
+        Assert.Equal("nginx (100)", activity.ListeningPorts[0].ProcessText);
+        Assert.Equal("–", activity.ListeningPorts[1].ProcessText);
+
+        var connection = Assert.Single(activity.Connections);
+        Assert.Equal("192.168.50.20:50123", connection.LocalEndpoint);
+        Assert.Equal("[2606:2800:220:1::1]:443", connection.RemoteEndpoint);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_KeepsActivityViewModel_WhenNothingChanged_AndReplacesItWhenItDid()
+    {
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "PC-01" });
+        _server.Activity["device-1"] = new DeviceActivityReply { Processes = { new ProcessDetail { Pid = 100, Name = "nginx" } } };
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+        viewModel.SelectedDevice = viewModel.Devices[0];
+        var shown = viewModel.SelectedDeviceActivity;
+
+        // The same data arrive in a new message; the list on screen must not be rebuilt.
+        _server.Activity["device-1"] = new DeviceActivityReply { Processes = { new ProcessDetail { Pid = 100, Name = "nginx" } } };
+        await viewModel.RefreshAsync();
+        Assert.Same(shown, viewModel.SelectedDeviceActivity);
+
+        _server.Activity["device-1"] = new DeviceActivityReply { Processes = { new ProcessDetail { Pid = 300, Name = "calc" } } };
+        await viewModel.RefreshAsync();
+        Assert.NotSame(shown, viewModel.SelectedDeviceActivity);
+        Assert.Equal("calc", viewModel.SelectedDeviceActivity!.Processes[0].Name);
+    }
+
+    [Fact]
     public async Task ResourcesWithoutCpuValue_ShowDash()
     {
         _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "PC-01" });
@@ -407,6 +477,9 @@ public class MainWindowViewModelTests
         /// <summary>Resources by device id; a device without an entry has none.</summary>
         public Dictionary<string, DeviceResourcesReply> Resources { get; } = [];
 
+        /// <summary>Processes, ports and connections by device id; a device without an entry has none.</summary>
+        public Dictionary<string, DeviceActivityReply> Activity { get; } = [];
+
         public int SyncIntervalSeconds { get; private set; } = 60;
 
         /// <summary>When set, every call fails with this exception.</summary>
@@ -434,6 +507,13 @@ public class MainWindowViewModelTests
             ThrowIfFailing();
 
             return Task.FromResult(Resources.TryGetValue(id, out var resources) ? resources : new DeviceResourcesReply { HasData = false });
+        }
+
+        public Task<DeviceActivityReply> GetDeviceActivityAsync(string id, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            return Task.FromResult(Activity.TryGetValue(id, out var activity) ? activity : new DeviceActivityReply());
         }
 
         public Task RemoveDeviceAsync(string id, CancellationToken cancellationToken = default)

@@ -6,7 +6,7 @@
         xmlns:viewModels="clr-namespace:NetworkMonitoringSystem.Desktop.ViewModels"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=viewModels:MainWindowViewModel}"
-        Title="{Binding Title}" Height="780" Width="980" MinHeight="560" MinWidth="760">
+        Title="{Binding Title}" Height="820" Width="1040" MinHeight="620" MinWidth="820">
     <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -57,70 +57,113 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <GroupBox Grid.Row="2" Header="Systémové prostriedky vybraného zariadenia" Margin="0,10,0,0" Padding="8">
-            <StackPanel>
-                <TextBlock Text="{Binding ResourcesMessage}" Foreground="Gray" TextWrapping="Wrap">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding ResourcesMessage}" Value="">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+        <GroupBox Grid.Row="2" Header="Detail vybraného zariadenia" Margin="0,10,0,0" Padding="8">
+            <TabControl Height="230">
+                <TabItem Header="Prostriedky">
+                    <StackPanel Margin="6">
+                        <TextBlock Text="{Binding ResourcesMessage}" Foreground="Gray" TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ResourcesMessage}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
 
-                <StackPanel DataContext="{Binding SelectedDeviceResources}">
-                    <StackPanel.Style>
-                        <Style TargetType="StackPanel">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding}" Value="{x:Null}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </StackPanel.Style>
+                        <StackPanel DataContext="{Binding SelectedDeviceResources}">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
 
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <TextBlock Text="Procesor: " FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding CpuText}" Margin="0,0,24,0" />
-                        <TextBlock Text="Pamäť: " FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding MemoryText}" Margin="0,0,24,0" />
-                        <TextBlock Text="Namerané: " FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding RecordedAtText}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="Procesor: " FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding CpuText}" Margin="0,0,24,0" />
+                                <TextBlock Text="Pamäť: " FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding MemoryText}" Margin="0,0,24,0" />
+                                <TextBlock Text="Namerané: " FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding RecordedAtText}" />
+                            </StackPanel>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="5*" />
+                                </Grid.ColumnDefinitions>
+
+                                <DataGrid Grid.Column="0" ItemsSource="{Binding Disks}" AutoGenerateColumns="False" IsReadOnly="True"
+                                          HeadersVisibility="Column" GridLinesVisibility="Horizontal" MaxHeight="130">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Disk" Binding="{Binding Name}" Width="Auto" />
+                                        <DataGridTextColumn Header="Obsadené" Binding="{Binding UsageText}" Width="*" />
+                                        <DataGridTextColumn Header="Voľné" Binding="{Binding FreeText}" Width="Auto" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <DataGrid Grid.Column="2" ItemsSource="{Binding NetworkInterfaces}" AutoGenerateColumns="False" IsReadOnly="True"
+                                          HeadersVisibility="Column" GridLinesVisibility="Horizontal" MaxHeight="130">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Sieťové rozhranie" Binding="{Binding Name}" Width="2*" />
+                                        <DataGridTextColumn Header="IP adresa" Binding="{Binding IpAddress}" Width="Auto" />
+                                        <DataGridTextColumn Header="MAC adresa" Binding="{Binding MacAddress}" Width="Auto" />
+                                        <DataGridTextColumn Header="Stav" Binding="{Binding StateText}" Width="Auto" />
+                                        <DataGridTextColumn Header="Odoslané" Binding="{Binding SentText}" Width="Auto" />
+                                        <DataGridTextColumn Header="Prijaté" Binding="{Binding ReceivedText}" Width="Auto" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </StackPanel>
                     </StackPanel>
+                </TabItem>
 
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="2*" />
-                            <ColumnDefinition Width="12" />
-                            <ColumnDefinition Width="5*" />
-                        </Grid.ColumnDefinitions>
+                <TabItem Header="{Binding SelectedDeviceActivity.ProcessesHeader, FallbackValue=Procesy}">
+                    <DataGrid ItemsSource="{Binding SelectedDeviceActivity.Processes}" AutoGenerateColumns="False" IsReadOnly="True"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Proces" Binding="{Binding Name}" Width="3*" />
+                            <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="*" />
+                            <DataGridTextColumn Header="Procesor" Binding="{Binding CpuText}" Width="*" />
+                            <DataGridTextColumn Header="Pamäť" Binding="{Binding MemoryText}" Width="*" />
+                            <DataGridTextColumn Header="Spustený" Binding="{Binding StartedText}" Width="2*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </TabItem>
 
-                        <DataGrid Grid.Column="0" ItemsSource="{Binding Disks}" AutoGenerateColumns="False" IsReadOnly="True"
-                                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" MaxHeight="130">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Disk" Binding="{Binding Name}" Width="Auto" />
-                                <DataGridTextColumn Header="Obsadené" Binding="{Binding UsageText}" Width="*" />
-                                <DataGridTextColumn Header="Voľné" Binding="{Binding FreeText}" Width="Auto" />
-                            </DataGrid.Columns>
-                        </DataGrid>
+                <TabItem Header="{Binding SelectedDeviceActivity.ListeningPortsHeader, FallbackValue=Otvorené porty}">
+                    <DataGrid ItemsSource="{Binding SelectedDeviceActivity.ListeningPorts}" AutoGenerateColumns="False" IsReadOnly="True"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="*" />
+                            <DataGridTextColumn Header="Protokol" Binding="{Binding Protocol}" Width="*" />
+                            <DataGridTextColumn Header="Adresa" Binding="{Binding LocalAddress}" Width="2*" />
+                            <DataGridTextColumn Header="Proces" Binding="{Binding ProcessText}" Width="3*" />
+                            <DataGridTextColumn Header="Otvorený od" Binding="{Binding OpenedText}" Width="2*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </TabItem>
 
-                        <DataGrid Grid.Column="2" ItemsSource="{Binding NetworkInterfaces}" AutoGenerateColumns="False" IsReadOnly="True"
-                                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" MaxHeight="130">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Sieťové rozhranie" Binding="{Binding Name}" Width="2*" />
-                                <DataGridTextColumn Header="IP adresa" Binding="{Binding IpAddress}" Width="Auto" />
-                                <DataGridTextColumn Header="MAC adresa" Binding="{Binding MacAddress}" Width="Auto" />
-                                <DataGridTextColumn Header="Stav" Binding="{Binding StateText}" Width="Auto" />
-                                <DataGridTextColumn Header="Odoslané" Binding="{Binding SentText}" Width="Auto" />
-                                <DataGridTextColumn Header="Prijaté" Binding="{Binding ReceivedText}" Width="Auto" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </Grid>
-                </StackPanel>
-            </StackPanel>
+                <TabItem Header="{Binding SelectedDeviceActivity.ConnectionsHeader, FallbackValue=Spojenia}">
+                    <DataGrid ItemsSource="{Binding SelectedDeviceActivity.Connections}" AutoGenerateColumns="False" IsReadOnly="True"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Proces" Binding="{Binding ProcessText}" Width="3*" />
+                            <DataGridTextColumn Header="Protokol" Binding="{Binding Protocol}" Width="*" />
+                            <DataGridTextColumn Header="Miestna adresa" Binding="{Binding LocalEndpoint}" Width="3*" />
+                            <DataGridTextColumn Header="Vzdialená adresa" Binding="{Binding RemoteEndpoint}" Width="3*" />
+                            <DataGridTextColumn Header="Stav" Binding="{Binding State}" Width="2*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </TabItem>
+            </TabControl>
         </GroupBox>
 
         <GroupBox Grid.Row="3" Header="Pridať zariadenie bez agenta" Margin="0,10,0,0" Padding="8">

@@ -16,7 +16,7 @@ The project is under development. This is what works today and what is still to 
 | Devices without an agent, checked by the server with ping | Done |
 | CPU, memory, disk and network interface metrics | Done |
 | Automatic deletion of history older than the retention period | Done |
-| Open ports, processes and active connections | Planned |
+| Open ports, processes and active connections, each linked to its process | Done |
 | Network traffic capture | Planned |
 | Users, roles and access control | Planned |
 | Remote commands with audit | Planned |
@@ -39,9 +39,9 @@ flowchart LR
     Server -- ping --> Agentless
 ```
 
-- The **agent** runs on each monitored Windows device. It registers with the server once, receives its own key, and then reports at an interval the server dictates. Each report carries the processor load, memory use, local disks and network interfaces.
-- The **server** authenticates agents and stores what they report. Devices that cannot run an agent, such as routers and switches, it checks itself with ping once per interval. When a device has not been seen for several intervals, the server marks it offline, opens an outage and writes an event; the outage is closed when the device is seen again. Once an hour it deletes history older than the retention period (30 days by default).
-- The **desktop application** is the administrator's console. It shows the devices and their status, the latest system resources of the selected device, adds devices without an agent, removes devices and changes the global synchronization interval.
+- The **agent** runs on each monitored Windows device. It registers with the server once, receives its own key, and then reports at an interval the server dictates. Each report carries the processor load, memory use, local disks and network interfaces, and the complete list of running processes, listening ports and connections.
+- The **server** authenticates agents and stores what they report. Devices that cannot run an agent, such as routers and switches, it checks itself with ping once per interval. When a device has not been seen for several intervals, the server marks it offline, opens an outage and writes an event; the outage is closed when the device is seen again. It keeps processes and open ports as periods (started and ended, opened and closed) by comparing each report with the previous one, and writes an event when a device opens a new port. Once an hour it deletes history older than the retention period (30 days by default).
+- The **desktop application** is the administrator's console. It shows the devices and their status and, for the selected device, its latest system resources, processes, open ports and connections; it adds devices without an agent, removes devices and changes the global synchronization interval.
 
 The planned data model is described in [docs/datovy-model.md](docs/datovy-model.md) (in Slovak).
 

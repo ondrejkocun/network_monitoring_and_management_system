@@ -15,7 +15,12 @@ public class DeviceServiceTests
 
     public DeviceServiceTests()
     {
-        _service = new DeviceService(new InMemoryDeviceRepository(), _history, _unitOfWork, new MutableTimeProvider(Now));
+        _service = new DeviceService(
+            new InMemoryDeviceRepository(),
+            _history,
+            new InMemoryDeviceActivityRepository(_history),
+            _unitOfWork,
+            new MutableTimeProvider(Now));
     }
 
     [Fact]

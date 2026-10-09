@@ -50,10 +50,13 @@ public sealed class HistoryCleanupService : BackgroundService
             if (removed.Total > 0)
             {
                 _logger.LogInformation(
-                    "Removed old history: {Snapshots} snapshot(s), {Outages} outage(s), {Events} event(s).",
+                    "Removed old history: {Snapshots} snapshot(s), {Outages} outage(s), {Events} event(s), "
+                    + "{ProcessRuns} process run(s), {ListeningPorts} port period(s).",
                     removed.Snapshots,
                     removed.Outages,
-                    removed.Events);
+                    removed.Events,
+                    removed.ProcessRuns,
+                    removed.ListeningPorts);
             }
         }
         catch (Exception exception) when (exception is not OperationCanceledException)

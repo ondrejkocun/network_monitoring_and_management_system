@@ -102,6 +102,59 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         return reply;
     }
 
+    public override async Task<DeviceActivityReply> GetDeviceActivity(GetDeviceActivityRequest request, ServerCallContext context)
+    {
+        var reply = new DeviceActivityReply();
+
+        if (!Guid.TryParse(request.Id, out var id))
+        {
+            return reply;
+        }
+
+        var activity = await _deviceService.GetActivityAsync(id, context.CancellationToken);
+
+        reply.Processes.AddRange(activity.Processes.Select(process =>
+        {
+            var detail = new ProcessDetail
+            {
+                Pid = (uint)process.Pid,
+                Name = process.Name,
+                StartedAt = Timestamp.FromDateTimeOffset(process.StartedAt),
+                HasUsage = process.HasUsage,
+                MemoryBytes = (ulong)process.MemoryBytes,
+            };
+
+            if (process.CpuUsagePercent is { } cpuUsagePercent)
+            {
+                detail.CpuUsagePercent = cpuUsagePercent;
+            }
+
+            return detail;
+        }));
+        reply.ListeningPorts.AddRange(activity.ListeningPorts.Select(port => new ListeningPortDetail
+        {
+            Protocol = port.Protocol.ToString().ToUpperInvariant(),
+            LocalAddress = port.LocalAddress,
+            Port = (uint)port.Port,
+            OpenedAt = Timestamp.FromDateTimeOffset(port.OpenedAt),
+            Pid = (uint)(port.Pid ?? 0),
+            ProcessName = port.ProcessName ?? string.Empty,
+        }));
+        reply.Connections.AddRange(activity.Connections.Select(connection => new ConnectionDetail
+        {
+            Protocol = connection.Protocol.ToString().ToUpperInvariant(),
+            LocalAddress = connection.LocalAddress,
+            LocalPort = (uint)connection.LocalPort,
+            RemoteAddress = connection.RemoteAddress,
+            RemotePort = (uint)connection.RemotePort,
+            State = connection.State,
+            Pid = (uint)(connection.Pid ?? 0),
+            ProcessName = connection.ProcessName ?? string.Empty,
+        }));
+
+        return reply;
+    }
+
     public override async Task<MonitoringSettingsInfo> GetMonitoringSettings(GetMonitoringSettingsRequest request, ServerCallContext context)
     {
         return ToSettingsInfo(await _settingsService.GetAsync(context.CancellationToken));

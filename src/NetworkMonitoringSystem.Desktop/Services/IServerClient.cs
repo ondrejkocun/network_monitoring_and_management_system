@@ -18,6 +18,10 @@ public interface IServerClient
     /// <exception cref="ServerClientException">The server could not be reached or refused the call.</exception>
     Task<DeviceResourcesReply> GetDeviceResourcesAsync(string id, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns the processes, open ports and connections the device's agent last reported.</summary>
+    /// <exception cref="ServerClientException">The server could not be reached or refused the call.</exception>
+    Task<DeviceActivityReply> GetDeviceActivityAsync(string id, CancellationToken cancellationToken = default);
+
     /// <exception cref="ServerClientException">The server could not be reached or the device does not exist.</exception>
     Task RemoveDeviceAsync(string id, CancellationToken cancellationToken = default);
 

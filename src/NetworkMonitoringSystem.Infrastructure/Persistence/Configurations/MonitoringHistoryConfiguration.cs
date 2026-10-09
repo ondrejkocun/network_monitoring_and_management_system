@@ -24,6 +24,8 @@ internal sealed class DeviceSnapshotConfiguration : IEntityTypeConfiguration<Dev
         builder.HasMany(snapshot => snapshot.NetworkInterfaces).WithOne().HasForeignKey("SnapshotId").IsRequired().OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(snapshot => snapshot.Disks).UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.Navigation(snapshot => snapshot.NetworkInterfaces).UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.HasMany(snapshot => snapshot.ProcessUsages).WithOne().HasForeignKey("SnapshotId").IsRequired().OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(snapshot => snapshot.ProcessUsages).UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasOne<Device>().WithMany().HasForeignKey(snapshot => snapshot.DeviceId).OnDelete(DeleteBehavior.Cascade);
         builder.HasIndex(snapshot => new { snapshot.DeviceId, snapshot.RecordedAt });

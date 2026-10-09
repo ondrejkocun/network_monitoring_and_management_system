@@ -190,7 +190,12 @@ Tieto údaje sa neukladajú pri každom zápise celé. Agent posiela úplný akt
 - `ListeningPort` je obdobie, počas ktorého bol port otvorený, s odkazom na proces, ktorý na ňom počúva.
 - `ActiveConnection` je len aktuálny zoznam spojení; pri každej synchronizácii sa nahradí. Históriu komunikácie pokrýva `TrafficRecord`.
 
-Odkaz na `ProcessRun` rieši požiadavku zadania na „súvisiace procesy" – ku každému portu a spojeniu je známy proces, ktorý ho používa. Otvorenie nového portu alebo spustenie nového procesu server zároveň zapíše do `Event`.
+Odkaz na `ProcessRun` rieši požiadavku zadania na „súvisiace procesy" – ku každému portu a spojeniu je známy proces, ktorý ho používa. Otvorenie nového portu server zároveň zapíše do `Event`; spustenie procesu nie, lebo procesy vznikajú neustále a udalosti by zahltili záznam.
+
+Dve spresnenia, ktoré vyplynuli z implementácie:
+
+- UDP porty v dynamickom rozsahu (od 49152) sa neukladajú. Programy ich otvárajú a zatvárajú neustále pre vlastnú odchádzajúcu komunikáciu, takže nejde o služby zariadenia.
+- Prvé hlásenie zariadenia sa berie ako východiskový stav a nevytvára žiadne udalosti.
 
 ### Sieťová komunikácia
 

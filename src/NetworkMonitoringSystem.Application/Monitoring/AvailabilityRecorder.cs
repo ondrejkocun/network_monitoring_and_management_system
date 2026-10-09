@@ -19,7 +19,8 @@ public sealed class AvailabilityRecorder
     }
 
     /// <summary>Records that the device was observed to be reachable.</summary>
-    public async Task RecordOnlineAsync(
+    /// <returns>The snapshot written for this observation.</returns>
+    public async Task<DeviceSnapshot> RecordOnlineAsync(
         Device device,
         DateTimeOffset seenAt,
         int? responseTimeMs = null,
@@ -40,7 +41,7 @@ public sealed class AvailabilityRecorder
 
         if (!cameOnline)
         {
-            return;
+            return snapshot;
         }
 
         var outage = await _history.GetOngoingOutageAsync(device.Id, cancellationToken);
@@ -52,6 +53,8 @@ public sealed class AvailabilityRecorder
             EventSeverity.Info,
             $"Device '{device.Name}' is online.",
             device.Id));
+
+        return snapshot;
     }
 
     /// <summary>

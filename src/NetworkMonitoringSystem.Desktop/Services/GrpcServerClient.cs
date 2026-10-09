@@ -33,6 +33,11 @@ public sealed class GrpcServerClient : IServerClient
         return CallAsync(() => _client.GetDeviceResourcesAsync(new GetDeviceResourcesRequest { Id = id }, cancellationToken: cancellationToken));
     }
 
+    public Task<DeviceActivityReply> GetDeviceActivityAsync(string id, CancellationToken cancellationToken = default)
+    {
+        return CallAsync(() => _client.GetDeviceActivityAsync(new GetDeviceActivityRequest { Id = id }, cancellationToken: cancellationToken));
+    }
+
     public async Task RemoveDeviceAsync(string id, CancellationToken cancellationToken = default)
     {
         await CallAsync(() => _client.RemoveDeviceAsync(new RemoveDeviceRequest { Id = id }, cancellationToken: cancellationToken));

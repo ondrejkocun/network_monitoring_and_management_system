@@ -50,7 +50,15 @@ public sealed class EfMonitoringHistoryRepository : IMonitoringHistoryRepository
             .Where(monitoringEvent => monitoringEvent.OccurredAt < cutoff)
             .ExecuteDeleteAsync(cancellationToken);
 
-        return new HistoryCleanupResult(snapshots, outages, events);
+        var processRuns = await _dbContext.ProcessRuns
+            .Where(run => run.EndedAt != null && run.EndedAt < cutoff)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        var listeningPorts = await _dbContext.ListeningPorts
+            .Where(port => port.ClosedAt != null && port.ClosedAt < cutoff)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        return new HistoryCleanupResult(snapshots, outages, events, processRuns, listeningPorts);
     }
 
     public Task<Outage?> GetOngoingOutageAsync(Guid deviceId, CancellationToken cancellationToken = default)

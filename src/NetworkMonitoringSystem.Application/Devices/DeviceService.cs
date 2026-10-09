@@ -10,22 +10,26 @@ public sealed class DeviceService : IDeviceService
 {
     private readonly IDeviceRepository _deviceRepository;
     private readonly IMonitoringHistoryRepository _history;
+    private readonly IDeviceActivityRepository _activity;
     private readonly IUnitOfWork _unitOfWork;
     private readonly TimeProvider _timeProvider;
 
     public DeviceService(
         IDeviceRepository deviceRepository,
         IMonitoringHistoryRepository history,
+        IDeviceActivityRepository activity,
         IUnitOfWork unitOfWork,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(deviceRepository);
         ArgumentNullException.ThrowIfNull(history);
+        ArgumentNullException.ThrowIfNull(activity);
         ArgumentNullException.ThrowIfNull(unitOfWork);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         _deviceRepository = deviceRepository;
         _history = history;
+        _activity = activity;
         _unitOfWork = unitOfWork;
         _timeProvider = timeProvider;
     }
@@ -67,6 +71,15 @@ public sealed class DeviceService : IDeviceService
         var snapshot = await _history.GetLatestResourceSnapshotAsync(id, cancellationToken);
 
         return snapshot is null ? null : DeviceResourcesDto.FromSnapshot(snapshot);
+    }
+
+    public async Task<DeviceActivityDto> GetActivityAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return DeviceActivityDto.Create(
+            await _activity.GetRunningProcessesAsync(id, cancellationToken),
+            await _activity.GetLatestProcessUsagesAsync(id, cancellationToken),
+            await _activity.GetOpenPortsAsync(id, cancellationToken),
+            await _activity.GetConnectionsAsync(id, cancellationToken));
     }
 
     public async Task<bool> RemoveDeviceAsync(Guid id, CancellationToken cancellationToken = default)

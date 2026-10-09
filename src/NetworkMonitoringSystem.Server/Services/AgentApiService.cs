@@ -2,6 +2,7 @@ using Grpc.Core;
 using NetworkMonitoringSystem.Application.Agents;
 using NetworkMonitoringSystem.Contracts.Agents;
 using AgentCredentials = NetworkMonitoringSystem.Application.Agents.AgentCredentials;
+using DomainTransportProtocol = NetworkMonitoringSystem.Domain.Monitoring.TransportProtocol;
 
 namespace NetworkMonitoringSystem.Server.Services;
 
@@ -66,6 +67,7 @@ public sealed class AgentApiService : AgentApi.AgentApiBase
             var result = await _agentService.ReportHeartbeatAsync(
                 new AgentCredentials(deviceId, request.Credentials.AgentKey),
                 ToReport(request.Metrics),
+                ToReport(request.Activity),
                 context.CancellationToken);
 
             return new HeartbeatReply { SyncIntervalSeconds = result.SyncIntervalSeconds };
@@ -100,6 +102,46 @@ public sealed class AgentApiService : AgentApi.AgentApiBase
                     ToInt64(networkInterface.BytesReceived)))
                 .ToList());
     }
+
+    private static SystemActivityReport? ToReport(SystemActivity? activity)
+    {
+        if (activity is null)
+        {
+            return null;
+        }
+
+        return new SystemActivityReport(
+            activity.Processes
+                .Select(process => new ProcessReport(
+                    ToInt32(process.Pid),
+                    process.Name,
+                    process.StartedAt?.ToDateTimeOffset(),
+                    process.HasCpuUsagePercent ? process.CpuUsagePercent : null,
+                    ToInt64(process.MemoryBytes)))
+                .ToList(),
+            activity.ListeningPorts
+                .Where(port => port.Protocol != TransportProtocol.Unspecified)
+                .Select(port => new ListeningPortReport(ToDomain(port.Protocol), port.LocalAddress, ToInt32(port.Port), ToInt32(port.Pid)))
+                .ToList(),
+            activity.Connections
+                .Where(connection => connection.Protocol != TransportProtocol.Unspecified)
+                .Select(connection => new ConnectionReport(
+                    ToDomain(connection.Protocol),
+                    connection.LocalAddress,
+                    ToInt32(connection.LocalPort),
+                    connection.RemoteAddress,
+                    ToInt32(connection.RemotePort),
+                    connection.State,
+                    ToInt32(connection.Pid)))
+                .ToList());
+    }
+
+    private static DomainTransportProtocol ToDomain(TransportProtocol protocol)
+    {
+        return protocol == TransportProtocol.Udp ? DomainTransportProtocol.Udp : DomainTransportProtocol.Tcp;
+    }
+
+    private static int ToInt32(uint value) => value > int.MaxValue ? int.MaxValue : (int)value;
 
     private static long ToInt64(ulong value) => value > long.MaxValue ? long.MaxValue : (long)value;
 

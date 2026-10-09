@@ -9,6 +9,7 @@ public sealed class DeviceSnapshot
 {
     private readonly List<DiskUsage> _disks = [];
     private readonly List<NetworkInterfaceUsage> _networkInterfaces = [];
+    private readonly List<ProcessUsage> _processUsages = [];
 
     public DeviceSnapshot(Guid deviceId, DateTimeOffset recordedAt, DeviceStatus status, int? responseTimeMs = null)
     {
@@ -51,6 +52,16 @@ public sealed class DeviceSnapshot
     public IReadOnlyList<DiskUsage> Disks => _disks;
 
     public IReadOnlyList<NetworkInterfaceUsage> NetworkInterfaces => _networkInterfaces;
+
+    /// <summary>Usage of the most demanding processes at the moment of the snapshot.</summary>
+    public IReadOnlyList<ProcessUsage> ProcessUsages => _processUsages;
+
+    public void AddProcessUsage(ProcessUsage usage)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+
+        _processUsages.Add(usage);
+    }
 
     /// <summary>Attaches the system resources measured at the moment of the snapshot.</summary>
     public void SetResources(ResourceUsage resources)

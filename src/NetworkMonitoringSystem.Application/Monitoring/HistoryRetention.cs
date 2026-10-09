@@ -1,16 +1,16 @@
 namespace NetworkMonitoringSystem.Application.Monitoring;
 
 /// <summary>How many history records one clean-up removed.</summary>
-public readonly record struct HistoryCleanupResult(int Snapshots, int Outages, int Events)
+public readonly record struct HistoryCleanupResult(int Snapshots, int Outages, int Events, int ProcessRuns = 0, int ListeningPorts = 0)
 {
-    public int Total => Snapshots + Outages + Events;
+    public int Total => Snapshots + Outages + Events + ProcessRuns + ListeningPorts;
 }
 
 public interface IHistoryRetentionService
 {
     /// <summary>
-    /// Deletes history older than the configured retention period: snapshots, outages that have ended
-    /// and events. An outage that is still in progress is kept however old it is.
+    /// Deletes history older than the configured retention period: snapshots, events, and outages, process runs
+    /// and port periods that have ended. Whatever is still in progress is kept however old it is.
     /// </summary>
     Task<HistoryCleanupResult> CleanUpAsync(CancellationToken cancellationToken = default);
 }

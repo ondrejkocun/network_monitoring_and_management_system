@@ -182,6 +182,7 @@ public class AgentServiceTests
             new FixedSettingsRepository(_settings),
             _history,
             new AvailabilityRecorder(_history),
+            new DeviceActivityRecorder(new InMemoryDeviceActivityRepository(_history), _history),
             _unitOfWork,
             Options.Create(new AgentEnrollmentOptions { EnrollmentToken = configuredToken }),
             _time);

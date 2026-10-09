@@ -92,6 +92,57 @@ public sealed class InMemoryMonitoringHistoryRepository : IMonitoringHistoryRepo
     }
 }
 
+public sealed class InMemoryDeviceActivityRepository : IDeviceActivityRepository
+{
+    private readonly InMemoryMonitoringHistoryRepository? _history;
+
+    /// <param name="history">Where snapshots are stored, to look up the latest process usage in.</param>
+    public InMemoryDeviceActivityRepository(InMemoryMonitoringHistoryRepository? history = null)
+    {
+        _history = history;
+    }
+
+    public List<ProcessRun> ProcessRuns { get; } = [];
+
+    public List<ListeningPort> ListeningPorts { get; } = [];
+
+    public List<ActiveConnection> Connections { get; } = [];
+
+    public Task<IReadOnlyList<ProcessRun>> GetRunningProcessesAsync(Guid deviceId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<ProcessRun>>(ProcessRuns.Where(run => run.DeviceId == deviceId && run.IsRunning).ToList());
+    }
+
+    public Task<IReadOnlyList<ListeningPort>> GetOpenPortsAsync(Guid deviceId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<ListeningPort>>(ListeningPorts.Where(port => port.DeviceId == deviceId && port.IsOpen).ToList());
+    }
+
+    public Task<IReadOnlyList<ActiveConnection>> GetConnectionsAsync(Guid deviceId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<ActiveConnection>>(Connections.Where(connection => connection.DeviceId == deviceId).ToList());
+    }
+
+    public Task<IReadOnlyList<ProcessUsage>> GetLatestProcessUsagesAsync(Guid deviceId, CancellationToken cancellationToken = default)
+    {
+        var latest = _history?.Snapshots.LastOrDefault(snapshot => snapshot.DeviceId == deviceId && snapshot.ProcessUsages.Count > 0);
+
+        return Task.FromResult(latest?.ProcessUsages ?? []);
+    }
+
+    public void AddProcessRun(ProcessRun processRun) => ProcessRuns.Add(processRun);
+
+    public void AddListeningPort(ListeningPort port) => ListeningPorts.Add(port);
+
+    public Task ReplaceConnectionsAsync(Guid deviceId, IReadOnlyList<ActiveConnection> connections, CancellationToken cancellationToken = default)
+    {
+        Connections.RemoveAll(connection => connection.DeviceId == deviceId);
+        Connections.AddRange(connections);
+
+        return Task.CompletedTask;
+    }
+}
+
 public sealed class CountingUnitOfWork : IUnitOfWork
 {
     public int SaveCount { get; private set; }

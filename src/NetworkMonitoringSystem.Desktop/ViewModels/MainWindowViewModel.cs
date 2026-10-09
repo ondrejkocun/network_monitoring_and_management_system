@@ -21,6 +21,9 @@ public sealed class MainWindowViewModel : ViewModelBase
     private bool _settingsLoaded;
     private DeviceRowViewModel? _selectedDevice;
     private DeviceResourcesViewModel? _selectedDeviceResources;
+    private DeviceActivityViewModel? _selectedDeviceActivity;
+    private DeviceResourcesReply? _shownResources;
+    private DeviceActivityReply? _shownActivity;
     private string _resourcesMessage = NoDeviceSelectedMessage;
     private bool _isRebuildingList;
 
@@ -79,6 +82,9 @@ public sealed class MainWindowViewModel : ViewModelBase
             if (value?.Id != previousId)
             {
                 SelectedDeviceResources = null;
+                SelectedDeviceActivity = null;
+                _shownResources = null;
+                _shownActivity = null;
                 ResourcesMessage = value is null ? NoDeviceSelectedMessage : "Načítavam…";
             }
 
@@ -91,6 +97,15 @@ public sealed class MainWindowViewModel : ViewModelBase
     {
         get => _selectedDeviceResources;
         private set => SetProperty(ref _selectedDeviceResources, value);
+    }
+
+    /// <summary>
+    /// Processes, open ports and connections of the selected device, or null when its agent has reported none.
+    /// </summary>
+    public DeviceActivityViewModel? SelectedDeviceActivity
+    {
+        get => _selectedDeviceActivity;
+        private set => SetProperty(ref _selectedDeviceActivity, value);
     }
 
     /// <summary>Explains why no resources are shown; empty when they are.</summary>
@@ -113,6 +128,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         try
         {
             var resources = await _server.GetDeviceResourcesAsync(device.Id);
+            var activity = await _server.GetDeviceActivityAsync(device.Id);
 
             // The answer may arrive after the user has selected another device.
             if (SelectedDevice?.Id != device.Id)
@@ -120,7 +136,22 @@ public sealed class MainWindowViewModel : ViewModelBase
                 return;
             }
 
-            SelectedDeviceResources = resources.HasData ? new DeviceResourcesViewModel(resources) : null;
+            // Unchanged data keep their view models, so the lists on screen do not jump back to the top
+            // every time the device list is refreshed.
+            if (!resources.Equals(_shownResources))
+            {
+                _shownResources = resources;
+                SelectedDeviceResources = resources.HasData ? new DeviceResourcesViewModel(resources) : null;
+            }
+
+            if (!activity.Equals(_shownActivity))
+            {
+                _shownActivity = activity;
+
+                var activityViewModel = new DeviceActivityViewModel(activity);
+                SelectedDeviceActivity = activityViewModel.IsEmpty ? null : activityViewModel;
+            }
+
             ResourcesMessage = resources.HasData
                 ? string.Empty
                 : "Zariadenie zatiaľ neposlalo žiadne údaje o prostriedkoch. Posiela ich len zariadenie s agentom.";

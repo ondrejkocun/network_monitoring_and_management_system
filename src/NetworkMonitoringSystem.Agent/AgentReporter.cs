@@ -16,6 +16,7 @@ public sealed class AgentReporter
     private readonly AgentApi.AgentApiClient _client;
     private readonly IAgentIdentityStore _identityStore;
     private readonly ISystemMetricsCollector _metricsCollector;
+    private readonly ISystemActivityCollector _activityCollector;
     private readonly AgentOptions _options;
     private readonly ILogger<AgentReporter> _logger;
 
@@ -23,12 +24,14 @@ public sealed class AgentReporter
         AgentApi.AgentApiClient client,
         IAgentIdentityStore identityStore,
         ISystemMetricsCollector metricsCollector,
+        ISystemActivityCollector activityCollector,
         IOptions<AgentOptions> options,
         ILogger<AgentReporter> logger)
     {
         _client = client;
         _identityStore = identityStore;
         _metricsCollector = metricsCollector;
+        _activityCollector = activityCollector;
         _options = options.Value;
         _logger = logger;
     }
@@ -50,6 +53,7 @@ public sealed class AgentReporter
                 {
                     Credentials = new AgentCredentials { DeviceId = identity.DeviceId, AgentKey = identity.AgentKey },
                     Metrics = CollectMetrics(),
+                    Activity = CollectActivity(),
                 },
                 cancellationToken: cancellationToken);
 
@@ -85,6 +89,20 @@ public sealed class AgentReporter
         {
             // A failed measurement must not stop the device from reporting that it is alive.
             _logger.LogWarning(exception, "System resources could not be measured; reporting without them.");
+
+            return null;
+        }
+    }
+
+    private SystemActivity? CollectActivity()
+    {
+        try
+        {
+            return _activityCollector.Collect();
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Processes, ports and connections could not be read; reporting without them.");
 
             return null;
         }

@@ -13,6 +13,7 @@ public sealed class AgentService : IAgentService
     private readonly IMonitoringSettingsRepository _settingsRepository;
     private readonly IMonitoringHistoryRepository _history;
     private readonly AvailabilityRecorder _recorder;
+    private readonly DeviceActivityRecorder _activityRecorder;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IOptions<AgentEnrollmentOptions> _enrollmentOptions;
     private readonly TimeProvider _timeProvider;
@@ -22,6 +23,7 @@ public sealed class AgentService : IAgentService
         IMonitoringSettingsRepository settingsRepository,
         IMonitoringHistoryRepository history,
         AvailabilityRecorder recorder,
+        DeviceActivityRecorder activityRecorder,
         IUnitOfWork unitOfWork,
         IOptions<AgentEnrollmentOptions> enrollmentOptions,
         TimeProvider timeProvider)
@@ -30,6 +32,7 @@ public sealed class AgentService : IAgentService
         _settingsRepository = settingsRepository;
         _history = history;
         _recorder = recorder;
+        _activityRecorder = activityRecorder;
         _unitOfWork = unitOfWork;
         _enrollmentOptions = enrollmentOptions;
         _timeProvider = timeProvider;
@@ -99,6 +102,7 @@ public sealed class AgentService : IAgentService
     public async Task<AgentHeartbeatResult> ReportHeartbeatAsync(
         AgentCredentials credentials,
         SystemMetricsReport? metrics = null,
+        SystemActivityReport? activity = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(credentials);
@@ -113,14 +117,21 @@ public sealed class AgentService : IAgentService
             throw new AgentAuthenticationException("Agent credentials are not valid.");
         }
 
-        await _recorder.RecordOnlineAsync(
+        var now = _timeProvider.GetUtcNow();
+        var settings = await _settingsRepository.GetAsync(cancellationToken);
+
+        var snapshot = await _recorder.RecordOnlineAsync(
             device,
-            _timeProvider.GetUtcNow(),
+            now,
             resources: metrics?.ToResourceUsage(),
             cancellationToken: cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var settings = await _settingsRepository.GetAsync(cancellationToken);
+        if (activity is not null)
+        {
+            await _activityRecorder.RecordAsync(device, activity, snapshot, settings.TopProcessCount, now, cancellationToken);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new AgentHeartbeatResult(settings.SyncIntervalSeconds);
     }

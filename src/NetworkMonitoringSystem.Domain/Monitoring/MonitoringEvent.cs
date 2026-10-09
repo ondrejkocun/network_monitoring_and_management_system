@@ -7,6 +7,7 @@ public enum MonitoringEventType
     DeviceWentOffline = 2,
     SettingsChanged = 3,
     DeviceRemoved = 4,
+    PortOpened = 5,
 }
 
 public enum EventSeverity

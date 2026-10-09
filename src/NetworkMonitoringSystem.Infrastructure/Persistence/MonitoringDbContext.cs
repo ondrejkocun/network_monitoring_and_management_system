@@ -21,6 +21,12 @@ public sealed class MonitoringDbContext : DbContext
 
     public DbSet<MonitoringEvent> Events => Set<MonitoringEvent>();
 
+    public DbSet<ProcessRun> ProcessRuns => Set<ProcessRun>();
+
+    public DbSet<ListeningPort> ListeningPorts => Set<ListeningPort>();
+
+    public DbSet<ActiveConnection> ActiveConnections => Set<ActiveConnection>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MonitoringDbContext).Assembly);
