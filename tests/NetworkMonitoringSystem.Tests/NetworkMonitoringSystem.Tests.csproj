@@ -22,6 +22,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\NetworkMonitoringSystem.Domain\NetworkMonitoringSystem.Domain.csproj" />
+    <ProjectReference Include="..\..\src\NetworkMonitoringSystem.Application\NetworkMonitoringSystem.Application.csproj" />
+    <ProjectReference Include="..\..\src\NetworkMonitoringSystem.Infrastructure\NetworkMonitoringSystem.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\NetworkMonitoringSystem.Desktop\NetworkMonitoringSystem.Desktop.csproj" />
   </ItemGroup>
 
