@@ -31,5 +31,12 @@ public partial class MainWindow : Window
             _refreshTimer.Start();
         };
         Closed += (_, _) => _refreshTimer.Stop();
+
+        // Signing out and an expired session both end in the sign-in window, which the application shows next.
+        _viewModel.SessionEnded += (_, _) =>
+        {
+            _refreshTimer.Stop();
+            Close();
+        };
     }
 }

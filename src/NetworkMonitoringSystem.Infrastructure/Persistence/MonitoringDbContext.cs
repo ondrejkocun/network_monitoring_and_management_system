@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NetworkMonitoringSystem.Domain.Access;
 using NetworkMonitoringSystem.Domain.Devices;
 using NetworkMonitoringSystem.Domain.Monitoring;
 
@@ -26,6 +27,12 @@ public sealed class MonitoringDbContext : DbContext
     public DbSet<ListeningPort> ListeningPorts => Set<ListeningPort>();
 
     public DbSet<ActiveConnection> ActiveConnections => Set<ActiveConnection>();
+
+    public DbSet<User> Users => Set<User>();
+
+    public DbSet<Role> Roles => Set<Role>();
+
+    public DbSet<UserSession> UserSessions => Set<UserSession>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

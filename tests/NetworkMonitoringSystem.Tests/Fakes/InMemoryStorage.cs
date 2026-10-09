@@ -1,8 +1,10 @@
 namespace NetworkMonitoringSystem.Tests.Fakes;
 
+using NetworkMonitoringSystem.Application.Access;
 using NetworkMonitoringSystem.Application.Common;
 using NetworkMonitoringSystem.Application.Devices;
 using NetworkMonitoringSystem.Application.Monitoring;
+using NetworkMonitoringSystem.Domain.Access;
 using NetworkMonitoringSystem.Domain.Devices;
 using NetworkMonitoringSystem.Domain.Monitoring;
 
@@ -212,4 +214,48 @@ public sealed class MutableTimeProvider(DateTimeOffset now) : TimeProvider
     public override DateTimeOffset GetUtcNow() => _now;
 
     public void Advance(TimeSpan by) => _now += by;
+}
+
+public sealed class InMemoryUserRepository : IUserRepository
+{
+    public List<User> Users { get; } = [];
+
+    public List<Role> Roles { get; } = [];
+
+    public List<UserSession> Sessions { get; } = [];
+
+    public Task<bool> AnyUserExistsAsync(CancellationToken cancellationToken = default) => Task.FromResult(Users.Count > 0);
+
+    public Task<User?> GetUserByNameAsync(string userName, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Users.FirstOrDefault(user => user.UserName == userName));
+    }
+
+    public Task<User?> GetUserByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Users.FirstOrDefault(user => user.Id == id));
+    }
+
+    public Task<Role?> GetRoleByNameAsync(string name, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Roles.FirstOrDefault(role => role.Name == name));
+    }
+
+    public void AddUser(User user) => Users.Add(user);
+
+    public void AddRole(Role role) => Roles.Add(role);
+
+    public Task<UserSession?> GetSessionAsync(string tokenHash, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Sessions.FirstOrDefault(session => session.TokenHash == tokenHash));
+    }
+
+    public void AddSession(UserSession session) => Sessions.Add(session);
+
+    public void RemoveSession(UserSession session) => Sessions.Remove(session);
+
+    public Task<int> DeleteSessionsExpiredBeforeAsync(DateTimeOffset time, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Sessions.RemoveAll(session => session.ExpiresAt < time));
+    }
 }

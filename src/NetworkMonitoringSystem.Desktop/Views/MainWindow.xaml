@@ -19,6 +19,8 @@
         </Grid.RowDefinitions>
 
         <DockPanel Grid.Row="0" Margin="0,0,0,8">
+            <Button DockPanel.Dock="Right" Content="Odhlásiť" Padding="12,4" Margin="8,0,0,0" Command="{Binding LogoutCommand}" />
+            <TextBlock DockPanel.Dock="Right" Text="{Binding CurrentUserText}" VerticalAlignment="Center" Margin="16,0,0,0" Foreground="Gray" />
             <Button DockPanel.Dock="Right" Content="Obnoviť" Padding="12,4" Command="{Binding RefreshCommand}" />
             <Button DockPanel.Dock="Right" Content="Odstrániť vybrané" Padding="12,4" Margin="0,0,8,0"
                     Command="{Binding RemoveDeviceCommand}" />

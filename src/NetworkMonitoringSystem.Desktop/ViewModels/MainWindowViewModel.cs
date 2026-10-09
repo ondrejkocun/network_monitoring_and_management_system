@@ -30,6 +30,8 @@ public sealed class MainWindowViewModel : ViewModelBase
     private DeviceActivityReply? _shownActivity;
     private string _resourcesMessage = NoDeviceSelectedMessage;
     private bool _isRebuildingList;
+    private bool _sessionEnded;
+    private string _currentUserName = string.Empty;
     private DeviceHistoryViewModel? _selectedDeviceHistory;
     private HistoryPeriodOption _selectedHistoryPeriod;
     private DateTimeOffset? _historyLoadedAt;
@@ -53,6 +55,52 @@ public sealed class MainWindowViewModel : ViewModelBase
         SaveSyncIntervalCommand = new AsyncRelayCommand(
             SaveSyncIntervalAsync,
             () => int.TryParse(SyncIntervalText, NumberStyles.None, CultureInfo.InvariantCulture, out _));
+        LogoutCommand = new AsyncRelayCommand(LogoutAsync);
+    }
+
+    /// <summary>
+    /// Raised when the user signs out or the server no longer accepts the session. The window closes
+    /// and the user is asked to sign in again; <see cref="SessionEndMessage"/> says why, when there is a reason.
+    /// </summary>
+    public event EventHandler? SessionEnded;
+
+    public AsyncRelayCommand LogoutCommand { get; }
+
+    /// <summary>Name of the signed-in user, shown in the window.</summary>
+    public string CurrentUserName
+    {
+        get => _currentUserName;
+        set
+        {
+            if (SetProperty(ref _currentUserName, value))
+            {
+                OnPropertyChanged(nameof(CurrentUserText));
+            }
+        }
+    }
+
+    public string CurrentUserText => string.IsNullOrEmpty(CurrentUserName) ? string.Empty : $"Prihlásený: {CurrentUserName}";
+
+    /// <summary>What to tell the user at the next sign-in; empty when they signed out themselves.</summary>
+    public string SessionEndMessage { get; private set; } = string.Empty;
+
+    private async Task LogoutAsync()
+    {
+        await _server.LogoutAsync();
+
+        EndSession(string.Empty);
+    }
+
+    private void EndSession(string message)
+    {
+        if (_sessionEnded)
+        {
+            return;
+        }
+
+        _sessionEnded = true;
+        SessionEndMessage = message;
+        SessionEnded?.Invoke(this, EventArgs.Empty);
     }
 
     public string Title => "Network Monitoring & Management System";
@@ -335,6 +383,10 @@ public sealed class MainWindowViewModel : ViewModelBase
             var online = Devices.Count(device => device.Status == DeviceStatus.Online);
             StatusMessage = $"Pripojené k serveru. Zariadenia: {Devices.Count}, z toho online: {online}.";
         }
+        catch (ServerClientException exception) when (exception.Kind == ServerErrorKind.NotSignedIn)
+        {
+            EndSession("Prihlásenie vypršalo alebo bolo zrušené. Prihláste sa znova.");
+        }
         catch (ServerClientException exception)
         {
             StatusMessage = Describe(exception);
@@ -432,7 +484,8 @@ public sealed class MainWindowViewModel : ViewModelBase
         return exception.Kind switch
         {
             ServerErrorKind.Unavailable => "Server nie je dostupný.",
-            ServerErrorKind.AccessDenied => "Server odmietol prístup.",
+            ServerErrorKind.AccessDenied => "Na túto operáciu nemáte oprávnenie.",
+            ServerErrorKind.NotSignedIn => "Prihlásenie vypršalo. Prihláste sa znova.",
             ServerErrorKind.InvalidInput => $"Server odmietol zadané údaje: {exception.Message}",
             _ => $"Chyba servera: {exception.Message}",
         };

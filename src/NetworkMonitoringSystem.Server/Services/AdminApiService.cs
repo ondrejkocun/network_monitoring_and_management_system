@@ -1,6 +1,8 @@
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
+using NetworkMonitoringSystem.Application.Access;
 using NetworkMonitoringSystem.Application.Devices;
+using NetworkMonitoringSystem.Domain.Access;
 using NetworkMonitoringSystem.Application.Monitoring;
 using NetworkMonitoringSystem.Contracts.Admin;
 using DomainEventSeverity = NetworkMonitoringSystem.Domain.Monitoring.EventSeverity;
@@ -18,29 +20,74 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
     private readonly IDeviceService _deviceService;
     private readonly IMonitoringSettingsService _settingsService;
     private readonly IDeviceHistoryService _historyService;
+    private readonly IAuthenticationService _authenticationService;
+    private readonly DeniedAccessLog _deniedAccessLog;
 
     public AdminApiService(
         IDeviceService deviceService,
         IMonitoringSettingsService settingsService,
-        IDeviceHistoryService historyService)
+        IDeviceHistoryService historyService,
+        IAuthenticationService authenticationService,
+        DeniedAccessLog deniedAccessLog)
     {
         _historyService = historyService;
+        _authenticationService = authenticationService;
+        _deniedAccessLog = deniedAccessLog;
         _deviceService = deviceService;
         _settingsService = settingsService;
     }
 
+    public override async Task<LoginReply> Login(LoginRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var result = await _authenticationService.LoginAsync(request.UserName, request.Password, context.CancellationToken);
+
+            var reply = new LoginReply
+            {
+                Token = result.Token,
+                ExpiresAt = Timestamp.FromDateTimeOffset(result.ExpiresAt),
+                UserName = result.User.UserName,
+            };
+            reply.Permissions.AddRange(System.Enum.GetValues<Permission>().Where(result.User.Can).Select(permission => permission.ToString()));
+
+            return reply;
+        }
+        catch (AuthenticationFailedException exception)
+        {
+            throw new RpcException(new Status(StatusCode.Unauthenticated, exception.Message));
+        }
+    }
+
+    public override async Task<LogoutReply> Logout(LogoutRequest request, ServerCallContext context)
+    {
+        await _authenticationService.LogoutAsync(AdminAuthenticationInterceptor.ReadToken(context) ?? string.Empty, context.CancellationToken);
+
+        return new LogoutReply();
+    }
+
     public override async Task<ListDevicesReply> ListDevices(ListDevicesRequest request, ServerCallContext context)
     {
+        var user = AdminAuthenticationInterceptor.GetUser(context);
+
+        if (!user.CanOnSomeDevice(Permission.ViewDevices))
+        {
+            throw await DenyAsync(context, user, deviceId: null);
+        }
+
         var devices = await _deviceService.GetDevicesAsync(context.CancellationToken);
 
+        // A user whose rules name single devices sees only those.
         var reply = new ListDevicesReply();
-        reply.Devices.AddRange(devices.Select(ToDeviceInfo));
+        reply.Devices.AddRange(devices.Where(device => user.CanOnDevice(Permission.ViewDevices, device.Id)).Select(ToDeviceInfo));
 
         return reply;
     }
 
     public override async Task<DeviceInfo> AddAgentlessDevice(AddAgentlessDeviceRequest request, ServerCallContext context)
     {
+        await RequireAsync(context, Permission.ManageDevices);
+
         try
         {
             var device = await _deviceService.RegisterDeviceAsync(
@@ -57,7 +104,9 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
 
     public override async Task<RemoveDeviceReply> RemoveDevice(RemoveDeviceRequest request, ServerCallContext context)
     {
-        if (!Guid.TryParse(request.Id, out var id) || !await _deviceService.RemoveDeviceAsync(id, context.CancellationToken))
+        var id = await AuthorizeForDeviceAsync(context, Permission.ManageDevices, request.Id);
+
+        if (id is null || !await _deviceService.RemoveDeviceAsync(id.Value, context.CancellationToken))
         {
             throw new RpcException(new Status(StatusCode.NotFound, "The device does not exist."));
         }
@@ -67,7 +116,7 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
 
     public override async Task<DeviceResourcesReply> GetDeviceResources(GetDeviceResourcesRequest request, ServerCallContext context)
     {
-        var resources = Guid.TryParse(request.Id, out var id)
+        var resources = await AuthorizeForDeviceAsync(context, Permission.ViewDevices, request.Id) is { } id
             ? await _deviceService.GetLatestResourcesAsync(id, context.CancellationToken)
             : null;
 
@@ -112,7 +161,7 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
     {
         var reply = new DeviceActivityReply();
 
-        if (!Guid.TryParse(request.Id, out var id))
+        if (await AuthorizeForDeviceAsync(context, Permission.ViewDevices, request.Id) is not { } id)
         {
             return reply;
         }
@@ -172,7 +221,7 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
 
         try
         {
-            history = Guid.TryParse(request.Id, out var id)
+            history = await AuthorizeForDeviceAsync(context, Permission.ViewDevices, request.Id) is { } id
                 ? await _historyService.GetHistoryAsync(id, request.From.ToDateTimeOffset(), request.To.ToDateTimeOffset(), context.CancellationToken)
                 : null;
         }
@@ -242,6 +291,8 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
 
     public override async Task<MonitoringSettingsInfo> UpdateSyncInterval(UpdateSyncIntervalRequest request, ServerCallContext context)
     {
+        await RequireAsync(context, Permission.ManageSettings);
+
         try
         {
             return ToSettingsInfo(
@@ -251,6 +302,55 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         {
             throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
         }
+    }
+
+    /// <summary>Refuses the call unless the user holds the permission for all devices.</summary>
+    private async Task RequireAsync(ServerCallContext context, Permission permission)
+    {
+        var user = AdminAuthenticationInterceptor.GetUser(context);
+
+        if (!user.Can(permission))
+        {
+            throw await DenyAsync(context, user, deviceId: null);
+        }
+    }
+
+    /// <summary>Refuses the call unless the user holds the permission for the device.</summary>
+    /// <returns>The device identifier, or null when the text is not one and so cannot name any device.</returns>
+    private async Task<Guid?> AuthorizeForDeviceAsync(ServerCallContext context, Permission permission, string deviceIdText)
+    {
+        var user = AdminAuthenticationInterceptor.GetUser(context);
+
+        if (!Guid.TryParse(deviceIdText, out var deviceId))
+        {
+            return user.CanOnSomeDevice(permission) ? null : throw await DenyAsync(context, user, deviceId: null);
+        }
+
+        // Checked before the device is looked up, so a refusal does not reveal whether the device exists.
+        if (!user.CanOnDevice(permission, deviceId))
+        {
+            throw await DenyAsync(context, user, deviceId);
+        }
+
+        return deviceId;
+    }
+
+    private async Task<RpcException> DenyAsync(ServerCallContext context, AuthenticatedUser user, Guid? deviceId)
+    {
+        var operation = context.Method[(context.Method.LastIndexOf('/') + 1)..];
+
+        // A client that keeps repeating a refused call must not fill the event log.
+        if (_deniedAccessLog.ShouldRecord(user.Id, operation, deviceId))
+        {
+            // The device may not exist; an event must not point to a missing one.
+            var existingDeviceId = deviceId is { } id && await _deviceService.GetDeviceAsync(id, context.CancellationToken) is not null
+                ? deviceId
+                : null;
+
+            await _authenticationService.RecordAccessDeniedAsync(user, operation, existingDeviceId, context.CancellationToken);
+        }
+
+        return new RpcException(new Status(StatusCode.PermissionDenied, "You do not have permission for this operation."));
     }
 
     private static DeviceInfo ToDeviceInfo(DeviceDto device)

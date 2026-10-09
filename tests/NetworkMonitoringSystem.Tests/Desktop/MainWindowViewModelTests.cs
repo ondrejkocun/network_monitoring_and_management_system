@@ -652,8 +652,38 @@ public class MainWindowViewModelTests
         Assert.Equal(60, _server.SyncIntervalSeconds);
     }
 
-    private sealed class FakeServerClient : IServerClient
+    internal sealed class FakeServerClient : IServerClient
     {
+        /// <summary>The password the fake server accepts, for any user name.</summary>
+        public string Password { get; set; } = "correct-password";
+
+        public List<string> LoginAttempts { get; } = [];
+
+        public bool IsSignedIn { get; private set; }
+
+        public Task<LoginReply> LoginAsync(string userName, string password, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            LoginAttempts.Add(userName);
+
+            if (password != Password)
+            {
+                throw new ServerClientException(ServerErrorKind.NotSignedIn, "The user name or password is not correct.");
+            }
+
+            IsSignedIn = true;
+
+            return Task.FromResult(new LoginReply { Token = "token", UserName = userName });
+        }
+
+        public Task LogoutAsync(CancellationToken cancellationToken = default)
+        {
+            IsSignedIn = false;
+
+            return Task.CompletedTask;
+        }
+
         public List<DeviceInfo> Devices { get; } = [];
 
         public List<(string Name, string IpAddress)> AddedDevices { get; } = [];

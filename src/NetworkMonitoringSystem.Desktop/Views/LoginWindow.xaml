@@ -1,0 +1,26 @@
+<Window x:Class="NetworkMonitoringSystem.Desktop.Views.LoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:viewModels="clr-namespace:NetworkMonitoringSystem.Desktop.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=viewModels:LoginViewModel}"
+        Title="Prihlásenie – Network Monitoring &amp; Management System"
+        Width="400" SizeToContent="Height" ResizeMode="NoResize" WindowStartupLocation="CenterScreen">
+    <StackPanel Margin="20">
+        <TextBlock Text="Prihlásenie" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,14" />
+
+        <Label Content="_Meno" Target="{Binding ElementName=UserNameBox}" Padding="0,0,0,4" />
+        <TextBox x:Name="UserNameBox" Padding="4" MaxLength="100"
+                 Text="{Binding UserName, UpdateSourceTrigger=PropertyChanged}" />
+
+        <Label Content="_Heslo" Target="{Binding ElementName=PasswordBox}" Padding="0,12,0,4" />
+        <PasswordBox x:Name="PasswordBox" Padding="4" MaxLength="256" />
+
+        <TextBlock Text="{Binding Message}" Foreground="#C62828" TextWrapping="Wrap" Margin="0,12,0,0" MinHeight="32" />
+
+        <Button Content="Prihlásiť" IsDefault="True" Padding="16,6" Margin="0,8,0,0" HorizontalAlignment="Right"
+                IsEnabled="{Binding CanSubmit}" Click="OnLoginClick" />
+    </StackPanel>
+</Window>

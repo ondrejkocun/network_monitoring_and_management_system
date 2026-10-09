@@ -37,6 +37,7 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
             builder.UseEnvironment("Testing");
             builder.UseSetting("ConnectionStrings:Database", database.ConnectionString);
             builder.UseSetting("Agents:EnrollmentToken", Token);
+            Server.TestAdministrator.Configure(builder);
         });
         _channel = GrpcChannel.ForAddress(
             _server.Server.BaseAddress,
@@ -106,7 +107,7 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
         var reporter = CreateReporter(Token);
         await reporter.ReportOnceAsync(CancellationToken.None);
         var identity = _identityStore.Load()!;
-        var admin = new AdminContracts.AdminApi.AdminApiClient(_channel);
+        var admin = new AdminContracts.AdminApi.AdminApiClient(await Server.TestAdministrator.SignInAsync(_channel));
         var deviceId = Guid.Parse(identity.DeviceId);
 
         // Registration alone carries no measurement; only a heartbeat adds one.
@@ -143,7 +144,7 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
         var reporter = CreateReporter(Token);
         await reporter.ReportOnceAsync(CancellationToken.None);
         var identity = _identityStore.Load()!;
-        var admin = new AdminContracts.AdminApi.AdminApiClient(_channel);
+        var admin = new AdminContracts.AdminApi.AdminApiClient(await Server.TestAdministrator.SignInAsync(_channel));
 
         await reporter.ReportOnceAsync(CancellationToken.None);
 

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using NetworkMonitoringSystem.Domain.Access;
 using NetworkMonitoringSystem.Domain.Devices;
 using NetworkMonitoringSystem.Domain.Monitoring;
 
@@ -94,5 +95,9 @@ internal sealed class MonitoringEventConfiguration : IEntityTypeConfiguration<Mo
         builder.HasOne<Device>().WithMany().HasForeignKey(monitoringEvent => monitoringEvent.DeviceId).OnDelete(DeleteBehavior.SetNull);
         builder.HasIndex(monitoringEvent => monitoringEvent.OccurredAt);
         builder.HasIndex(monitoringEvent => monitoringEvent.DeviceId);
+
+        // Events are kept when a user is removed as well.
+        builder.Property(monitoringEvent => monitoringEvent.UserId);
+        builder.HasOne<User>().WithMany().HasForeignKey(monitoringEvent => monitoringEvent.UserId).OnDelete(DeleteBehavior.SetNull);
     }
 }

@@ -211,6 +211,8 @@ Dve spresnenia, ktoré vyplynuli z implementácie:
 
 ### Používatelia a ACL
 
+Implementované tabuľky: `Users`, `Roles`, `UserRoles`, `AccessRules` a navyše `UserSessions` (prihlásené relácie; ukladá sa len odtlačok tokenu a čas vypršania). Používateľ má pri sebe aj počet chybných prihlásení a čas, dokedy je účet zamknutý.
+
 Používateľ má roly, rola má pravidlá. `AccessRule` hovorí: rola smie vykonať `Permission` na zariadení `DeviceId`, alebo na všetkých, ak je `DeviceId` prázdne. Zoznam oprávnení je pevný a definovaný v kóde (napríklad zobrazenie zariadení, správa používateľov a jedno oprávnenie pre každý príkaz vzdialenej správy).
 
 ### Vzdialená správa

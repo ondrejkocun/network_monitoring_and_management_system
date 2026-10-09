@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NetworkMonitoringSystem.Application.Access;
 using NetworkMonitoringSystem.Application.Agents;
 using NetworkMonitoringSystem.Application.Devices;
 using NetworkMonitoringSystem.Application.Monitoring;
@@ -13,6 +14,7 @@ public static class DependencyInjection
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IDeviceService, DeviceService>();
         services.AddScoped<IDeviceHistoryService, DeviceHistoryService>();
+        services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IAgentService, AgentService>();
         services.AddScoped<AvailabilityRecorder>();
         services.AddScoped<DeviceActivityRecorder>();

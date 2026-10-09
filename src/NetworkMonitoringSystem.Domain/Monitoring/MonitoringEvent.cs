@@ -8,6 +8,9 @@ public enum MonitoringEventType
     SettingsChanged = 3,
     DeviceRemoved = 4,
     PortOpened = 5,
+    UserLoggedIn = 6,
+    LoginFailed = 7,
+    AccessDenied = 8,
 }
 
 public enum EventSeverity
@@ -27,7 +30,8 @@ public sealed class MonitoringEvent
         MonitoringEventType type,
         EventSeverity severity,
         string message,
-        Guid? deviceId = null)
+        Guid? deviceId = null,
+        Guid? userId = null)
     {
         if (string.IsNullOrWhiteSpace(message))
         {
@@ -39,6 +43,7 @@ public sealed class MonitoringEvent
         Severity = severity;
         Message = message.Trim();
         DeviceId = deviceId;
+        UserId = userId;
     }
 
     public long Id { get; private set; }
@@ -53,4 +58,7 @@ public sealed class MonitoringEvent
 
     /// <summary>The device the event concerns, or null for an event about the system as a whole.</summary>
     public Guid? DeviceId { get; }
+
+    /// <summary>The user who caused the event, or null when it was not caused by a user.</summary>
+    public Guid? UserId { get; }
 }

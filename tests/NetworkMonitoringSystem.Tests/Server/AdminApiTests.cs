@@ -10,7 +10,6 @@ using NetworkMonitoringSystem.Contracts.Admin;
 using NetworkMonitoringSystem.Contracts.Agents;
 using NetworkMonitoringSystem.Desktop.Services;
 using NetworkMonitoringSystem.Domain.Monitoring;
-using NetworkMonitoringSystem.Server.Services;
 using NetworkMonitoringSystem.Tests.Infrastructure;
 using ContractEventSeverity = NetworkMonitoringSystem.Contracts.Admin.EventSeverity;
 using DomainEventSeverity = NetworkMonitoringSystem.Domain.Monitoring.EventSeverity;
@@ -23,7 +22,7 @@ using DomainDeviceStatus = NetworkMonitoringSystem.Domain.Devices.DeviceStatus;
 /// through the same client the desktop application uses.
 /// </summary>
 [Trait("Category", "Integration")]
-public sealed class AdminApiTests : IClassFixture<DatabaseFixture>, IDisposable
+public sealed class AdminApiTests : IClassFixture<DatabaseFixture>, IAsyncLifetime, IDisposable
 {
     private const string Token = "test-enrollment-token";
 
@@ -41,12 +40,20 @@ public sealed class AdminApiTests : IClassFixture<DatabaseFixture>, IDisposable
             builder.UseEnvironment("Testing");
             builder.UseSetting("ConnectionStrings:Database", database.ConnectionString);
             builder.UseSetting("Agents:EnrollmentToken", Token);
+            TestAdministrator.Configure(builder);
         });
         _channel = GrpcChannel.ForAddress(
             _server.Server.BaseAddress,
             new GrpcChannelOptions { HttpHandler = _server.Server.CreateHandler() });
         _client = new GrpcServerClient(new AdminApi.AdminApiClient(_channel));
     }
+
+    public async Task InitializeAsync()
+    {
+        await _client.LoginAsync(TestAdministrator.UserName, TestAdministrator.Password);
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     public void Dispose()
     {
@@ -224,18 +231,5 @@ public sealed class AdminApiTests : IClassFixture<DatabaseFixture>, IDisposable
 
         Assert.Equal(ServerErrorKind.InvalidInput, exception.Kind);
         Assert.Equal(before, (await _client.GetSettingsAsync()).SyncIntervalSeconds);
-    }
-
-    [Theory]
-    [InlineData(null, true)]
-    [InlineData("127.0.0.1", true)]
-    [InlineData("::1", true)]
-    [InlineData("192.168.50.20", false)]
-    [InlineData("158.193.96.254", false)]
-    public void AdministrationApi_AcceptsOnlyLocalConnections(string? remoteAddress, bool expected)
-    {
-        var address = remoteAddress is null ? null : IPAddress.Parse(remoteAddress);
-
-        Assert.Equal(expected, LocalOnlyInterceptor.IsLocal(address));
     }
 }

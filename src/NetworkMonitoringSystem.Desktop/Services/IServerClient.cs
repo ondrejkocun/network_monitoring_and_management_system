@@ -8,6 +8,13 @@ namespace NetworkMonitoringSystem.Desktop.Services;
 /// </summary>
 public interface IServerClient
 {
+    /// <summary>Signs the user in; the calls that follow are made as that user.</summary>
+    /// <exception cref="ServerClientException">The server could not be reached or the credentials are wrong.</exception>
+    Task<LoginReply> LoginAsync(string userName, string password, CancellationToken cancellationToken = default);
+
+    /// <summary>Ends the session on the server and forgets it. Does not fail when the server cannot be reached.</summary>
+    Task LogoutAsync(CancellationToken cancellationToken = default);
+
     /// <exception cref="ServerClientException">The server could not be reached or refused the call.</exception>
     Task<IReadOnlyList<DeviceInfo>> GetDevicesAsync(CancellationToken cancellationToken = default);
 
@@ -44,8 +51,11 @@ public enum ServerErrorKind
     /// <summary>The server rejected the entered values.</summary>
     InvalidInput,
 
-    /// <summary>The server refused to serve this client.</summary>
+    /// <summary>The user has no permission for the operation.</summary>
     AccessDenied,
+
+    /// <summary>The user is not signed in, the session has expired, or the credentials are wrong.</summary>
+    NotSignedIn,
 
     /// <summary>The item the call refers to no longer exists.</summary>
     NotFound,
