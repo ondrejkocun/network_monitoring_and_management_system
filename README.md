@@ -12,8 +12,8 @@ The project is under development. This is what works today and what is still to 
 |---|---|
 | Device registry stored in PostgreSQL | Done |
 | Agent registration and periodic heartbeat over gRPC | Done |
-| Availability of devices with an agent (online/offline), outages, event log | Done |
-| Monitoring of devices without an agent (ping) | Planned |
+| Availability tracking (online/offline), outages, event log | Done |
+| Devices without an agent, checked by the server with ping | Done |
 | CPU, memory, disk and network interface metrics | Planned |
 | Open ports, processes and active connections | Planned |
 | Network traffic capture | Planned |
@@ -34,11 +34,11 @@ flowchart LR
     Agent -- "gRPC over HTTPS" --> Server
     Server --> Database
     Desktop -. planned .-> Server
-    Server -. "ping, planned" .-> Agentless
+    Server -- ping --> Agentless
 ```
 
 - The **agent** runs on each monitored Windows device. It registers with the server once, receives its own key, and then reports at an interval the server dictates.
-- The **server** authenticates agents and stores what they report. When an agent stays silent for several intervals, the server marks its device offline, opens an outage and writes an event; the outage is closed when the agent reports again. Devices that cannot run an agent will be checked by the server directly.
+- The **server** authenticates agents and stores what they report. Devices that cannot run an agent, such as routers and switches, it checks itself with ping once per interval. When a device has not been seen for several intervals, the server marks it offline, opens an outage and writes an event; the outage is closed when the device is seen again.
 - The **desktop application** is the administrator's console.
 
 The planned data model is described in [docs/datovy-model.md](docs/datovy-model.md) (in Slovak).

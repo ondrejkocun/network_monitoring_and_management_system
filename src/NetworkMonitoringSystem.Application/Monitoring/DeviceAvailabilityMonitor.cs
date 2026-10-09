@@ -5,11 +5,14 @@ namespace NetworkMonitoringSystem.Application.Monitoring;
 
 public interface IDeviceAvailabilityMonitor
 {
-    /// <summary>Marks devices whose agents stopped reporting as offline.</summary>
+    /// <summary>
+    /// Marks devices that have not been seen for too long as offline: agents that stopped reporting
+    /// and devices without an agent that stopped answering the server's checks.
+    /// </summary>
     /// <returns>Number of devices that went offline.</returns>
     Task<int> EvaluateAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Returns how long an agent may stay silent before its device is considered offline.</summary>
+    /// <summary>Returns how long a device may go unseen before it is considered offline.</summary>
     Task<TimeSpan> GetOfflineThresholdAsync(CancellationToken cancellationToken = default);
 }
 
@@ -40,7 +43,7 @@ public sealed class DeviceAvailabilityMonitor : IDeviceAvailabilityMonitor
         var now = _timeProvider.GetUtcNow();
         var threshold = await GetOfflineThresholdAsync(cancellationToken);
 
-        var silentDevices = await _deviceRepository.GetOnlineAgentDevicesNotSeenSinceAsync(now - threshold, cancellationToken);
+        var silentDevices = await _deviceRepository.GetOnlineDevicesNotSeenSinceAsync(now - threshold, cancellationToken);
 
         foreach (var device in silentDevices)
         {

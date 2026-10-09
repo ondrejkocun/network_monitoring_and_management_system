@@ -32,15 +32,21 @@ public sealed class EfDeviceRepository : IDeviceRepository
             cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Device>> GetOnlineAgentDevicesNotSeenSinceAsync(
+    public async Task<IReadOnlyList<Device>> GetOnlineDevicesNotSeenSinceAsync(
         DateTimeOffset threshold,
         CancellationToken cancellationToken = default)
     {
         return await _dbContext.Devices
-            .Where(device => device.MonitoringMode == MonitoringMode.Agent
-                && device.IsEnabled
+            .Where(device => device.IsEnabled
                 && device.Status == DeviceStatus.Online
                 && device.LastSeenAt < threshold)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Device>> GetEnabledAgentlessDevicesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Devices
+            .Where(device => device.MonitoringMode == MonitoringMode.Agentless && device.IsEnabled)
             .ToListAsync(cancellationToken);
     }
 

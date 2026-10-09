@@ -18,13 +18,18 @@ public sealed class AvailabilityRecorder
         _history = history;
     }
 
-    public async Task RecordOnlineAsync(Device device, DateTimeOffset seenAt, CancellationToken cancellationToken = default)
+    /// <summary>Records that the device was observed to be reachable.</summary>
+    public async Task RecordOnlineAsync(
+        Device device,
+        DateTimeOffset seenAt,
+        int? responseTimeMs = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(device);
 
         var cameOnline = device.RecordContact(seenAt);
 
-        _history.AddSnapshot(new DeviceSnapshot(device.Id, seenAt, DeviceStatus.Online));
+        _history.AddSnapshot(new DeviceSnapshot(device.Id, seenAt, DeviceStatus.Online, responseTimeMs));
 
         if (!cameOnline)
         {
@@ -42,6 +47,24 @@ public sealed class AvailabilityRecorder
             device.Id));
     }
 
+    /// <summary>
+    /// Records one failed attempt to reach the device. A single failure does not make an online device offline;
+    /// that happens only after it has not been seen for the configured number of intervals.
+    /// </summary>
+    public void RecordUnreachable(Device device, DateTimeOffset checkedAt)
+    {
+        ArgumentNullException.ThrowIfNull(device);
+
+        _history.AddSnapshot(new DeviceSnapshot(device.Id, checkedAt, DeviceStatus.Offline));
+
+        // A device that has never answered has no contact to wait out, so it is offline straight away.
+        if (device.Status == DeviceStatus.Unknown)
+        {
+            RecordOffline(device, checkedAt);
+        }
+    }
+
+    /// <summary>Records that the device is considered offline.</summary>
     public void RecordOffline(Device device, DateTimeOffset detectedAt)
     {
         ArgumentNullException.ThrowIfNull(device);

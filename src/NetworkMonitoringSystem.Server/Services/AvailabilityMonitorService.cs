@@ -3,7 +3,7 @@ using NetworkMonitoringSystem.Application.Monitoring;
 namespace NetworkMonitoringSystem.Server.Services;
 
 /// <summary>
-/// Periodically checks which agents stopped reporting and marks their devices as offline.
+/// Periodically marks devices that have not been seen for too long as offline.
 /// </summary>
 public sealed class AvailabilityMonitorService : BackgroundService
 {
@@ -23,8 +23,8 @@ public sealed class AvailabilityMonitorService : BackgroundService
     {
         try
         {
-            // While the server was not running no agent could report, so agents first get the full
-            // period to report again before anything is declared offline.
+            // While the server was not running no device could be seen, so devices first get the full
+            // period to be seen again before anything is declared offline.
             await Task.Delay(await GetStartupGracePeriodAsync(stoppingToken), stoppingToken);
 
             while (!stoppingToken.IsCancellationRequested)
@@ -69,7 +69,7 @@ public sealed class AvailabilityMonitorService : BackgroundService
 
             if (wentOffline > 0)
             {
-                _logger.LogWarning("{Count} device(s) stopped reporting and were marked offline.", wentOffline);
+                _logger.LogWarning("{Count} device(s) were not seen for too long and were marked offline.", wentOffline);
             }
         }
         catch (Exception exception) when (exception is not OperationCanceledException)

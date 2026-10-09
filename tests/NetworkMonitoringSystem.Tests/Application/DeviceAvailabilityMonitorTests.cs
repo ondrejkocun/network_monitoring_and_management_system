@@ -91,20 +91,30 @@ public class DeviceAvailabilityMonitorTests
     }
 
     [Fact]
-    public async Task EvaluateAsync_IgnoresDevicesWithoutAgent_AndDevicesNeverSeen()
+    public async Task EvaluateAsync_AlsoMarksSilentDeviceWithoutAgentOffline()
     {
         var agentless = new Device(
             Guid.NewGuid(), "Router", MonitoringMode.Agentless, null, System.Net.IPAddress.Loopback, Start);
         agentless.RecordContact(Start);
-        var neverSeen = new Device(Guid.NewGuid(), "PC-03", MonitoringMode.Agent, "pc-03", null, Start);
         _devices.Add(agentless);
+        _time.Advance(TimeSpan.FromHours(1));
+
+        var wentOffline = await CreateMonitor().EvaluateAsync();
+
+        Assert.Equal(1, wentOffline);
+        Assert.Equal(DeviceStatus.Offline, agentless.Status);
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_IgnoresDevicesNeverSeen()
+    {
+        var neverSeen = new Device(Guid.NewGuid(), "PC-03", MonitoringMode.Agent, "pc-03", null, Start);
         _devices.Add(neverSeen);
         _time.Advance(TimeSpan.FromHours(1));
 
         var wentOffline = await CreateMonitor().EvaluateAsync();
 
         Assert.Equal(0, wentOffline);
-        Assert.Equal(DeviceStatus.Online, agentless.Status);
         Assert.Equal(DeviceStatus.Unknown, neverSeen.Status);
     }
 

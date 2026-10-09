@@ -27,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<IMonitoringSettingsRepository, EfMonitoringSettingsRepository>();
         services.AddScoped<IMonitoringHistoryRepository, EfMonitoringHistoryRepository>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+        services.AddSingleton<IDeviceReachabilityProbe, PingReachabilityProbe>();
 
         return services;
     }

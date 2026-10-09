@@ -87,7 +87,7 @@ public sealed class AgentService : IAgentService
             EventSeverity.Info,
             $"Agent on device '{device.Name}' registered.",
             device.Id));
-        await _recorder.RecordOnlineAsync(device, now, cancellationToken);
+        await _recorder.RecordOnlineAsync(device, now, cancellationToken: cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -110,7 +110,7 @@ public sealed class AgentService : IAgentService
             throw new AgentAuthenticationException("Agent credentials are not valid.");
         }
 
-        await _recorder.RecordOnlineAsync(device, _timeProvider.GetUtcNow(), cancellationToken);
+        await _recorder.RecordOnlineAsync(device, _timeProvider.GetUtcNow(), cancellationToken: cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var settings = await _settingsRepository.GetAsync(cancellationToken);

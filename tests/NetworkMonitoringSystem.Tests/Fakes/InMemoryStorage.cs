@@ -23,13 +23,21 @@ public sealed class InMemoryDeviceRepository : IDeviceRepository
             && string.Equals(device.HostName, hostName, StringComparison.OrdinalIgnoreCase)));
     }
 
-    public Task<IReadOnlyList<Device>> GetOnlineAgentDevicesNotSeenSinceAsync(
+    public Task<IReadOnlyList<Device>> GetEnabledAgentlessDevicesAsync(CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<Device> devices = _devices
+            .Where(device => device.MonitoringMode == MonitoringMode.Agentless && device.IsEnabled)
+            .ToList();
+
+        return Task.FromResult(devices);
+    }
+
+    public Task<IReadOnlyList<Device>> GetOnlineDevicesNotSeenSinceAsync(
         DateTimeOffset threshold,
         CancellationToken cancellationToken = default)
     {
         IReadOnlyList<Device> devices = _devices
-            .Where(device => device.MonitoringMode == MonitoringMode.Agent
-                && device.IsEnabled
+            .Where(device => device.IsEnabled
                 && device.Status == DeviceStatus.Online
                 && device.LastSeenAt < threshold)
             .ToList();

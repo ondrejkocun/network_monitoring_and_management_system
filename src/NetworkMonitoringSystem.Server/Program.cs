@@ -16,6 +16,7 @@ builder.Services.Configure<AgentEnrollmentOptions>(
 
 builder.Services.AddGrpc();
 builder.Services.AddHostedService<AvailabilityMonitorService>();
+builder.Services.AddHostedService<AgentlessCheckService>();
 
 var app = builder.Build();
 

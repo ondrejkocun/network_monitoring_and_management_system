@@ -12,8 +12,11 @@ public interface IDeviceRepository
     /// <summary>Finds the device monitored by an agent with the given host name, ignoring case.</summary>
     Task<Device?> GetAgentDeviceByHostNameAsync(string hostName, CancellationToken cancellationToken = default);
 
-    /// <summary>Returns enabled, online devices with an agent that have not reported since the given time.</summary>
-    Task<IReadOnlyList<Device>> GetOnlineAgentDevicesNotSeenSinceAsync(DateTimeOffset threshold, CancellationToken cancellationToken = default);
+    /// <summary>Returns enabled, online devices that have not been seen since the given time.</summary>
+    Task<IReadOnlyList<Device>> GetOnlineDevicesNotSeenSinceAsync(DateTimeOffset threshold, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns enabled devices that have no agent and are checked by the server.</summary>
+    Task<IReadOnlyList<Device>> GetEnabledAgentlessDevicesAsync(CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<Device>> GetAllAsync(CancellationToken cancellationToken = default);
 
