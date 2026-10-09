@@ -15,6 +15,7 @@ The project is under development. This is what works today and what is still to 
 | Availability tracking (online/offline), outages, event log | Done |
 | Devices without an agent, checked by the server with ping | Done |
 | CPU, memory, disk and network interface metrics | Done |
+| Automatic deletion of history older than the retention period | Done |
 | Open ports, processes and active connections | Planned |
 | Network traffic capture | Planned |
 | Users, roles and access control | Planned |
@@ -39,7 +40,7 @@ flowchart LR
 ```
 
 - The **agent** runs on each monitored Windows device. It registers with the server once, receives its own key, and then reports at an interval the server dictates. Each report carries the processor load, memory use, local disks and network interfaces.
-- The **server** authenticates agents and stores what they report. Devices that cannot run an agent, such as routers and switches, it checks itself with ping once per interval. When a device has not been seen for several intervals, the server marks it offline, opens an outage and writes an event; the outage is closed when the device is seen again.
+- The **server** authenticates agents and stores what they report. Devices that cannot run an agent, such as routers and switches, it checks itself with ping once per interval. When a device has not been seen for several intervals, the server marks it offline, opens an outage and writes an event; the outage is closed when the device is seen again. Once an hour it deletes history older than the retention period (30 days by default).
 - The **desktop application** is the administrator's console. It shows the devices and their status, the latest system resources of the selected device, adds devices without an agent, removes devices and changes the global synchronization interval.
 
 The planned data model is described in [docs/datovy-model.md](docs/datovy-model.md) (in Slovak).

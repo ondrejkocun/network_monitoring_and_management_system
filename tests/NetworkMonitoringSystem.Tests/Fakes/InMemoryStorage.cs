@@ -76,6 +76,16 @@ public sealed class InMemoryMonitoringHistoryRepository : IMonitoringHistoryRepo
         return Task.FromResult(Snapshots.LastOrDefault(snapshot => snapshot.DeviceId == deviceId && snapshot.HasResources));
     }
 
+    public Task<HistoryCleanupResult> DeleteOlderThanAsync(DateTimeOffset cutoff, CancellationToken cancellationToken = default)
+    {
+        var result = new HistoryCleanupResult(
+            Snapshots.RemoveAll(snapshot => snapshot.RecordedAt < cutoff),
+            Outages.RemoveAll(outage => outage.EndedAt < cutoff),
+            Events.RemoveAll(monitoringEvent => monitoringEvent.OccurredAt < cutoff));
+
+        return Task.FromResult(result);
+    }
+
     public Task<Outage?> GetOngoingOutageAsync(Guid deviceId, CancellationToken cancellationToken = default)
     {
         return Task.FromResult(Outages.LastOrDefault(outage => outage.DeviceId == deviceId && outage.IsOngoing));

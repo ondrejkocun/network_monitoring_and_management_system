@@ -18,6 +18,7 @@ builder.Services.AddGrpc()
     .AddServiceOptions<AdminApiService>(options => options.Interceptors.Add<LocalOnlyInterceptor>());
 builder.Services.AddHostedService<AvailabilityMonitorService>();
 builder.Services.AddHostedService<AgentlessCheckService>();
+builder.Services.AddHostedService<HistoryCleanupService>();
 
 var app = builder.Build();
 

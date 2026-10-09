@@ -17,6 +17,12 @@ public interface IMonitoringHistoryRepository
     /// <summary>Returns the most recent snapshot of the device that carries system resources, if there is one.</summary>
     Task<DeviceSnapshot?> GetLatestResourceSnapshotAsync(Guid deviceId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Deletes snapshots recorded, outages ended and events occurred before the given time, immediately
+    /// and without <see cref="Common.IUnitOfWork"/>. Outages that are still in progress are kept.
+    /// </summary>
+    Task<HistoryCleanupResult> DeleteOlderThanAsync(DateTimeOffset cutoff, CancellationToken cancellationToken = default);
+
     /// <summary>Returns the outage of the device that has not ended yet, if there is one.</summary>
     Task<Outage?> GetOngoingOutageAsync(Guid deviceId, CancellationToken cancellationToken = default);
 }

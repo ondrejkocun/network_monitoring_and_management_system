@@ -35,6 +35,24 @@ public sealed class EfMonitoringHistoryRepository : IMonitoringHistoryRepository
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<HistoryCleanupResult> DeleteOlderThanAsync(DateTimeOffset cutoff, CancellationToken cancellationToken = default)
+    {
+        // Each statement runs directly in the database; disks and interfaces of a snapshot go with it by cascade.
+        var snapshots = await _dbContext.DeviceSnapshots
+            .Where(snapshot => snapshot.RecordedAt < cutoff)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        var outages = await _dbContext.Outages
+            .Where(outage => outage.EndedAt != null && outage.EndedAt < cutoff)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        var events = await _dbContext.Events
+            .Where(monitoringEvent => monitoringEvent.OccurredAt < cutoff)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        return new HistoryCleanupResult(snapshots, outages, events);
+    }
+
     public Task<Outage?> GetOngoingOutageAsync(Guid deviceId, CancellationToken cancellationToken = default)
     {
         return _dbContext.Outages
