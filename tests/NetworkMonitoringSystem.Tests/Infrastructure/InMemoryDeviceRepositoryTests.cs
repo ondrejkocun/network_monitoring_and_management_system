@@ -10,11 +10,15 @@ public class InMemoryDeviceRepositoryTests
     {
         var repository = new InMemoryDeviceRepository();
         var id = Guid.NewGuid();
-        await repository.AddAsync(new Device(id, "Server 01", "server-01.local"));
+        await repository.AddAsync(CreateDevice(id, "Server 01"));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => repository.AddAsync(new Device(id, "Server 02", "server-02.local")));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => repository.AddAsync(CreateDevice(id, "Server 02")));
 
         Assert.Single(await repository.GetAllAsync());
+    }
+
+    private static Device CreateDevice(Guid id, string name)
+    {
+        return new Device(id, name, MonitoringMode.Agent, "server.local", null, DateTimeOffset.UtcNow);
     }
 }

@@ -2,7 +2,7 @@ namespace NetworkMonitoringSystem.Application.Devices;
 
 public interface IDeviceService
 {
-    Task<DeviceDto> RegisterDeviceAsync(string name, string hostName, CancellationToken cancellationToken = default);
+    Task<DeviceDto> RegisterDeviceAsync(RegisterDeviceRequest request, CancellationToken cancellationToken = default);
 
     Task<DeviceDto?> GetDeviceAsync(Guid id, CancellationToken cancellationToken = default);
 

@@ -15,6 +15,7 @@ coverage/
 *.coverage
 *.coveragexml
 
+.env
 appsettings.Local.json
 appsettings.*.Local.json
 *.pfx

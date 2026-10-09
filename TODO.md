@@ -33,20 +33,18 @@
 
 ## Nasledujuce ulohy
 
-- [ ] Pripravit Etapu 2 - databazovy zaklad.
-  - Ciel: nakonfigurovat EF Core a prvy model zariadenia pre perzistenciu.
-  - Subory/projekty: `NetworkMonitoringSystem.Infrastructure`, `NetworkMonitoringSystem.Domain`, testy.
-  - Zavislosti: rozhodnutie medzi PostgreSQL a SQL Server.
-  - Overenie: izolovane databazove testy, ziadna zavislost od produkcnej databazy.
+- [x] Pripravit Etapu 2 - databazovy zaklad.
+  - Subory/projekty: `src/NetworkMonitoringSystem.Infrastructure/Persistence`, `EfDeviceRepository`, `src/NetworkMonitoringSystem.Domain/Devices`, `Domain/Monitoring`, `docker-compose.yml`, `dotnet-tools.json`.
+  - Overenie: 34 testov uspesnych vratane 4 databazovych proti PostgreSQL v kontajneri; server po starte vytvoril tabulky `Devices` a `MonitoringSettings`.
 
 ## Povinne casti podla zadania
 
 Vsetky ulohy v tejto casti vyplyvaju z `docs/zadanie.md` a su povinne, nie volitelne rozsirenia. Cislo v zatvorke odkazuje na bod obsahu zadania.
 
-- [ ] Navrh datoveho modelu (bod 2).
+- [x] Navrh datoveho modelu (bod 2).
+  - Stav: schvaleny 2026-10-09, je v `docs/datovy-model.md`. Tabulky sa zavadzaju postupne podla poradia v tom dokumente.
   - Ciel: entity pre zariadenia, ich stavy, systemove prostriedky, porty, procesy, vypadky a udalosti; vztahy medzi nimi.
   - Vystup: diagram datoveho modelu pouzitelny aj v pisomnej casti prace.
-  - Zavislosti: vyber databazy.
   - Overenie: model pokryva vsetky udaje vymenovane v zadani.
 
 - [ ] Klient-server komunikacia (bod 2, 3).
@@ -88,7 +86,7 @@ Vsetky ulohy v tejto casti vyplyvaju z `docs/zadanie.md` a su povinne, nie volit
 
 - [ ] Vzdialena sprava (bod 5).
   - Ciel: vykonavanie vybranych prikazov podla opravneni, audit, zakaz lubovolnych shell prikazov.
-  - Zoznam prikazov: pozri navrh v casti "Navrhy cakajuce na schvalenie".
+  - Zoznam prikazov: pozri cast "Schvalene navrhy".
   - Overenie: test neopravnenych poziadaviek a zlyhania komunikacie.
 
 - [ ] WPF dashboard.
@@ -121,9 +119,13 @@ Rozhodnute pouzivatelom 2026-10-09:
 - Sleduju sa aj zariadenia bez agenta (napr. router, switch); kontroluje ich server.
 - Interval synchronizacie stavov sa nastavuje globalne pre cely system.
 
-## Navrhy cakajuce na schvalenie
+- Databaza je PostgreSQL.
 
-- [?] Zoznam prikazov vzdialenej spravy.
+## Schvalene navrhy
+
+Schvalene pouzivatelom 2026-10-09.
+
+- Zoznam prikazov vzdialenej spravy.
   - Restart zariadenia.
   - Vypnutie zariadenia.
   - Ukoncenie procesu podla PID.
@@ -134,7 +136,7 @@ Rozhodnute pouzivatelom 2026-10-09:
   - Pravidla: pevny zoznam prikazov s overenymi parametrami, ziadny volny shell; kazdy prikaz ma vlastne opravnenie v ACL a zapis v audite.
   - Prikazy sa tykaju len zariadeni s agentom.
 
-- [?] Modelova sietova infrastruktura.
+- Modelova sietova infrastruktura.
   - Virtualne stroje v Hyper-V na jednom pocitaci, interny virtualny prepinac, jedna podsiet.
   - Stroj 1: server, databaza a desktopova aplikacia.
   - Stroj 2: Windows 11 s agentom (bezna pracovna stanica).
@@ -143,11 +145,6 @@ Rozhodnute pouzivatelom 2026-10-09:
   - Scenare: vypnutie zariadenia, odpojenie od siete, zastavenie sluzby, zataz CPU, otvorenie noveho portu, zmena intervalu, neopravneny prikaz, vypadok servera a opatovne pripojenie agenta.
 
 ## Chyby a blokovane body
-
-- [!] Vyber databazy este nie je rozhodnuty.
-  - Moznosti: PostgreSQL alebo SQL Server.
-  - Dopad: ovplyvni EF Core provider, migracie a testovaciu databazu.
-  - Potrebne rozhodnutie: vybrat databazu pred Etapou 2.
 
 - [!] Balicky pre agent a testy maju verzie zo sablon.
   - Stav: build a testy presli na .NET 10.

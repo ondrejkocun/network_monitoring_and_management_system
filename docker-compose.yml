@@ -1,0 +1,22 @@
+# Local development database. The password comes from the .env file, which is not committed;
+# copy .env.example to .env and set it there.
+services:
+  database:
+    image: postgres:17
+    container_name: nms-database
+    environment:
+      POSTGRES_DB: network_monitoring
+      POSTGRES_USER: nms
+      POSTGRES_PASSWORD: ${NMS_DB_PASSWORD:?Set NMS_DB_PASSWORD in the .env file}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - nms-database-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nms -d network_monitoring"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  nms-database-data:
