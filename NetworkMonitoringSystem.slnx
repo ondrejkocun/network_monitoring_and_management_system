@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/NetworkMonitoringSystem.Agent/NetworkMonitoringSystem.Agent.csproj" />
+    <Project Path="src/NetworkMonitoringSystem.Application/NetworkMonitoringSystem.Application.csproj" />
+    <Project Path="src/NetworkMonitoringSystem.Desktop/NetworkMonitoringSystem.Desktop.csproj" />
+    <Project Path="src/NetworkMonitoringSystem.Domain/NetworkMonitoringSystem.Domain.csproj" />
+    <Project Path="src/NetworkMonitoringSystem.Infrastructure/NetworkMonitoringSystem.Infrastructure.csproj" />
+    <Project Path="src/NetworkMonitoringSystem.Server/NetworkMonitoringSystem.Server.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NetworkMonitoringSystem.Tests/NetworkMonitoringSystem.Tests.csproj" />
+  </Folder>
+</Solution>
