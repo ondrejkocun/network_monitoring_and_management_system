@@ -12,7 +12,7 @@ The project is under development. This is what works today and what is still to 
 |---|---|
 | Device registry stored in PostgreSQL | Done |
 | Agent registration and periodic heartbeat over gRPC | Done |
-| Availability tracking (online/offline), outages, event log | Planned |
+| Availability of devices with an agent (online/offline), outages, event log | Done |
 | Monitoring of devices without an agent (ping) | Planned |
 | CPU, memory, disk and network interface metrics | Planned |
 | Open ports, processes and active connections | Planned |
@@ -38,7 +38,7 @@ flowchart LR
 ```
 
 - The **agent** runs on each monitored Windows device. It registers with the server once, receives its own key, and then reports at an interval the server dictates.
-- The **server** authenticates agents, stores data and will evaluate availability. Devices that cannot run an agent will be checked by the server directly.
+- The **server** authenticates agents and stores what they report. When an agent stays silent for several intervals, the server marks its device offline, opens an outage and writes an event; the outage is closed when the agent reports again. Devices that cannot run an agent will be checked by the server directly.
 - The **desktop application** is the administrator's console.
 
 The planned data model is described in [docs/datovy-model.md](docs/datovy-model.md) (in Slovak).
@@ -130,6 +130,7 @@ dotnet ef migrations add <Name> --project src/NetworkMonitoringSystem.Infrastruc
 ## Security notes
 
 - An agent registers with a shared enrollment token and is then issued its own random key; the server stores only a SHA-256 hash of that key.
+- A device whose agent is reporting cannot be registered again, so the enrollment token alone is not enough to take over a working device.
 - The agent keeps its identity in a file encrypted with Windows DPAPI for the account it runs under.
 - The agent refuses to connect to a server address that is not HTTPS.
 - The local database is published only on `127.0.0.1`.

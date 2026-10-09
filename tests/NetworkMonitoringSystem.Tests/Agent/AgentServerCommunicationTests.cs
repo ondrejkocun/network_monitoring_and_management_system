@@ -17,7 +17,7 @@ using NetworkMonitoringSystem.Tests.Infrastructure;
 /// Runs the real agent logic against the real server (hosted in memory) and a real PostgreSQL database.
 /// </summary>
 [Trait("Category", "Integration")]
-public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixture>, IDisposable
+public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixture>, IAsyncLifetime, IDisposable
 {
     private const string Token = "test-enrollment-token";
 
@@ -40,6 +40,24 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
             _server.Server.BaseAddress,
             new GrpcChannelOptions { HttpHandler = _server.Server.CreateHandler() });
     }
+
+    /// <summary>
+    /// Every test plays an agent on this machine starting from scratch. The server refuses to register a device
+    /// it sees as online, so devices left by earlier tests are put offline first.
+    /// </summary>
+    public async Task InitializeAsync()
+    {
+        await using var dbContext = _database.CreateDbContext();
+
+        foreach (var device in await dbContext.Devices.ToListAsync())
+        {
+            device.MarkOffline();
+        }
+
+        await dbContext.SaveChangesAsync();
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     public void Dispose()
     {
@@ -90,7 +108,7 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
     }
 
     [Fact]
-    public async Task Report_WithRejectedIdentity_ClearsIt_SoThatNextReportRegistersAgain()
+    public async Task Report_WithRejectedIdentity_ClearsIt_AndRegistersAgainOnceDeviceIsOffline()
     {
         var reporter = CreateReporter(Token);
         await reporter.ReportOnceAsync(CancellationToken.None);
@@ -99,6 +117,12 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
 
         await reporter.ReportOnceAsync(CancellationToken.None);
         Assert.Null(_identityStore.Load());
+
+        // While the server still sees the device as online, it cannot be registered again.
+        await reporter.ReportOnceAsync(CancellationToken.None);
+        Assert.Null(_identityStore.Load());
+
+        await MarkDeviceOfflineAsync(original.DeviceId);
 
         await reporter.ReportOnceAsync(CancellationToken.None);
         var renewed = _identityStore.Load();
@@ -125,6 +149,15 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
             _identityStore,
             Options.Create(new AgentOptions { EnrollmentToken = enrollmentToken, RetryIntervalSeconds = 7 }),
             NullLogger<AgentReporter>.Instance);
+    }
+
+    private async Task MarkDeviceOfflineAsync(string deviceId)
+    {
+        await using var dbContext = _database.CreateDbContext();
+        var device = await dbContext.Devices.SingleAsync(device => device.Id == Guid.Parse(deviceId));
+
+        device.MarkOffline();
+        await dbContext.SaveChangesAsync();
     }
 
     private async Task<Device> LoadDeviceAsync(string deviceId)

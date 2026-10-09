@@ -4,6 +4,8 @@ services:
   database:
     image: postgres:17
     container_name: nms-database
+    # Times are stored in UTC; this only makes psql display them in local time.
+    command: ["postgres", "-c", "timezone=Europe/Bratislava"]
     environment:
       POSTGRES_DB: network_monitoring
       POSTGRES_USER: nms

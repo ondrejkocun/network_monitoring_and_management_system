@@ -15,6 +15,7 @@ builder.Services.Configure<AgentEnrollmentOptions>(
     builder.Configuration.GetSection(AgentEnrollmentOptions.SectionName));
 
 builder.Services.AddGrpc();
+builder.Services.AddHostedService<AvailabilityMonitorService>();
 
 var app = builder.Build();
 

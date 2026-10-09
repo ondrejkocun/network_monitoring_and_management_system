@@ -19,14 +19,15 @@ public class EfDeviceRepositoryTests : IClassFixture<DatabaseFixture>
     }
 
     [Fact]
-    public async Task AddAsync_PersistsDevice_SoThatAnotherContextCanReadIt()
+    public async Task Add_PersistsDevice_SoThatAnotherContextCanReadIt()
     {
         var device = new Device(
             Guid.NewGuid(), "Router", MonitoringMode.Agentless, null, IPAddress.Parse("192.168.50.1"), CreatedAt);
 
         await using (var writeContext = _database.CreateDbContext())
         {
-            await new EfDeviceRepository(writeContext).AddAsync(device);
+            new EfDeviceRepository(writeContext).Add(device);
+            await writeContext.SaveChangesAsync();
         }
 
         await using var readContext = _database.CreateDbContext();
@@ -61,8 +62,9 @@ public class EfDeviceRepositoryTests : IClassFixture<DatabaseFixture>
         await using (var writeContext = _database.CreateDbContext())
         {
             var repository = new EfDeviceRepository(writeContext);
-            await repository.AddAsync(CreateAgentDevice($"{prefix}-b"));
-            await repository.AddAsync(CreateAgentDevice($"{prefix}-a"));
+            repository.Add(CreateAgentDevice($"{prefix}-b"));
+            repository.Add(CreateAgentDevice($"{prefix}-a"));
+            await writeContext.SaveChangesAsync();
         }
 
         await using var readContext = _database.CreateDbContext();

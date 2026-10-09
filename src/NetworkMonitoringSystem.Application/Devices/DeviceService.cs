@@ -1,4 +1,5 @@
 using System.Net;
+using NetworkMonitoringSystem.Application.Common;
 using NetworkMonitoringSystem.Domain.Devices;
 
 namespace NetworkMonitoringSystem.Application.Devices;
@@ -6,14 +7,17 @@ namespace NetworkMonitoringSystem.Application.Devices;
 public sealed class DeviceService : IDeviceService
 {
     private readonly IDeviceRepository _deviceRepository;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly TimeProvider _timeProvider;
 
-    public DeviceService(IDeviceRepository deviceRepository, TimeProvider timeProvider)
+    public DeviceService(IDeviceRepository deviceRepository, IUnitOfWork unitOfWork, TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(deviceRepository);
+        ArgumentNullException.ThrowIfNull(unitOfWork);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         _deviceRepository = deviceRepository;
+        _unitOfWork = unitOfWork;
         _timeProvider = timeProvider;
     }
 
@@ -29,7 +33,8 @@ public sealed class DeviceService : IDeviceService
             ParseIpAddress(request.IpAddress),
             _timeProvider.GetUtcNow());
 
-        await _deviceRepository.AddAsync(device, cancellationToken);
+        _deviceRepository.Add(device);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return DeviceDto.FromDevice(device);
     }

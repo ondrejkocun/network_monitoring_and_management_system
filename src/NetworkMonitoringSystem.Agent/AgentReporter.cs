@@ -57,7 +57,9 @@ public sealed class AgentReporter
         }
         catch (RpcException exception) when (exception.StatusCode == StatusCode.PermissionDenied)
         {
-            _logger.LogError("Server refused the registration. Check the enrollment token and whether the device is enabled.");
+            _logger.LogError(
+                "Server refused the registration. Check the enrollment token and whether the device is enabled. "
+                + "A device the server still sees as online can register again only after it is marked offline.");
         }
         catch (RpcException exception) when (exception.StatusCode != StatusCode.Cancelled)
         {

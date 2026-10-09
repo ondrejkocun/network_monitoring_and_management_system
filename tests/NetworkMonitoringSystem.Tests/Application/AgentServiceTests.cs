@@ -5,13 +5,15 @@ using NetworkMonitoringSystem.Application.Agents;
 using NetworkMonitoringSystem.Application.Monitoring;
 using NetworkMonitoringSystem.Domain.Devices;
 using NetworkMonitoringSystem.Domain.Monitoring;
-using NetworkMonitoringSystem.Infrastructure.Devices;
+using NetworkMonitoringSystem.Tests.Fakes;
 
 public class AgentServiceTests
 {
     private const string Token = "enrollment-token";
 
     private readonly InMemoryDeviceRepository _devices = new();
+    private readonly InMemoryMonitoringHistoryRepository _history = new();
+    private readonly CountingUnitOfWork _unitOfWork = new();
     private readonly MonitoringSettings _settings = new(syncIntervalSeconds: 120);
     private readonly MutableTimeProvider _time = new(new DateTimeOffset(2026, 10, 9, 12, 0, 0, TimeSpan.Zero));
 
@@ -29,6 +31,22 @@ public class AgentServiceTests
         Assert.Equal(DeviceStatus.Online, device.Status);
         Assert.Equal(_time.GetUtcNow(), device.LastSeenAt);
         Assert.Equal(120, registration.SyncIntervalSeconds);
+        Assert.Equal(1, _unitOfWork.SaveCount);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_WritesRegistrationAndOnlineEvents_AndSnapshot()
+    {
+        var registration = await CreateService().RegisterAsync(new RegisterAgentRequest(Token, "PC-01", null));
+
+        Assert.Equal(
+            [MonitoringEventType.AgentRegistered, MonitoringEventType.DeviceWentOnline],
+            _history.Events.Select(monitoringEvent => monitoringEvent.Type));
+        Assert.All(_history.Events, monitoringEvent => Assert.Equal(registration.Credentials.DeviceId, monitoringEvent.DeviceId));
+
+        var snapshot = Assert.Single(_history.Snapshots);
+        Assert.Equal(DeviceStatus.Online, snapshot.Status);
+        Assert.Equal(_time.GetUtcNow(), snapshot.RecordedAt);
     }
 
     [Fact]
@@ -52,6 +70,7 @@ public class AgentServiceTests
             () => CreateService().RegisterAsync(new RegisterAgentRequest(token, "PC-01", null)));
 
         Assert.Empty(await _devices.GetAllAsync());
+        Assert.Equal(0, _unitOfWork.SaveCount);
     }
 
     [Theory]
@@ -66,10 +85,24 @@ public class AgentServiceTests
     }
 
     [Fact]
-    public async Task RegisterAsync_ReusesDeviceWithSameHostName_AndInvalidatesOldKey()
+    public async Task RegisterAsync_Throws_WhenDeviceWithSameHostNameIsOnline()
     {
         var service = CreateService();
         var first = await service.RegisterAsync(new RegisterAgentRequest(Token, "PC-01", null));
+
+        await Assert.ThrowsAsync<AgentAuthenticationException>(
+            () => service.RegisterAsync(new RegisterAgentRequest(Token, "pc-01", null)));
+
+        // The working agent keeps its identity.
+        await service.ReportHeartbeatAsync(first.Credentials);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_ReusesOfflineDeviceWithSameHostName_AndInvalidatesOldKey()
+    {
+        var service = CreateService();
+        var first = await service.RegisterAsync(new RegisterAgentRequest(Token, "PC-01", null));
+        (await _devices.GetByIdAsync(first.Credentials.DeviceId))!.MarkOffline();
 
         var second = await service.RegisterAsync(new RegisterAgentRequest(Token, "pc-01", null));
 
@@ -80,7 +113,7 @@ public class AgentServiceTests
     }
 
     [Fact]
-    public async Task ReportHeartbeatAsync_UpdatesLastSeen_AndReturnsInterval()
+    public async Task ReportHeartbeatAsync_UpdatesLastSeen_AddsSnapshot_AndReturnsInterval()
     {
         var service = CreateService();
         var registration = await service.RegisterAsync(new RegisterAgentRequest(Token, "PC-01", null));
@@ -92,6 +125,26 @@ public class AgentServiceTests
         Assert.Equal(_time.GetUtcNow(), device!.LastSeenAt);
         Assert.Equal(DeviceStatus.Online, device.Status);
         Assert.Equal(120, result.SyncIntervalSeconds);
+        Assert.Equal(2, _history.Snapshots.Count);
+        // The device was online all along, so the heartbeat adds no event.
+        Assert.Equal(2, _history.Events.Count);
+    }
+
+    [Fact]
+    public async Task ReportHeartbeatAsync_FromOfflineDevice_EndsOutage_AndWritesOnlineEvent()
+    {
+        var service = CreateService();
+        var registration = await service.RegisterAsync(new RegisterAgentRequest(Token, "PC-01", null));
+        var device = (await _devices.GetByIdAsync(registration.Credentials.DeviceId))!;
+        new AvailabilityRecorder(_history).RecordOffline(device, _time.GetUtcNow());
+        _time.Advance(TimeSpan.FromMinutes(10));
+
+        await service.ReportHeartbeatAsync(registration.Credentials);
+
+        var outage = Assert.Single(_history.Outages);
+        Assert.Equal(_time.GetUtcNow(), outage.EndedAt);
+        Assert.Equal(DeviceStatus.Online, device.Status);
+        Assert.Equal(MonitoringEventType.DeviceWentOnline, _history.Events.Last().Type);
     }
 
     [Fact]
@@ -116,7 +169,7 @@ public class AgentServiceTests
     {
         var device = new Device(
             Guid.NewGuid(), "Router", MonitoringMode.Agentless, null, System.Net.IPAddress.Loopback, _time.GetUtcNow());
-        await _devices.AddAsync(device);
+        _devices.Add(device);
 
         await Assert.ThrowsAsync<AgentAuthenticationException>(
             () => CreateService().ReportHeartbeatAsync(new AgentCredentials(device.Id, string.Empty)));
@@ -127,21 +180,10 @@ public class AgentServiceTests
         return new AgentService(
             _devices,
             new FixedSettingsRepository(_settings),
+            _history,
+            new AvailabilityRecorder(_history),
+            _unitOfWork,
             Options.Create(new AgentEnrollmentOptions { EnrollmentToken = configuredToken }),
             _time);
-    }
-
-    private sealed class FixedSettingsRepository(MonitoringSettings settings) : IMonitoringSettingsRepository
-    {
-        public Task<MonitoringSettings> GetAsync(CancellationToken cancellationToken = default) => Task.FromResult(settings);
-    }
-
-    private sealed class MutableTimeProvider(DateTimeOffset now) : TimeProvider
-    {
-        private DateTimeOffset _now = now;
-
-        public override DateTimeOffset GetUtcNow() => _now;
-
-        public void Advance(TimeSpan by) => _now += by;
     }
 }

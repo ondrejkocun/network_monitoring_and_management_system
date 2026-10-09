@@ -15,6 +15,12 @@ public sealed class MonitoringDbContext : DbContext
 
     public DbSet<MonitoringSettings> MonitoringSettings => Set<MonitoringSettings>();
 
+    public DbSet<DeviceSnapshot> DeviceSnapshots => Set<DeviceSnapshot>();
+
+    public DbSet<Outage> Outages => Set<Outage>();
+
+    public DbSet<MonitoringEvent> Events => Set<MonitoringEvent>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MonitoringDbContext).Assembly);

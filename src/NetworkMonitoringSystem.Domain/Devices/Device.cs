@@ -88,9 +88,28 @@ public sealed class Device
     }
 
     /// <summary>Records that the device was reachable at the given time.</summary>
-    public void RecordContact(DateTimeOffset seenAt)
+    /// <returns>True when this changed the status to online.</returns>
+    public bool RecordContact(DateTimeOffset seenAt)
     {
+        var cameOnline = Status != DeviceStatus.Online;
+
         Status = DeviceStatus.Online;
         LastSeenAt = seenAt;
+
+        return cameOnline;
+    }
+
+    /// <summary>Records that the device stopped being reachable.</summary>
+    /// <returns>True when this changed the status to offline.</returns>
+    public bool MarkOffline()
+    {
+        if (Status == DeviceStatus.Offline)
+        {
+            return false;
+        }
+
+        Status = DeviceStatus.Offline;
+
+        return true;
     }
 }

@@ -32,6 +32,18 @@ public sealed class EfDeviceRepository : IDeviceRepository
             cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Device>> GetOnlineAgentDevicesNotSeenSinceAsync(
+        DateTimeOffset threshold,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Devices
+            .Where(device => device.MonitoringMode == MonitoringMode.Agent
+                && device.IsEnabled
+                && device.Status == DeviceStatus.Online
+                && device.LastSeenAt < threshold)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Device>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return await _dbContext.Devices
@@ -39,24 +51,10 @@ public sealed class EfDeviceRepository : IDeviceRepository
             .ToListAsync(cancellationToken);
     }
 
-    public async Task AddAsync(Device device, CancellationToken cancellationToken = default)
+    public void Add(Device device)
     {
         ArgumentNullException.ThrowIfNull(device);
 
         _dbContext.Devices.Add(device);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-    }
-
-    public async Task UpdateAsync(Device device, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(device);
-
-        // A device loaded through this repository is already tracked; one that was not must be attached first.
-        if (_dbContext.Entry(device).State == EntityState.Detached)
-        {
-            _dbContext.Devices.Update(device);
-        }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 }

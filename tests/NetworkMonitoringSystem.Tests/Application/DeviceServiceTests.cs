@@ -2,13 +2,19 @@ namespace NetworkMonitoringSystem.Tests.Application;
 
 using NetworkMonitoringSystem.Application.Devices;
 using NetworkMonitoringSystem.Domain.Devices;
-using NetworkMonitoringSystem.Infrastructure.Devices;
+using NetworkMonitoringSystem.Tests.Fakes;
 
 public class DeviceServiceTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 9, 12, 0, 0, TimeSpan.Zero);
 
-    private readonly DeviceService _service = new(new InMemoryDeviceRepository(), new FixedTimeProvider(Now));
+    private readonly CountingUnitOfWork _unitOfWork = new();
+    private readonly DeviceService _service;
+
+    public DeviceServiceTests()
+    {
+        _service = new DeviceService(new InMemoryDeviceRepository(), _unitOfWork, new MutableTimeProvider(Now));
+    }
 
     [Fact]
     public async Task RegisterDeviceAsync_StoresDeviceAndReturnsDto()
@@ -23,6 +29,7 @@ public class DeviceServiceTests
         Assert.Equal(Now, registered.CreatedAt);
         Assert.Equal(DeviceStatus.Unknown, registered.Status);
         Assert.Equal(registered, stored);
+        Assert.Equal(1, _unitOfWork.SaveCount);
     }
 
     [Fact]
@@ -71,10 +78,5 @@ public class DeviceServiceTests
         var devices = await _service.GetDevicesAsync();
 
         Assert.Equal(["Router", "Switch"], devices.Select(device => device.Name));
-    }
-
-    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now;
     }
 }
