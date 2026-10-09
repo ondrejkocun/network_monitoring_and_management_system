@@ -12,6 +12,10 @@ using NetworkMonitoringSystem.Desktop.Services;
 using NetworkMonitoringSystem.Domain.Monitoring;
 using NetworkMonitoringSystem.Server.Services;
 using NetworkMonitoringSystem.Tests.Infrastructure;
+using ContractEventSeverity = NetworkMonitoringSystem.Contracts.Admin.EventSeverity;
+using DomainEventSeverity = NetworkMonitoringSystem.Domain.Monitoring.EventSeverity;
+using Device = NetworkMonitoringSystem.Domain.Devices.Device;
+using DomainMonitoringMode = NetworkMonitoringSystem.Domain.Devices.MonitoringMode;
 using DomainDeviceStatus = NetworkMonitoringSystem.Domain.Devices.DeviceStatus;
 
 /// <summary>
@@ -101,6 +105,74 @@ public sealed class AdminApiTests : IClassFixture<DatabaseFixture>, IDisposable
         var exception = await Assert.ThrowsAsync<ServerClientException>(() => _client.RemoveDeviceAsync(id));
 
         Assert.Equal(ServerErrorKind.NotFound, exception.Kind);
+    }
+
+    [Fact]
+    public async Task DeviceHistory_ReturnsAvailabilityOutagesEventsAndResources_OfThePeriod()
+    {
+        // Whole seconds, so the database's precision does not change the lengths.
+        var now = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        var outageStart = now.AddSeconds(-20);
+        var outageEnd = now.AddSeconds(-10);
+        var deviceId = Guid.NewGuid();
+
+        await using (var dbContext = _database.CreateDbContext())
+        {
+            // Stored directly, because a device added through the API would only exist from this moment.
+            dbContext.Devices.Add(new Device(deviceId, "Server", DomainMonitoringMode.Agentless, null, IPAddress.Parse("192.0.2.30"), now.AddDays(-7)));
+
+            var outage = new Outage(deviceId, outageStart);
+            outage.End(outageEnd);
+            dbContext.Outages.Add(outage);
+            // Ended before the period asked for.
+            var earlier = new Outage(deviceId, now.AddDays(-3));
+            earlier.End(now.AddDays(-2));
+            dbContext.Outages.Add(earlier);
+
+            dbContext.Events.Add(new MonitoringEvent(
+                outageStart, MonitoringEventType.DeviceWentOffline, DomainEventSeverity.Warning, "went offline", deviceId));
+            dbContext.Events.Add(new MonitoringEvent(
+                outageEnd, MonitoringEventType.DeviceWentOnline, DomainEventSeverity.Info, "went online", deviceId));
+            dbContext.Events.Add(new MonitoringEvent(
+                now.AddDays(-2), MonitoringEventType.PortOpened, DomainEventSeverity.Info, "before the period", deviceId));
+
+            var measured = new DeviceSnapshot(deviceId, now.AddSeconds(-5), DomainDeviceStatus.Online);
+            measured.SetResources(new ResourceUsage(42.5, 1000, 250, [], []));
+            dbContext.DeviceSnapshots.Add(measured);
+            dbContext.DeviceSnapshots.Add(new DeviceSnapshot(deviceId, outageStart, DomainDeviceStatus.Offline));
+
+            await dbContext.SaveChangesAsync();
+        }
+
+        var history = await _client.GetDeviceHistoryAsync(deviceId.ToString(), now.AddHours(-1), now);
+
+        var returnedOutage = Assert.Single(history.Outages);
+        Assert.Equal(10, (returnedOutage.EndedAt.ToDateTimeOffset() - returnedOutage.StartedAt.ToDateTimeOffset()).TotalSeconds, precision: 3);
+        Assert.Equal(10, history.DowntimeSeconds);
+        Assert.True(history.HasAvailabilityPercent);
+        Assert.Equal(100.0 * 3590 / 3600, history.AvailabilityPercent, precision: 6);
+
+        Assert.Equal(["went online", "went offline"], history.Events.Select(monitoringEvent => monitoringEvent.Message));
+        Assert.Equal("DeviceWentOnline", history.Events[0].Type);
+        Assert.Equal(ContractEventSeverity.Warning, history.Events[1].Severity);
+        Assert.False(history.EventsTruncated);
+
+        var point = Assert.Single(history.ResourcePoints);
+        Assert.Equal((42.5, 250UL, 1000UL), (point.CpuUsagePercent, point.MemoryUsedBytes, point.MemoryTotalBytes));
+    }
+
+    [Fact]
+    public async Task DeviceHistory_OfUnknownDevice_IsNotFound_AndInvalidPeriodIsRejected()
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        var notFound = await Assert.ThrowsAsync<ServerClientException>(
+            () => _client.GetDeviceHistoryAsync(Guid.NewGuid().ToString(), now.AddHours(-1), now));
+        Assert.Equal(ServerErrorKind.NotFound, notFound.Kind);
+
+        var invalid = await Assert.ThrowsAsync<ServerClientException>(
+            () => _client.GetDeviceHistoryAsync(Guid.NewGuid().ToString(), now, now.AddHours(-1)));
+        Assert.Equal(ServerErrorKind.InvalidInput, invalid.Kind);
     }
 
     [Theory]

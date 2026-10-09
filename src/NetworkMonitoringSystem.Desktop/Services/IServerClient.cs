@@ -22,6 +22,10 @@ public interface IServerClient
     /// <exception cref="ServerClientException">The server could not be reached or refused the call.</exception>
     Task<DeviceActivityReply> GetDeviceActivityAsync(string id, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns the availability, outages, events and resource use of the device in the period.</summary>
+    /// <exception cref="ServerClientException">The server could not be reached or the device does not exist.</exception>
+    Task<DeviceHistoryReply> GetDeviceHistoryAsync(string id, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
+
     /// <exception cref="ServerClientException">The server could not be reached or the device does not exist.</exception>
     Task RemoveDeviceAsync(string id, CancellationToken cancellationToken = default);
 

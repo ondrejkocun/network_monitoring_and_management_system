@@ -22,6 +22,9 @@ service AdminApi {
   // Returns what the device's agent last reported as running: processes, open ports and connections.
   rpc GetDeviceActivity (GetDeviceActivityRequest) returns (DeviceActivityReply);
 
+  // Returns the availability, outages, events and resource use of the device in a period.
+  rpc GetDeviceHistory (GetDeviceHistoryRequest) returns (DeviceHistoryReply);
+
   rpc GetMonitoringSettings (GetMonitoringSettingsRequest) returns (MonitoringSettingsInfo);
 
   // Changes the global interval in which device state is synchronized and recorded.
@@ -144,6 +147,55 @@ message ConnectionDetail {
   string state = 6;
   uint32 pid = 7;
   string process_name = 8;
+}
+
+message GetDeviceHistoryRequest {
+  string id = 1;
+  google.protobuf.Timestamp from = 2;
+  google.protobuf.Timestamp to = 3;
+}
+
+message DeviceHistoryReply {
+  // Share of the period the device was not in an outage. Not set when the device did not exist in the period.
+  optional double availability_percent = 1;
+  // Total length of the outages inside the period.
+  int64 downtime_seconds = 2;
+  // The most recent first.
+  repeated OutageInfo outages = 3;
+  // The most recent first.
+  repeated EventInfo events = 4;
+  // True when the period has more events than were returned.
+  bool events_truncated = 5;
+  // The oldest first; long periods are averaged down to a limited number of points.
+  repeated ResourcePointInfo resource_points = 6;
+}
+
+message OutageInfo {
+  google.protobuf.Timestamp started_at = 1;
+  // Not set while the outage is still in progress.
+  google.protobuf.Timestamp ended_at = 2;
+}
+
+enum EventSeverity {
+  EVENT_SEVERITY_UNSPECIFIED = 0;
+  EVENT_SEVERITY_INFO = 1;
+  EVENT_SEVERITY_WARNING = 2;
+  EVENT_SEVERITY_ERROR = 3;
+}
+
+message EventInfo {
+  google.protobuf.Timestamp occurred_at = 1;
+  // Name of the event type, for example "DeviceWentOffline".
+  string type = 2;
+  EventSeverity severity = 3;
+  string message = 4;
+}
+
+message ResourcePointInfo {
+  google.protobuf.Timestamp recorded_at = 1;
+  optional double cpu_usage_percent = 2;
+  uint64 memory_used_bytes = 3;
+  uint64 memory_total_bytes = 4;
 }
 
 message GetMonitoringSettingsRequest {

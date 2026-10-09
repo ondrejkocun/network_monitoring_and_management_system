@@ -23,6 +23,24 @@ public interface IMonitoringHistoryRepository
     /// </summary>
     Task<HistoryCleanupResult> DeleteOlderThanAsync(DateTimeOffset cutoff, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns the outages of the device that overlap the period, the most recent first.</summary>
+    Task<IReadOnlyList<Outage>> GetOutagesAsync(Guid deviceId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns at most <paramref name="limit"/> events of the device in the period, the most recent first.</summary>
+    Task<IReadOnlyList<MonitoringEvent>> GetEventsAsync(
+        Guid deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        int limit,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Returns processor and memory use from the device's snapshots in the period, the oldest first.</summary>
+    Task<IReadOnlyList<ResourcePoint>> GetResourcePointsAsync(
+        Guid deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Returns the outage of the device that has not ended yet, if there is one.</summary>
     Task<Outage?> GetOngoingOutageAsync(Guid deviceId, CancellationToken cancellationToken = default);
 }

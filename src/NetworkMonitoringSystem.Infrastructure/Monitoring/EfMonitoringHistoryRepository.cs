@@ -61,6 +61,60 @@ public sealed class EfMonitoringHistoryRepository : IMonitoringHistoryRepository
         return new HistoryCleanupResult(snapshots, outages, events, processRuns, listeningPorts);
     }
 
+    public async Task<IReadOnlyList<Outage>> GetOutagesAsync(
+        Guid deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Outages
+            .AsNoTracking()
+            .Where(outage => outage.DeviceId == deviceId
+                && outage.StartedAt < to
+                && (outage.EndedAt == null || outage.EndedAt > from))
+            .OrderByDescending(outage => outage.StartedAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MonitoringEvent>> GetEventsAsync(
+        Guid deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Events
+            .AsNoTracking()
+            .Where(monitoringEvent => monitoringEvent.DeviceId == deviceId
+                && monitoringEvent.OccurredAt >= from
+                && monitoringEvent.OccurredAt <= to)
+            .OrderByDescending(monitoringEvent => monitoringEvent.OccurredAt)
+            .ThenByDescending(monitoringEvent => monitoringEvent.Id)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ResourcePoint>> GetResourcePointsAsync(
+        Guid deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.DeviceSnapshots
+            .AsNoTracking()
+            .Where(snapshot => snapshot.DeviceId == deviceId
+                && snapshot.HasResources
+                && snapshot.RecordedAt >= from
+                && snapshot.RecordedAt <= to)
+            .OrderBy(snapshot => snapshot.RecordedAt)
+            .Select(snapshot => new ResourcePoint(
+                snapshot.RecordedAt,
+                snapshot.CpuUsagePercent,
+                snapshot.MemoryUsedBytes ?? 0,
+                snapshot.MemoryTotalBytes ?? 0))
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<Outage?> GetOngoingOutageAsync(Guid deviceId, CancellationToken cancellationToken = default)
     {
         return _dbContext.Outages

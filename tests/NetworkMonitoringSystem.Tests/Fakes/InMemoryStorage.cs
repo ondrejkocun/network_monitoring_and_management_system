@@ -86,6 +86,51 @@ public sealed class InMemoryMonitoringHistoryRepository : IMonitoringHistoryRepo
         return Task.FromResult(result);
     }
 
+    public Task<IReadOnlyList<Outage>> GetOutagesAsync(Guid deviceId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<Outage> outages = Outages
+            .Where(outage => outage.DeviceId == deviceId && outage.StartedAt < to && (outage.EndedAt is null || outage.EndedAt > from))
+            .OrderByDescending(outage => outage.StartedAt)
+            .ToList();
+
+        return Task.FromResult(outages);
+    }
+
+    public Task<IReadOnlyList<MonitoringEvent>> GetEventsAsync(
+        Guid deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<MonitoringEvent> events = Events
+            .Where(monitoringEvent => monitoringEvent.DeviceId == deviceId && monitoringEvent.OccurredAt >= from && monitoringEvent.OccurredAt <= to)
+            .OrderByDescending(monitoringEvent => monitoringEvent.OccurredAt)
+            .Take(limit)
+            .ToList();
+
+        return Task.FromResult(events);
+    }
+
+    public Task<IReadOnlyList<ResourcePoint>> GetResourcePointsAsync(
+        Guid deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<ResourcePoint> points = Snapshots
+            .Where(snapshot => snapshot.DeviceId == deviceId && snapshot.HasResources && snapshot.RecordedAt >= from && snapshot.RecordedAt <= to)
+            .OrderBy(snapshot => snapshot.RecordedAt)
+            .Select(snapshot => new ResourcePoint(
+                snapshot.RecordedAt,
+                snapshot.CpuUsagePercent,
+                snapshot.MemoryUsedBytes ?? 0,
+                snapshot.MemoryTotalBytes ?? 0))
+            .ToList();
+
+        return Task.FromResult(points);
+    }
+
     public Task<Outage?> GetOngoingOutageAsync(Guid deviceId, CancellationToken cancellationToken = default)
     {
         return Task.FromResult(Outages.LastOrDefault(outage => outage.DeviceId == deviceId && outage.IsOngoing));

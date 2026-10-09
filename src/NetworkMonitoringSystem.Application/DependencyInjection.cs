@@ -12,6 +12,7 @@ public static class DependencyInjection
     {
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IDeviceService, DeviceService>();
+        services.AddScoped<IDeviceHistoryService, DeviceHistoryService>();
         services.AddScoped<IAgentService, AgentService>();
         services.AddScoped<AvailabilityRecorder>();
         services.AddScoped<DeviceActivityRecorder>();

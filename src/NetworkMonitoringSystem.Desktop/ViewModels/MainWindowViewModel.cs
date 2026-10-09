@@ -12,6 +12,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private readonly IServerClient _server;
     private readonly IConfirmationDialog _confirmation;
+    private readonly TimeProvider _timeProvider;
+
+    // Reading a long history is much more work for the server than the current state, and it changes slowly.
+    private static readonly TimeSpan HistoryReloadInterval = TimeSpan.FromSeconds(30);
 
     private string _statusMessage = "Pripájam sa k serveru…";
     private string _newDeviceName = string.Empty;
@@ -26,14 +30,20 @@ public sealed class MainWindowViewModel : ViewModelBase
     private DeviceActivityReply? _shownActivity;
     private string _resourcesMessage = NoDeviceSelectedMessage;
     private bool _isRebuildingList;
+    private DeviceHistoryViewModel? _selectedDeviceHistory;
+    private HistoryPeriodOption _selectedHistoryPeriod;
+    private DateTimeOffset? _historyLoadedAt;
 
-    public MainWindowViewModel(IServerClient server, IConfirmationDialog confirmation)
+    /// <param name="timeProvider">The clock history periods are counted from; the system clock when not given.</param>
+    public MainWindowViewModel(IServerClient server, IConfirmationDialog confirmation, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(server);
         ArgumentNullException.ThrowIfNull(confirmation);
 
         _server = server;
         _confirmation = confirmation;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _selectedHistoryPeriod = HistoryPeriods[1];
 
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         AddDeviceCommand = new AsyncRelayCommand(
@@ -85,6 +95,8 @@ public sealed class MainWindowViewModel : ViewModelBase
                 SelectedDeviceActivity = null;
                 _shownResources = null;
                 _shownActivity = null;
+                SelectedDeviceHistory = null;
+                _historyLoadedAt = null;
                 ResourcesMessage = value is null ? NoDeviceSelectedMessage : "Načítavam…";
             }
 
@@ -106,6 +118,74 @@ public sealed class MainWindowViewModel : ViewModelBase
     {
         get => _selectedDeviceActivity;
         private set => SetProperty(ref _selectedDeviceActivity, value);
+    }
+
+    /// <summary>The periods of history the user can choose from.</summary>
+    public IReadOnlyList<HistoryPeriodOption> HistoryPeriods { get; } =
+    [
+        new("Posledná hodina", TimeSpan.FromHours(1)),
+        new("Posledných 24 hodín", TimeSpan.FromHours(24)),
+        new("Posledných 7 dní", TimeSpan.FromDays(7)),
+        new("Posledných 30 dní", TimeSpan.FromDays(30)),
+    ];
+
+    /// <summary>The period the history of the selected device is shown for; it ends now.</summary>
+    public HistoryPeriodOption SelectedHistoryPeriod
+    {
+        get => _selectedHistoryPeriod;
+        set
+        {
+            // The view reports no selection while it is being built; a period is always chosen.
+            if (value is null || !SetProperty(ref _selectedHistoryPeriod, value))
+            {
+                return;
+            }
+
+            _historyLoadedAt = null;
+            _ = LoadSelectedDeviceHistoryAsync();
+        }
+    }
+
+    /// <summary>Availability, outages, events and resource use of the selected device, or null when not loaded.</summary>
+    public DeviceHistoryViewModel? SelectedDeviceHistory
+    {
+        get => _selectedDeviceHistory;
+        private set => SetProperty(ref _selectedDeviceHistory, value);
+    }
+
+    /// <summary>
+    /// Loads the history of the selected device for the selected period. Does nothing when it was loaded
+    /// a moment ago, unless the device or the period has changed since.
+    /// </summary>
+    public async Task LoadSelectedDeviceHistoryAsync()
+    {
+        var device = SelectedDevice;
+        var period = SelectedHistoryPeriod;
+        var now = _timeProvider.GetUtcNow();
+
+        if (device is null || now - _historyLoadedAt < HistoryReloadInterval)
+        {
+            return;
+        }
+
+        try
+        {
+            var from = now - period.Length;
+            var history = await _server.GetDeviceHistoryAsync(device.Id, from, now);
+
+            // The answer may arrive after the user has selected another device or period.
+            if (SelectedDevice?.Id != device.Id || SelectedHistoryPeriod != period)
+            {
+                return;
+            }
+
+            _historyLoadedAt = now;
+            SelectedDeviceHistory = new DeviceHistoryViewModel(history, from, now, SelectedDeviceHistory);
+        }
+        catch (ServerClientException)
+        {
+            // What is on screen stays; the status bar already says when the server cannot be reached.
+        }
     }
 
     /// <summary>Explains why no resources are shown; empty when they are.</summary>
@@ -162,7 +242,11 @@ public sealed class MainWindowViewModel : ViewModelBase
             {
                 ResourcesMessage = Describe(exception);
             }
+
+            return;
         }
+
+        await LoadSelectedDeviceHistoryAsync();
     }
 
     public string StatusMessage

@@ -1,3 +1,4 @@
+using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using NetworkMonitoringSystem.Contracts.Admin;
 
@@ -36,6 +37,18 @@ public sealed class GrpcServerClient : IServerClient
     public Task<DeviceActivityReply> GetDeviceActivityAsync(string id, CancellationToken cancellationToken = default)
     {
         return CallAsync(() => _client.GetDeviceActivityAsync(new GetDeviceActivityRequest { Id = id }, cancellationToken: cancellationToken));
+    }
+
+    public Task<DeviceHistoryReply> GetDeviceHistoryAsync(string id, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
+    {
+        return CallAsync(() => _client.GetDeviceHistoryAsync(
+            new GetDeviceHistoryRequest
+            {
+                Id = id,
+                From = Timestamp.FromDateTimeOffset(from),
+                To = Timestamp.FromDateTimeOffset(to),
+            },
+            cancellationToken: cancellationToken));
     }
 
     public async Task RemoveDeviceAsync(string id, CancellationToken cancellationToken = default)

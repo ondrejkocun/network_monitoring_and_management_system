@@ -3,7 +3,8 @@ using Grpc.Core;
 using NetworkMonitoringSystem.Application.Devices;
 using NetworkMonitoringSystem.Application.Monitoring;
 using NetworkMonitoringSystem.Contracts.Admin;
-using DomainDeviceStatus = NetworkMonitoringSystem.Domain.Devices.DeviceStatus;
+using DomainEventSeverity = NetworkMonitoringSystem.Domain.Monitoring.EventSeverity;
+using DomainDeviceStatus =NetworkMonitoringSystem.Domain.Devices.DeviceStatus;
 using DomainMonitoringMode = NetworkMonitoringSystem.Domain.Devices.MonitoringMode;
 
 namespace NetworkMonitoringSystem.Server.Services;
@@ -16,9 +17,14 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
 {
     private readonly IDeviceService _deviceService;
     private readonly IMonitoringSettingsService _settingsService;
+    private readonly IDeviceHistoryService _historyService;
 
-    public AdminApiService(IDeviceService deviceService, IMonitoringSettingsService settingsService)
+    public AdminApiService(
+        IDeviceService deviceService,
+        IMonitoringSettingsService settingsService,
+        IDeviceHistoryService historyService)
     {
+        _historyService = historyService;
         _deviceService = deviceService;
         _settingsService = settingsService;
     }
@@ -150,6 +156,80 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
             State = connection.State,
             Pid = (uint)(connection.Pid ?? 0),
             ProcessName = connection.ProcessName ?? string.Empty,
+        }));
+
+        return reply;
+    }
+
+    public override async Task<DeviceHistoryReply> GetDeviceHistory(GetDeviceHistoryRequest request, ServerCallContext context)
+    {
+        if (request.From is null || request.To is null)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "The period must have a start and an end."));
+        }
+
+        DeviceHistoryDto? history;
+
+        try
+        {
+            history = Guid.TryParse(request.Id, out var id)
+                ? await _historyService.GetHistoryAsync(id, request.From.ToDateTimeOffset(), request.To.ToDateTimeOffset(), context.CancellationToken)
+                : null;
+        }
+        catch (ArgumentException exception)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
+        }
+
+        if (history is null)
+        {
+            throw new RpcException(new Status(StatusCode.NotFound, "The device does not exist."));
+        }
+
+        var reply = new DeviceHistoryReply
+        {
+            DowntimeSeconds = (long)history.Downtime.TotalSeconds,
+            EventsTruncated = history.EventsTruncated,
+        };
+
+        if (history.AvailabilityPercent is { } availabilityPercent)
+        {
+            reply.AvailabilityPercent = availabilityPercent;
+        }
+
+        reply.Outages.AddRange(history.Outages.Select(outage => new OutageInfo
+        {
+            StartedAt = Timestamp.FromDateTimeOffset(outage.StartedAt),
+            EndedAt = outage.EndedAt is { } endedAt ? Timestamp.FromDateTimeOffset(endedAt) : null,
+        }));
+        reply.Events.AddRange(history.Events.Select(monitoringEvent => new EventInfo
+        {
+            OccurredAt = Timestamp.FromDateTimeOffset(monitoringEvent.OccurredAt),
+            Type = monitoringEvent.Type.ToString(),
+            Severity = monitoringEvent.Severity switch
+            {
+                DomainEventSeverity.Info => EventSeverity.Info,
+                DomainEventSeverity.Warning => EventSeverity.Warning,
+                DomainEventSeverity.Error => EventSeverity.Error,
+                _ => EventSeverity.Unspecified,
+            },
+            Message = monitoringEvent.Message,
+        }));
+        reply.ResourcePoints.AddRange(history.ResourcePoints.Select(point =>
+        {
+            var info = new ResourcePointInfo
+            {
+                RecordedAt = Timestamp.FromDateTimeOffset(point.RecordedAt),
+                MemoryUsedBytes = (ulong)point.MemoryUsedBytes,
+                MemoryTotalBytes = (ulong)point.MemoryTotalBytes,
+            };
+
+            if (point.CpuUsagePercent is { } cpuUsagePercent)
+            {
+                info.CpuUsagePercent = cpuUsagePercent;
+            }
+
+            return info;
         }));
 
         return reply;

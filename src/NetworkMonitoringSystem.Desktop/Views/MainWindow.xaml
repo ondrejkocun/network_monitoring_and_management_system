@@ -4,9 +4,10 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:viewModels="clr-namespace:NetworkMonitoringSystem.Desktop.ViewModels"
+        xmlns:controls="clr-namespace:NetworkMonitoringSystem.Desktop.Controls"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=viewModels:MainWindowViewModel}"
-        Title="{Binding Title}" Height="820" Width="1040" MinHeight="620" MinWidth="820">
+        Title="{Binding Title}" Height="860" Width="1040" MinHeight="620" MinWidth="820">
     <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -58,6 +59,12 @@
         </DataGrid>
 
         <GroupBox Grid.Row="2" Header="Detail vybraného zariadenia" Margin="0,10,0,0" Padding="8">
+            <DockPanel>
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,6">
+                <TextBlock Text="Obdobie histórie (výpadky, udalosti, grafy):" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <ComboBox Width="170" ItemsSource="{Binding HistoryPeriods}" DisplayMemberPath="Label"
+                          SelectedItem="{Binding SelectedHistoryPeriod}" />
+            </StackPanel>
             <TabControl Height="230">
                 <TabItem Header="Prostriedky">
                     <StackPanel Margin="6">
@@ -163,7 +170,71 @@
                         </DataGrid.Columns>
                     </DataGrid>
                 </TabItem>
+
+                <TabItem Header="{Binding SelectedDeviceHistory.OutagesHeader, FallbackValue=Výpadky}">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6">
+                            <TextBlock Text="Dostupnosť za obdobie: " FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding SelectedDeviceHistory.AvailabilityText, FallbackValue=–}" Margin="0,0,24,0" />
+                            <TextBlock Text="Výpadky spolu: " FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding SelectedDeviceHistory.DowntimeText, FallbackValue=–}" />
+                        </StackPanel>
+                        <DataGrid ItemsSource="{Binding SelectedDeviceHistory.Outages}" AutoGenerateColumns="False" IsReadOnly="True"
+                                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Začiatok" Binding="{Binding StartedText}" Width="2*" />
+                                <DataGridTextColumn Header="Koniec" Binding="{Binding EndedText}" Width="2*" />
+                                <DataGridTextColumn Header="Trvanie" Binding="{Binding DurationText}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </TabItem>
+
+                <TabItem Header="{Binding SelectedDeviceHistory.EventsHeader, FallbackValue=Udalosti}">
+                    <DataGrid ItemsSource="{Binding SelectedDeviceHistory.Events}" AutoGenerateColumns="False" IsReadOnly="True"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Čas" Binding="{Binding OccurredText}" Width="Auto" />
+                            <DataGridTextColumn Header="Udalosť" Binding="{Binding TypeText}" Width="Auto" />
+                            <DataGridTextColumn Header="Závažnosť" Binding="{Binding SeverityText}" Width="Auto" />
+                            <DataGridTextColumn Header="Správa" Binding="{Binding Message}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </TabItem>
+
+                <TabItem Header="Grafy">
+                    <Grid Margin="6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Procesor" FontWeight="SemiBold" />
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Pamäť" FontWeight="SemiBold" />
+
+                        <controls:LineChart Grid.Row="1" Grid.Column="0" Stroke="#1565C0"
+                                            Points="{Binding SelectedDeviceHistory.CpuPoints}" />
+                        <controls:LineChart Grid.Row="1" Grid.Column="2" Stroke="#2E7D32"
+                                            Points="{Binding SelectedDeviceHistory.MemoryPoints}" />
+
+                        <DockPanel Grid.Row="2" Grid.Column="0" Margin="44,0,4,0">
+                            <TextBlock DockPanel.Dock="Right" Foreground="Gray" FontSize="11" Text="{Binding SelectedDeviceHistory.PeriodEndText}" />
+                            <TextBlock Foreground="Gray" FontSize="11" Text="{Binding SelectedDeviceHistory.PeriodStartText}" />
+                        </DockPanel>
+                        <DockPanel Grid.Row="2" Grid.Column="2" Margin="44,0,4,0">
+                            <TextBlock DockPanel.Dock="Right" Foreground="Gray" FontSize="11" Text="{Binding SelectedDeviceHistory.PeriodEndText}" />
+                            <TextBlock Foreground="Gray" FontSize="11" Text="{Binding SelectedDeviceHistory.PeriodStartText}" />
+                        </DockPanel>
+                    </Grid>
+                </TabItem>
             </TabControl>
+            </DockPanel>
         </GroupBox>
 
         <GroupBox Grid.Row="3" Header="Pridať zariadenie bez agenta" Margin="0,10,0,0" Padding="8">

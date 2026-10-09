@@ -4,6 +4,7 @@ using Google.Protobuf.WellKnownTypes;
 using NetworkMonitoringSystem.Contracts.Admin;
 using NetworkMonitoringSystem.Desktop.Services;
 using NetworkMonitoringSystem.Desktop.ViewModels;
+using NetworkMonitoringSystem.Tests.Fakes;
 
 public class MainWindowViewModelTests
 {
@@ -430,6 +431,191 @@ public class MainWindowViewModelTests
         Assert.Equal("–", viewModel.SelectedDeviceResources.MemoryText);
     }
 
+    [Fact]
+    public async Task SelectingDevice_ShowsItsHistory_ForTheLast24HoursByDefault()
+    {
+        var now = new DateTimeOffset(2026, 10, 9, 12, 0, 0, TimeSpan.Zero);
+        var clock = new MutableTimeProvider(now);
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "PC-01" });
+        _server.History["device-1"] = new DeviceHistoryReply
+        {
+            AvailabilityPercent = 99.4567,
+            DowntimeSeconds = 7500,
+            Outages =
+            {
+                new OutageInfo { StartedAt = Timestamp.FromDateTimeOffset(now.AddMinutes(-10)) },
+                new OutageInfo
+                {
+                    StartedAt = Timestamp.FromDateTimeOffset(now.AddHours(-5)),
+                    EndedAt = Timestamp.FromDateTimeOffset(now.AddHours(-5).AddMinutes(2).AddSeconds(5)),
+                },
+            },
+            Events =
+            {
+                new EventInfo
+                {
+                    OccurredAt = Timestamp.FromDateTimeOffset(now.AddMinutes(-10)),
+                    Type = "DeviceWentOffline",
+                    Severity = EventSeverity.Warning,
+                    Message = "Device 'PC-01' went offline.",
+                },
+            },
+            EventsTruncated = true,
+        };
+        var viewModel = new MainWindowViewModel(_server, _confirmation, clock);
+        await viewModel.RefreshAsync();
+        Assert.Null(viewModel.SelectedDeviceHistory);
+
+        viewModel.SelectedDevice = viewModel.Devices[0];
+
+        Assert.Equal(("device-1", now.AddHours(-24), now), Assert.Single(_server.HistoryRequests));
+
+        var history = viewModel.SelectedDeviceHistory;
+        Assert.NotNull(history);
+        Assert.Equal("99,46 %", history.AvailabilityText);
+        Assert.Equal("2 h 5 min", history.DowntimeText);
+        Assert.Equal("Výpadky (2)", history.OutagesHeader);
+        Assert.Equal("Udalosti (1+)", history.EventsHeader);
+
+        // An outage in progress has no end and is measured to now.
+        Assert.Equal(("trvá", "10 min 0 s"), (history.Outages[0].EndedText, history.Outages[0].DurationText));
+        Assert.Equal(now.AddHours(-5).ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss"), history.Outages[1].StartedText);
+        Assert.Equal("2 min 5 s", history.Outages[1].DurationText);
+
+        var shownEvent = Assert.Single(history.Events);
+        Assert.Equal(("Zariadenie offline", "Varovanie", "Device 'PC-01' went offline."), (shownEvent.TypeText, shownEvent.SeverityText, shownEvent.Message));
+    }
+
+    [Fact]
+    public async Task History_IsReloaded_WhenPeriodChanges_ButNotWithEveryRefresh()
+    {
+        var now = new DateTimeOffset(2026, 10, 9, 12, 0, 0, TimeSpan.Zero);
+        var clock = new MutableTimeProvider(now);
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "PC-01" });
+        var viewModel = new MainWindowViewModel(_server, _confirmation, clock);
+        await viewModel.RefreshAsync();
+        viewModel.SelectedDevice = viewModel.Devices[0];
+
+        // The list is refreshed every few seconds; the history is not read again that often.
+        clock.Advance(TimeSpan.FromSeconds(5));
+        await viewModel.RefreshAsync();
+        Assert.Single(_server.HistoryRequests);
+
+        viewModel.SelectedHistoryPeriod = viewModel.HistoryPeriods[2];
+        Assert.Equal(2, _server.HistoryRequests.Count);
+        Assert.Equal(clock.GetUtcNow().AddDays(-7), _server.HistoryRequests[1].From);
+
+        clock.Advance(TimeSpan.FromSeconds(31));
+        await viewModel.RefreshAsync();
+        Assert.Equal(3, _server.HistoryRequests.Count);
+    }
+
+    [Fact]
+    public async Task ReloadedHistory_KeepsEventList_WhenEventsDidNotChange()
+    {
+        var now = new DateTimeOffset(2026, 10, 9, 12, 0, 0, TimeSpan.Zero);
+        var clock = new MutableTimeProvider(now);
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "PC-01" });
+        _server.History["device-1"] = HistoryWithOneEvent("first");
+        var viewModel = new MainWindowViewModel(_server, _confirmation, clock);
+        await viewModel.RefreshAsync();
+        viewModel.SelectedDevice = viewModel.Devices[0];
+        var shownEvents = viewModel.SelectedDeviceHistory!.Events;
+
+        _server.History["device-1"] = HistoryWithOneEvent("first");
+        clock.Advance(TimeSpan.FromMinutes(1));
+        await viewModel.RefreshAsync();
+        Assert.Same(shownEvents, viewModel.SelectedDeviceHistory!.Events);
+
+        _server.History["device-1"] = HistoryWithOneEvent("second");
+        clock.Advance(TimeSpan.FromMinutes(1));
+        await viewModel.RefreshAsync();
+        Assert.Equal("second", Assert.Single(viewModel.SelectedDeviceHistory!.Events).Message);
+
+        DeviceHistoryReply HistoryWithOneEvent(string message) => new()
+        {
+            Events = { new EventInfo { OccurredAt = Timestamp.FromDateTimeOffset(now), Type = "PortOpened", Message = message } },
+        };
+    }
+
+    [Fact]
+    public async Task SelectingAnotherDevice_ClearsHistoryOfThePreviousOne()
+    {
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "PC-01" });
+        _server.Devices.Add(new DeviceInfo { Id = "device-2", Name = "PC-02" });
+        _server.History["device-1"] = new DeviceHistoryReply { AvailabilityPercent = 50 };
+        _server.History["device-2"] = new DeviceHistoryReply { AvailabilityPercent = 100 };
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+
+        viewModel.SelectedDevice = viewModel.Devices[0];
+        Assert.Equal("50 %", viewModel.SelectedDeviceHistory!.AvailabilityText);
+
+        viewModel.SelectedDevice = viewModel.Devices[1];
+        Assert.Equal("100 %", viewModel.SelectedDeviceHistory!.AvailabilityText);
+
+        viewModel.SelectedDevice = null;
+        Assert.Null(viewModel.SelectedDeviceHistory);
+    }
+
+    [Fact]
+    public void HistoryCharts_PlacePointsInThePeriod_AndBreakTheLineWhereTheDeviceWasNotReporting()
+    {
+        var from = new DateTimeOffset(2026, 10, 9, 11, 0, 0, TimeSpan.Zero);
+        var to = from.AddHours(1);
+        var reply = new DeviceHistoryReply
+        {
+            ResourcePoints =
+            {
+                Point(0, cpu: 10),
+                Point(1, cpu: 20),
+                Point(2, cpu: 30),
+                // Half an hour without reports.
+                Point(30, cpu: 40),
+                Point(31, cpu: null),
+            },
+        };
+
+        var history = new DeviceHistoryViewModel(reply, from, to);
+
+        Assert.Equal(5, history.CpuPoints.Count);
+        Assert.Equal(new ChartPoint(0, 10), history.CpuPoints[0]);
+        Assert.Null(history.CpuPoints[3]);
+        Assert.Equal(new ChartPoint(0.5, 40), history.CpuPoints[4]);
+
+        // Memory was measured in every report: 4 of 16 units is a quarter.
+        Assert.Equal(6, history.MemoryPoints.Count);
+        Assert.All(history.MemoryPoints.Where(point => point is not null), point => Assert.Equal(25, point!.Value.Y));
+        Assert.True(history.HasCharts);
+
+        ResourcePointInfo Point(int minute, double? cpu)
+        {
+            var point = new ResourcePointInfo
+            {
+                RecordedAt = Timestamp.FromDateTimeOffset(from.AddMinutes(minute)),
+                MemoryUsedBytes = 4,
+                MemoryTotalBytes = 16,
+            };
+
+            if (cpu is not null)
+            {
+                point.CpuUsagePercent = cpu.Value;
+            }
+
+            return point;
+        }
+    }
+
+    [Theory]
+    [InlineData(42, "42 s")]
+    [InlineData(312, "5 min 12 s")]
+    [InlineData(7500, "2 h 5 min")]
+    [InlineData(273600, "3 d 4 h")]
+    public void Durations_AreShownWithTheirTwoLargestUnits(int seconds, string expected)
+    {
+        Assert.Equal(expected, DeviceHistoryViewModel.FormatDuration(TimeSpan.FromSeconds(seconds)));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("abc")]
@@ -480,6 +666,11 @@ public class MainWindowViewModelTests
         /// <summary>Processes, ports and connections by device id; a device without an entry has none.</summary>
         public Dictionary<string, DeviceActivityReply> Activity { get; } = [];
 
+        /// <summary>History by device id; a device without an entry has an empty one.</summary>
+        public Dictionary<string, DeviceHistoryReply> History { get; } = [];
+
+        public List<(string Id, DateTimeOffset From, DateTimeOffset To)> HistoryRequests { get; } = [];
+
         public int SyncIntervalSeconds { get; private set; } = 60;
 
         /// <summary>When set, every call fails with this exception.</summary>
@@ -514,6 +705,15 @@ public class MainWindowViewModelTests
             ThrowIfFailing();
 
             return Task.FromResult(Activity.TryGetValue(id, out var activity) ? activity : new DeviceActivityReply());
+        }
+
+        public Task<DeviceHistoryReply> GetDeviceHistoryAsync(string id, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            HistoryRequests.Add((id, from, to));
+
+            return Task.FromResult(History.TryGetValue(id, out var history) ? history : new DeviceHistoryReply());
         }
 
         public Task RemoveDeviceAsync(string id, CancellationToken cancellationToken = default)
