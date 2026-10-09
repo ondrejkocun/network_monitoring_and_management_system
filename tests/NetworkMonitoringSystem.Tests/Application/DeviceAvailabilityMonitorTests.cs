@@ -24,6 +24,15 @@ public class DeviceAvailabilityMonitorTests
     }
 
     [Fact]
+    public async Task GetStartupGracePeriodAsync_IsOneIntervalPlusMargin_NotTheWholeThreshold()
+    {
+        var gracePeriod = await CreateMonitor().GetStartupGracePeriodAsync();
+
+        Assert.Equal(TimeSpan.FromSeconds(80), gracePeriod);
+        Assert.True(gracePeriod < await CreateMonitor().GetOfflineThresholdAsync());
+    }
+
+    [Fact]
     public async Task EvaluateAsync_KeepsDeviceOnline_UntilThresholdIsExceeded()
     {
         var device = AddOnlineAgentDevice("PC-01");

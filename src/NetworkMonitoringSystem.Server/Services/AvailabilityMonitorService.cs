@@ -23,8 +23,8 @@ public sealed class AvailabilityMonitorService : BackgroundService
     {
         try
         {
-            // While the server was not running no device could be seen, so devices first get the full
-            // period to be seen again before anything is declared offline.
+            // While the server was not running no device could be seen, so devices first get time
+            // to be seen again before anything is declared offline.
             await Task.Delay(await GetStartupGracePeriodAsync(stoppingToken), stoppingToken);
 
             while (!stoppingToken.IsCancellationRequested)
@@ -48,7 +48,7 @@ public sealed class AvailabilityMonitorService : BackgroundService
                 await using var scope = _scopeFactory.CreateAsyncScope();
                 var monitor = scope.ServiceProvider.GetRequiredService<IDeviceAvailabilityMonitor>();
 
-                return await monitor.GetOfflineThresholdAsync(stoppingToken);
+                return await monitor.GetStartupGracePeriodAsync(stoppingToken);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {

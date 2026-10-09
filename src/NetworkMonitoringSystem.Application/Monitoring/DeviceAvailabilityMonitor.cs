@@ -14,10 +14,20 @@ public interface IDeviceAvailabilityMonitor
 
     /// <summary>Returns how long a device may go unseen before it is considered offline.</summary>
     Task<TimeSpan> GetOfflineThresholdAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns how long to wait after the server starts before the first evaluation. While the server was down
+    /// nobody could report, so devices get time to be seen again. One synchronization interval is enough:
+    /// a running agent reports at least that often, and devices without an agent are checked right at start.
+    /// </summary>
+    Task<TimeSpan> GetStartupGracePeriodAsync(CancellationToken cancellationToken = default);
 }
 
 public sealed class DeviceAvailabilityMonitor : IDeviceAvailabilityMonitor
 {
+    /// <summary>Allows for the time an agent needs to notice the server is back and deliver its report.</summary>
+    private static readonly TimeSpan StartupGraceMargin = TimeSpan.FromSeconds(20);
+
     private readonly IDeviceRepository _deviceRepository;
     private readonly IMonitoringSettingsRepository _settingsRepository;
     private readonly AvailabilityRecorder _recorder;
@@ -56,6 +66,13 @@ public sealed class DeviceAvailabilityMonitor : IDeviceAvailabilityMonitor
         }
 
         return silentDevices.Count;
+    }
+
+    public async Task<TimeSpan> GetStartupGracePeriodAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await _settingsRepository.GetAsync(cancellationToken);
+
+        return TimeSpan.FromSeconds(settings.SyncIntervalSeconds) + StartupGraceMargin;
     }
 
     public async Task<TimeSpan> GetOfflineThresholdAsync(CancellationToken cancellationToken = default)
