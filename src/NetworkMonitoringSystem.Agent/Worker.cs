@@ -2,10 +2,12 @@ namespace NetworkMonitoringSystem.Agent;
 
 public class Worker : BackgroundService
 {
+    private readonly AgentReporter _reporter;
     private readonly ILogger<Worker> _logger;
 
-    public Worker(ILogger<Worker> logger)
+    public Worker(AgentReporter reporter, ILogger<Worker> logger)
     {
+        _reporter = reporter;
         _logger = logger;
     }
 
@@ -13,11 +15,11 @@ public class Worker : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            if (_logger.IsEnabled(LogLevel.Information))
-            {
-                _logger.LogInformation("Worker running at: {time}", DateTimeOffset.Now);
-            }
-            await Task.Delay(1000, stoppingToken);
+            var delay = await _reporter.ReportOnceAsync(stoppingToken);
+
+            _logger.LogDebug("Next report in {Delay}.", delay);
+
+            await Task.Delay(delay, stoppingToken);
         }
     }
 }

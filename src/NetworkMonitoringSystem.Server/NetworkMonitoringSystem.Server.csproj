@@ -10,9 +10,11 @@
   <ItemGroup>
     <ProjectReference Include="..\NetworkMonitoringSystem.Application\NetworkMonitoringSystem.Application.csproj" />
     <ProjectReference Include="..\NetworkMonitoringSystem.Infrastructure\NetworkMonitoringSystem.Infrastructure.csproj" />
+    <ProjectReference Include="..\NetworkMonitoringSystem.Contracts\NetworkMonitoringSystem.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Grpc.AspNetCore" Version="2.84.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>

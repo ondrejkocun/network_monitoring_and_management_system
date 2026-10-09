@@ -11,6 +11,8 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.84.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.12" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.16.0" />
@@ -27,6 +29,9 @@
     <ProjectReference Include="..\..\src\NetworkMonitoringSystem.Application\NetworkMonitoringSystem.Application.csproj" />
     <ProjectReference Include="..\..\src\NetworkMonitoringSystem.Infrastructure\NetworkMonitoringSystem.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\NetworkMonitoringSystem.Desktop\NetworkMonitoringSystem.Desktop.csproj" />
+    <ProjectReference Include="..\..\src\NetworkMonitoringSystem.Server\NetworkMonitoringSystem.Server.csproj" />
+    <ProjectReference Include="..\..\src\NetworkMonitoringSystem.Contracts\NetworkMonitoringSystem.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\NetworkMonitoringSystem.Agent\NetworkMonitoringSystem.Agent.csproj" />
   </ItemGroup>
 
 </Project>

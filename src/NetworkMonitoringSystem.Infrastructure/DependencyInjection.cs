@@ -2,7 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NetworkMonitoringSystem.Application.Devices;
+using NetworkMonitoringSystem.Application.Monitoring;
 using NetworkMonitoringSystem.Infrastructure.Devices;
+using NetworkMonitoringSystem.Infrastructure.Monitoring;
 using NetworkMonitoringSystem.Infrastructure.Persistence;
 using Npgsql;
 
@@ -21,6 +23,7 @@ public static class DependencyInjection
 
         services.AddDbContext<MonitoringDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IDeviceRepository, EfDeviceRepository>();
+        services.AddScoped<IMonitoringSettingsRepository, EfMonitoringSettingsRepository>();
 
         return services;
     }

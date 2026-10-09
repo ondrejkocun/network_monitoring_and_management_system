@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+option csharp_namespace = "NetworkMonitoringSystem.Contracts.Agents";
+
+package nms.agents.v1;
+
+// Communication from the agent on a monitored device to the server.
+service AgentApi {
+  // Enrolls the device and returns the identity the agent uses from then on.
+  rpc Register (RegisterRequest) returns (RegisterReply);
+
+  // Tells the server that the device is alive.
+  rpc Heartbeat (HeartbeatRequest) returns (HeartbeatReply);
+}
+
+message AgentCredentials {
+  string device_id = 1;
+  string agent_key = 2;
+}
+
+message RegisterRequest {
+  string enrollment_token = 1;
+  string host_name = 2;
+  string operating_system = 3;
+}
+
+message RegisterReply {
+  AgentCredentials credentials = 1;
+  int32 sync_interval_seconds = 2;
+}
+
+message HeartbeatRequest {
+  AgentCredentials credentials = 1;
+}
+
+message HeartbeatReply {
+  // The global interval after which the agent should report again.
+  int32 sync_interval_seconds = 1;
+}

@@ -1,6 +1,6 @@
 # Zadanie bakalárskej práce
 
-Oficiálne finálne znenie zadania. Je to záväzný rozsah projektu; `TODO.md` a `PROJECT_STATUS.md` sa majú riadiť týmto dokumentom.
+Oficiálne finálne znenie zadania. Je to záväzný rozsah projektu.
 
 ## Cieľ bakalárskej práce
 

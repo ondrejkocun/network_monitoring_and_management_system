@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NetworkMonitoringSystem.Application.Agents;
 using NetworkMonitoringSystem.Application.Devices;
 
 namespace NetworkMonitoringSystem.Application;
@@ -10,6 +11,7 @@ public static class DependencyInjection
     {
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IDeviceService, DeviceService>();
+        services.AddScoped<IAgentService, AgentService>();
 
         return services;
     }

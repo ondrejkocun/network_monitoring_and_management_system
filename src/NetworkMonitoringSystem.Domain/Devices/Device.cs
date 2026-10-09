@@ -62,4 +62,35 @@ public sealed class Device
     public DateTimeOffset? LastSeenAt { get; private set; }
 
     public bool IsEnabled { get; private set; } = true;
+
+    /// <summary>Hash of the key the agent authenticates with. The key itself is never stored.</summary>
+    public string? AgentKeyHash { get; private set; }
+
+    public string? OperatingSystem { get; private set; }
+
+    /// <summary>
+    /// Sets the identity of the agent running on this device. A previously issued key stops working.
+    /// </summary>
+    public void AssignAgentIdentity(string agentKeyHash, string? operatingSystem)
+    {
+        if (MonitoringMode != MonitoringMode.Agent)
+        {
+            throw new InvalidOperationException("Only a device monitored by an agent can have an agent identity.");
+        }
+
+        if (string.IsNullOrWhiteSpace(agentKeyHash))
+        {
+            throw new ArgumentException("Agent key hash must not be empty.", nameof(agentKeyHash));
+        }
+
+        AgentKeyHash = agentKeyHash;
+        OperatingSystem = string.IsNullOrWhiteSpace(operatingSystem) ? null : operatingSystem.Trim();
+    }
+
+    /// <summary>Records that the device was reachable at the given time.</summary>
+    public void RecordContact(DateTimeOffset seenAt)
+    {
+        Status = DeviceStatus.Online;
+        LastSeenAt = seenAt;
+    }
 }

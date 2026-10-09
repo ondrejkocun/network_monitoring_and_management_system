@@ -20,6 +20,10 @@ internal sealed class DeviceConfiguration : IEntityTypeConfiguration<Device>
         builder.Property(device => device.LastSeenAt);
         builder.Property(device => device.IsEnabled);
 
+        builder.Property(device => device.AgentKeyHash).HasMaxLength(64);
+        builder.Property(device => device.OperatingSystem).HasMaxLength(200);
+
         builder.HasIndex(device => device.Name);
+        builder.HasIndex(device => device.HostName);
     }
 }

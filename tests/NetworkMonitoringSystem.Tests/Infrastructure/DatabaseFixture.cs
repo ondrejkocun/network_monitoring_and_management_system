@@ -21,10 +21,12 @@ public sealed class DatabaseFixture : IAsyncLifetime
 
     public Task DisposeAsync() => _container.DisposeAsync().AsTask();
 
+    public string ConnectionString => _container.GetConnectionString();
+
     public MonitoringDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<MonitoringDbContext>()
-            .UseNpgsql(_container.GetConnectionString())
+            .UseNpgsql(ConnectionString)
             .Options;
 
         return new MonitoringDbContext(options);
