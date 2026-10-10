@@ -15,6 +15,35 @@ public interface IServerClient
     /// <summary>Ends the session on the server and forgets it. Does not fail when the server cannot be reached.</summary>
     Task LogoutAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Changes the password of the signed-in user. The server ends all their sessions, so the client forgets its own.</summary>
+    /// <exception cref="ServerClientException">The current password is wrong, the new one is not acceptable, or the server could not be reached.</exception>
+    Task ChangeOwnPasswordAsync(string currentPassword, string newPassword, CancellationToken cancellationToken = default);
+
+    // Management of users, roles and access rules. Every call can fail with a ServerClientException.
+
+    Task<IReadOnlyList<UserInfo>> GetUsersAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Returns the roles with their rules, and the names of all permissions a rule can allow.</summary>
+    Task<ListRolesReply> GetRolesAsync(CancellationToken cancellationToken = default);
+
+    Task CreateUserAsync(string userName, string password, IReadOnlyCollection<string> roleIds, CancellationToken cancellationToken = default);
+
+    Task SetUserActiveAsync(string userId, bool isActive, CancellationToken cancellationToken = default);
+
+    Task SetUserRolesAsync(string userId, IReadOnlyCollection<string> roleIds, CancellationToken cancellationToken = default);
+
+    Task ResetUserPasswordAsync(string userId, string newPassword, CancellationToken cancellationToken = default);
+
+    Task CreateRoleAsync(string name, CancellationToken cancellationToken = default);
+
+    Task DeleteRoleAsync(string roleId, CancellationToken cancellationToken = default);
+
+    /// <param name="deviceId">Empty for all devices.</param>
+    Task AddAccessRuleAsync(string roleId, string permission, string deviceId, CancellationToken cancellationToken = default);
+
+    /// <param name="deviceId">Empty for all devices.</param>
+    Task RemoveAccessRuleAsync(string roleId, string permission, string deviceId, CancellationToken cancellationToken = default);
+
     /// <exception cref="ServerClientException">The server could not be reached or refused the call.</exception>
     Task<IReadOnlyList<DeviceInfo>> GetDevicesAsync(CancellationToken cancellationToken = default);
 

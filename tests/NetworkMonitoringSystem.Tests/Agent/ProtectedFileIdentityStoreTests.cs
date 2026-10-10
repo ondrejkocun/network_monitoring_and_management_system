@@ -64,6 +64,7 @@ public sealed class ProtectedFileIdentityStoreTests : IDisposable
     [Fact]
     public void Load_ReturnsNull_WhenFileIsCorrupted()
     {
+        
         Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
         File.WriteAllText(_filePath, "this is not a protected identity");
 

@@ -11,6 +11,7 @@ public enum MonitoringEventType
     UserLoggedIn = 6,
     LoginFailed = 7,
     AccessDenied = 8,
+    AccessChanged = 9,
 }
 
 public enum EventSeverity

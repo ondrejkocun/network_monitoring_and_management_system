@@ -19,7 +19,7 @@ The project is under development. This is what works today and what is still to 
 | Open ports, processes and active connections, each linked to its process | Done |
 | Network traffic capture | Planned |
 | Users, roles and access rules; sign-in; permission check on every administration call | Done |
-| Managing users, roles and rules from the desktop application | Planned |
+| Managing users, roles and rules from the desktop application; changing one's own password | Done |
 | Remote commands with audit | Planned |
 | Desktop application: device list, adding and removing devices, changing the interval | Done |
 | Desktop application: outages, availability, event log and resource charts for a chosen period | Done |
@@ -148,6 +148,8 @@ dotnet ef migrations add <Name> --project src/NetworkMonitoringSystem.Infrastruc
 - The agent refuses to connect to a server address that is not HTTPS.
 - The administration API serves only signed-in users. Signing in returns a random session token valid for 12 hours; the server stores only its hash and checks it on every call, so signing out or deactivating a user takes effect immediately.
 - Passwords are stored as PBKDF2-HMAC-SHA256 hashes with a random salt and 600,000 iterations. After five wrong passwords in a row an account is locked for five minutes.
+- An administrator manages users, roles and rules in the desktop application. The built-in `Administrator` role always holds every permission and cannot be changed, and the last active administrator cannot be deactivated or lose the role, so the system cannot lock itself. Every such change is written to the event log with its author.
+- Changing or resetting a password ends all sessions of that user. Changing one's own password requires the current one, and wrong attempts count towards locking the account.
 - Every administration operation checks the permission of the user on the server, for all devices or for a single one. A refused attempt is written to the event log, as are failed and successful sign-ins.
 - The desktop application refuses a server address that is not HTTPS and keeps the session token only in memory.
 - The local database is published only on `127.0.0.1`.

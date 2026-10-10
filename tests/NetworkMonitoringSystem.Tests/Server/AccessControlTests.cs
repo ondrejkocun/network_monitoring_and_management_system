@@ -214,6 +214,104 @@ public sealed class AccessControlTests : IClassFixture<DatabaseFixture>, IDispos
         Assert.Equal(StatusCode.Unauthenticated, exception.StatusCode);
     }
 
+    [Fact]
+    public async Task Administrator_CreatesRoleRuleAndUser_AndThatUserGetsExactlyThatAccess()
+    {
+        var device = await AddDeviceAsync();
+        var administrator = NewClient();
+        await administrator.LoginAsync(TestAdministrator.UserName, TestAdministrator.Password);
+        var roleName = "Role-" + Guid.NewGuid().ToString("N");
+        var userName = "user-" + Guid.NewGuid().ToString("N");
+
+        await administrator.CreateRoleAsync(roleName);
+        var role = (await administrator.GetRolesAsync()).Roles.Single(listed => listed.Name == roleName);
+        await administrator.AddAccessRuleAsync(role.Id, "ViewDevices", device.Id.ToString());
+        await administrator.CreateUserAsync(userName, Password, [role.Id]);
+
+        var listedUser = (await administrator.GetUsersAsync()).Single(listed => listed.UserName == userName);
+        Assert.True(listedUser.IsActive);
+        Assert.Equal([role.Id], listedUser.RoleIds);
+
+        var user = NewClient();
+        await user.LoginAsync(userName, Password);
+        Assert.Equal(device.Id.ToString(), Assert.Single(await user.GetDevicesAsync()).Id);
+
+        // Taking the rule away takes effect for the session that is already open.
+        await administrator.RemoveAccessRuleAsync(role.Id, "ViewDevices", device.Id.ToString());
+        Assert.Equal(ServerErrorKind.AccessDenied, (await Assert.ThrowsAsync<ServerClientException>(() => user.GetDevicesAsync())).Kind);
+
+        await using var dbContext = _database.CreateDbContext();
+        var changes = await dbContext.Events
+            .Where(monitoringEvent => monitoringEvent.Type == MonitoringEventType.AccessChanged && monitoringEvent.Message.Contains(roleName))
+            .CountAsync();
+        Assert.Equal(4, changes);
+    }
+
+    [Fact]
+    public async Task UserManagement_IsRefusedWithoutThePermission_AndInvalidChangesAreRejected()
+    {
+        var plainUser = await AddUserAsync(role => role.Allow(Permission.ViewDevices));
+        var client = NewClient();
+        await client.LoginAsync(plainUser.UserName, Password);
+
+        var refused = new Func<Task>[]
+        {
+            () => client.GetUsersAsync(),
+            () => client.GetRolesAsync(),
+            () => client.CreateUserAsync("intruder", Password, []),
+            () => client.SetUserActiveAsync(plainUser.Id.ToString(), false),
+            () => client.ResetUserPasswordAsync(plainUser.Id.ToString(), Password),
+            () => client.CreateRoleAsync("Everything"),
+        };
+
+        foreach (var call in refused)
+        {
+            Assert.Equal(ServerErrorKind.AccessDenied, (await Assert.ThrowsAsync<ServerClientException>(call)).Kind);
+        }
+
+        var administrator = NewClient();
+        await administrator.LoginAsync(TestAdministrator.UserName, TestAdministrator.Password);
+        var administratorRole = (await administrator.GetRolesAsync()).Roles.Single(role => role.IsBuiltIn);
+        var administratorUser = (await administrator.GetUsersAsync()).Single(user => user.UserName == TestAdministrator.UserName);
+
+        var rejected = new Func<Task>[]
+        {
+            () => administrator.CreateUserAsync(TestAdministrator.UserName, Password, []),
+            () => administrator.CreateUserAsync("someone-" + Guid.NewGuid().ToString("N"), "short", []),
+            () => administrator.DeleteRoleAsync(administratorRole.Id),
+            () => administrator.AddAccessRuleAsync(administratorRole.Id, "ViewDevices", string.Empty),
+            // The only administrator must not lock everyone out.
+            () => administrator.SetUserActiveAsync(administratorUser.Id, false),
+            () => administrator.SetUserRolesAsync(administratorUser.Id, []),
+        };
+
+        foreach (var call in rejected)
+        {
+            Assert.Equal(ServerErrorKind.InvalidInput, (await Assert.ThrowsAsync<ServerClientException>(call)).Kind);
+        }
+
+        Assert.Equal(ServerErrorKind.NotFound, (await Assert.ThrowsAsync<ServerClientException>(
+            () => administrator.SetUserActiveAsync(Guid.NewGuid().ToString(), false))).Kind);
+    }
+
+    [Fact]
+    public async Task ChangedPassword_EndsTheSession_AndOnlyTheNewPasswordSignsIn()
+    {
+        var user = await AddUserAsync(role => role.Allow(Permission.ViewDevices));
+        var client = NewClient();
+        await client.LoginAsync(user.UserName, Password);
+
+        var wrong = await Assert.ThrowsAsync<ServerClientException>(() => client.ChangeOwnPasswordAsync("not-the-password", "a-new-password"));
+        Assert.Equal(ServerErrorKind.InvalidInput, wrong.Kind);
+
+        await client.ChangeOwnPasswordAsync(Password, "a-new-password");
+
+        Assert.Equal(ServerErrorKind.NotSignedIn, (await Assert.ThrowsAsync<ServerClientException>(() => client.GetDevicesAsync())).Kind);
+        Assert.Equal(ServerErrorKind.NotSignedIn, (await Assert.ThrowsAsync<ServerClientException>(() => client.LoginAsync(user.UserName, Password))).Kind);
+        await client.LoginAsync(user.UserName, "a-new-password");
+        await client.GetDevicesAsync();
+    }
+
     private GrpcServerClient NewClient() => new(new AdminApi.AdminApiClient(_channel));
 
     private async Task<Device> AddDeviceAsync()

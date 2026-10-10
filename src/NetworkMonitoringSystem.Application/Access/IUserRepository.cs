@@ -17,9 +17,22 @@ public interface IUserRepository
 
     Task<Role?> GetRoleByNameAsync(string name, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns all users ordered by name.</summary>
+    Task<IReadOnlyList<User>> GetUsersAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Returns all roles with their rules, ordered by name.</summary>
+    Task<IReadOnlyList<Role>> GetRolesAsync(CancellationToken cancellationToken = default);
+
+    Task<Role?> GetRoleByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
     void AddUser(User user);
 
     void AddRole(Role role);
+
+    /// <summary>Removes the role; users who had it lose it.</summary>
+    void RemoveRole(Role role);
+
+    Task<IReadOnlyList<UserSession>> GetSessionsOfUserAsync(Guid userId, CancellationToken cancellationToken = default);
 
     Task<UserSession?> GetSessionAsync(string tokenHash, CancellationToken cancellationToken = default);
 

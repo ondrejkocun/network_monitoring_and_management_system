@@ -53,7 +53,7 @@ public partial class App : System.Windows.Application
         }
 
         var viewModel = services.GetRequiredService<MainWindowViewModel>();
-        viewModel.CurrentUserName = loginViewModel.Session.UserName;
+        viewModel.ApplySession(loginViewModel.Session);
 
         var sessionEnded = false;
         viewModel.SessionEnded += (_, _) => sessionEnded = true;

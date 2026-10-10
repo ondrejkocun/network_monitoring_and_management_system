@@ -1,3 +1,4 @@
+using NetworkMonitoringSystem.Application.Access;
 using NetworkMonitoringSystem.Application.Monitoring;
 
 namespace NetworkMonitoringSystem.Server.Services;
@@ -46,6 +47,9 @@ public sealed class HistoryCleanupService : BackgroundService
             var retention = scope.ServiceProvider.GetRequiredService<IHistoryRetentionService>();
 
             var removed = await retention.CleanUpAsync(stoppingToken);
+
+            // Sessions that have expired are of no use to anyone.
+            await scope.ServiceProvider.GetRequiredService<IAccessManagementService>().DeleteExpiredSessionsAsync(stoppingToken);
 
             if (removed.Total > 0)
             {

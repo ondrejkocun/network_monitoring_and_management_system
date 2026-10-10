@@ -1,0 +1,144 @@
+<Window x:Class="NetworkMonitoringSystem.Desktop.Views.AccessWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:viewModels="clr-namespace:NetworkMonitoringSystem.Desktop.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=viewModels:AccessViewModel}"
+        Title="Používatelia a roly" Height="620" Width="900" MinHeight="520" MinWidth="760"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Margin="12">
+        <StatusBar DockPanel.Dock="Bottom" Margin="0,10,0,0">
+            <StatusBarItem>
+                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+            </StatusBarItem>
+        </StatusBar>
+
+        <TabControl>
+            <TabItem Header="Používatelia">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="2*" />
+                    </Grid.ColumnDefinitions>
+
+                    <DataGrid Grid.Column="0" ItemsSource="{Binding Users}" SelectedItem="{Binding SelectedUser}"
+                              AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal" SelectionMode="Single">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Meno" Binding="{Binding UserName}" Width="2*" />
+                            <DataGridTextColumn Header="Stav" Binding="{Binding StateText}" Width="*" />
+                            <DataGridTextColumn Header="Roly" Binding="{Binding RolesText}" Width="3*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <GroupBox Header="Vybraný používateľ" Padding="8">
+                                <StackPanel>
+                                    <TextBlock Text="Roly" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                    <ItemsControl ItemsSource="{Binding SelectedUserRoles}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}" Margin="0,2" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <Button Content="Uložiť roly" Padding="12,4" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                            Command="{Binding SaveUserRolesCommand}" />
+
+                                    <Button Content="{Binding ToggleUserActiveText}" Padding="12,4" Margin="0,16,0,0" HorizontalAlignment="Left"
+                                            Command="{Binding ToggleUserActiveCommand}" />
+
+                                    <Label Content="_Nové heslo" Target="{Binding ElementName=ResetPasswordBox}" Padding="0,16,0,4" />
+                                    <PasswordBox x:Name="ResetPasswordBox" Padding="4" MaxLength="256" />
+                                    <Button Content="Nastaviť nové heslo" Padding="12,4" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                            Click="OnResetPasswordClick" />
+                                </StackPanel>
+                            </GroupBox>
+
+                            <GroupBox Header="Nový používateľ" Padding="8" Margin="0,10,0,0">
+                                <StackPanel>
+                                    <Label Content="_Meno" Target="{Binding ElementName=NewUserNameBox}" Padding="0,0,0,4" />
+                                    <TextBox x:Name="NewUserNameBox" Padding="4" MaxLength="100"
+                                             Text="{Binding NewUserName, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Label Content="_Heslo (aspoň 8 znakov)" Target="{Binding ElementName=NewUserPasswordBox}" Padding="0,10,0,4" />
+                                    <PasswordBox x:Name="NewUserPasswordBox" Padding="4" MaxLength="256" />
+                                    <TextBlock Text="Roly" FontWeight="SemiBold" Margin="0,10,0,4" />
+                                    <ItemsControl ItemsSource="{Binding NewUserRoles}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}" Margin="0,2" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <Button Content="Vytvoriť používateľa" Padding="12,4" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                            Click="OnCreateUserClick" />
+                                </StackPanel>
+                            </GroupBox>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Roly a pravidlá">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="3*" />
+                    </Grid.ColumnDefinitions>
+
+                    <DockPanel Grid.Column="0">
+                        <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                            <Button Content="Odstrániť vybranú rolu" Padding="12,4" HorizontalAlignment="Left"
+                                    Command="{Binding DeleteRoleCommand}" />
+                            <Label Content="_Názov novej roly" Target="{Binding ElementName=NewRoleNameBox}" Padding="0,14,0,4" />
+                            <TextBox x:Name="NewRoleNameBox" Padding="4" MaxLength="100"
+                                     Text="{Binding NewRoleName, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button Content="Vytvoriť rolu" Padding="12,4" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                    Command="{Binding CreateRoleCommand}" />
+                        </StackPanel>
+                        <ListBox ItemsSource="{Binding Roles}" SelectedItem="{Binding SelectedRole}" DisplayMemberPath="DisplayName" />
+                    </DockPanel>
+
+                    <DockPanel Grid.Column="2">
+                        <TextBlock DockPanel.Dock="Top" Text="Pravidlá vybranej roly" FontWeight="SemiBold" Margin="0,0,0,6" />
+
+                        <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                            <Button Content="Odobrať vybrané pravidlo" Padding="12,4" HorizontalAlignment="Left"
+                                    Command="{Binding RemoveRuleCommand}" />
+                            <WrapPanel Margin="0,6,0,0">
+                                <StackPanel Margin="0,8,12,0">
+                                    <Label Content="_Oprávnenie" Target="{Binding ElementName=PermissionBox}" Padding="0,0,0,4" />
+                                    <ComboBox x:Name="PermissionBox" Width="190" ItemsSource="{Binding Permissions}"
+                                              DisplayMemberPath="Label" SelectedItem="{Binding SelectedPermission}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,8,12,0">
+                                    <Label Content="_Platí pre" Target="{Binding ElementName=DeviceBox}" Padding="0,0,0,4" />
+                                    <ComboBox x:Name="DeviceBox" Width="190" ItemsSource="{Binding Devices}"
+                                              DisplayMemberPath="Label" SelectedItem="{Binding SelectedDevice}" />
+                                </StackPanel>
+                                <Button Content="Pridať pravidlo" Padding="12,4" Margin="0,8,0,0" VerticalAlignment="Bottom"
+                                        Command="{Binding AddRuleCommand}" />
+                            </WrapPanel>
+                            <TextBlock Text="Vstavanú rolu Administrator nemožno meniť; má vždy všetky oprávnenia."
+                                       Foreground="Gray" TextWrapping="Wrap" Margin="0,10,0,0" />
+                        </StackPanel>
+
+                        <DataGrid ItemsSource="{Binding SelectedRole.Rules}" SelectedItem="{Binding SelectedRule}"
+                                  AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                                  GridLinesVisibility="Horizontal" SelectionMode="Single">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Oprávnenie" Binding="{Binding PermissionText}" Width="*" />
+                                <DataGridTextColumn Header="Platí pre" Binding="{Binding DeviceText}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

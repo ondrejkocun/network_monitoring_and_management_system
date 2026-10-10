@@ -241,9 +241,39 @@ public sealed class InMemoryUserRepository : IUserRepository
         return Task.FromResult(Roles.FirstOrDefault(role => role.Name == name));
     }
 
+    public Task<IReadOnlyList<User>> GetUsersAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<User>>(Users.OrderBy(user => user.UserName).ToList());
+    }
+
+    public Task<IReadOnlyList<Role>> GetRolesAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<Role>>(Roles.OrderBy(role => role.Name).ToList());
+    }
+
+    public Task<Role?> GetRoleByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Roles.FirstOrDefault(role => role.Id == id));
+    }
+
     public void AddUser(User user) => Users.Add(user);
 
     public void AddRole(Role role) => Roles.Add(role);
+
+    public void RemoveRole(Role role)
+    {
+        Roles.Remove(role);
+
+        foreach (var user in Users)
+        {
+            user.RemoveRole(role.Id);
+        }
+    }
+
+    public Task<IReadOnlyList<UserSession>> GetSessionsOfUserAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<UserSession>>(Sessions.Where(session => session.UserId == userId).ToList());
+    }
 
     public Task<UserSession?> GetSessionAsync(string tokenHash, CancellationToken cancellationToken = default)
     {

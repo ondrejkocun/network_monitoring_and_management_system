@@ -15,6 +15,21 @@ service AdminApi {
   // Ends the session the call is made with.
   rpc Logout (LogoutRequest) returns (LogoutReply);
 
+  // Changes the password of the signed-in user and ends all their sessions, including this one.
+  rpc ChangeOwnPassword (ChangeOwnPasswordRequest) returns (ChangeOwnPasswordReply);
+
+  // Management of users, roles and access rules. All of these require the ManageUsers permission.
+  rpc ListUsers (ListUsersRequest) returns (ListUsersReply);
+  rpc CreateUser (CreateUserRequest) returns (UserInfo);
+  rpc SetUserActive (SetUserActiveRequest) returns (UserInfo);
+  rpc SetUserRoles (SetUserRolesRequest) returns (UserInfo);
+  rpc ResetUserPassword (ResetUserPasswordRequest) returns (ResetUserPasswordReply);
+  rpc ListRoles (ListRolesRequest) returns (ListRolesReply);
+  rpc CreateRole (CreateRoleRequest) returns (RoleInfo);
+  rpc DeleteRole (DeleteRoleRequest) returns (DeleteRoleReply);
+  rpc AddAccessRule (AccessRuleRequest) returns (RoleInfo);
+  rpc RemoveAccessRule (AccessRuleRequest) returns (RoleInfo);
+
   rpc ListDevices (ListDevicesRequest) returns (ListDevicesReply);
 
   // Adds a device that cannot run an agent; the server checks it over the network.
@@ -68,6 +83,96 @@ message LogoutRequest {
 }
 
 message LogoutReply {
+}
+
+message ChangeOwnPasswordRequest {
+  string current_password = 1;
+  string new_password = 2;
+}
+
+message ChangeOwnPasswordReply {
+}
+
+message UserInfo {
+  string id = 1;
+  string user_name = 2;
+  bool is_active = 3;
+  // True while signing in is refused after repeated wrong passwords.
+  bool is_locked = 4;
+  google.protobuf.Timestamp created_at = 5;
+  repeated string role_ids = 6;
+}
+
+message ListUsersRequest {
+}
+
+message ListUsersReply {
+  repeated UserInfo users = 1;
+}
+
+message CreateUserRequest {
+  string user_name = 1;
+  string password = 2;
+  repeated string role_ids = 3;
+}
+
+message SetUserActiveRequest {
+  string user_id = 1;
+  bool is_active = 2;
+}
+
+message SetUserRolesRequest {
+  string user_id = 1;
+  // Replaces the roles the user has now.
+  repeated string role_ids = 2;
+}
+
+message ResetUserPasswordRequest {
+  string user_id = 1;
+  string new_password = 2;
+}
+
+message ResetUserPasswordReply {
+}
+
+message AccessRuleInfo {
+  // Name of the permission, for example "ViewDevices".
+  string permission = 1;
+  // The only device the rule applies to; empty when it applies to all devices.
+  string device_id = 2;
+}
+
+message RoleInfo {
+  string id = 1;
+  string name = 2;
+  // A built-in role cannot be changed or deleted.
+  bool is_built_in = 3;
+  repeated AccessRuleInfo rules = 4;
+}
+
+message ListRolesRequest {
+}
+
+message ListRolesReply {
+  repeated RoleInfo roles = 1;
+  // Names of all permissions a rule can allow.
+  repeated string permissions = 2;
+}
+
+message CreateRoleRequest {
+  string name = 1;
+}
+
+message DeleteRoleRequest {
+  string role_id = 1;
+}
+
+message DeleteRoleReply {
+}
+
+message AccessRuleRequest {
+  string role_id = 1;
+  AccessRuleInfo rule = 2;
 }
 
 message DeviceInfo {

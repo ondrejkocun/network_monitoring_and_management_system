@@ -31,6 +31,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _resourcesMessage = NoDeviceSelectedMessage;
     private bool _isRebuildingList;
     private bool _sessionEnded;
+    private HashSet<string> _permissions = [];
     private string _currentUserName = string.Empty;
     private DeviceHistoryViewModel? _selectedDeviceHistory;
     private HistoryPeriodOption _selectedHistoryPeriod;
@@ -77,6 +78,36 @@ public sealed class MainWindowViewModel : ViewModelBase
                 OnPropertyChanged(nameof(CurrentUserText));
             }
         }
+    }
+
+    /// <summary>True when the user may add devices; shown controls follow what the server would allow anyway.</summary>
+    public bool CanAddDevices => _permissions.Contains("ManageDevices");
+
+    public bool CanManageSettings => _permissions.Contains("ManageSettings");
+
+    public bool CanManageUsers => _permissions.Contains("ManageUsers");
+
+    /// <summary>Takes over the name and the permissions of the user who has just signed in.</summary>
+    public void ApplySession(LoginReply session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        _permissions = session.Permissions.ToHashSet(StringComparer.Ordinal);
+        CurrentUserName = session.UserName;
+
+        OnPropertyChanged(nameof(CanAddDevices));
+        OnPropertyChanged(nameof(CanManageSettings));
+        OnPropertyChanged(nameof(CanManageUsers));
+    }
+
+    public AccessViewModel CreateAccessViewModel() => new(_server, _confirmation);
+
+    public ChangePasswordViewModel CreateChangePasswordViewModel() => new(_server);
+
+    /// <summary>Changing the password signs the user out everywhere, including here.</summary>
+    public void EndSessionAfterPasswordChange()
+    {
+        EndSession("Heslo bolo zmenené. Prihláste sa novým heslom.");
     }
 
     public string CurrentUserText => string.IsNullOrEmpty(CurrentUserName) ? string.Empty : $"Prihlásený: {CurrentUserName}";

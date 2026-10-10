@@ -684,6 +684,128 @@ public class MainWindowViewModelTests
             return Task.CompletedTask;
         }
 
+        public List<UserInfo> Users { get; } = [];
+
+        public List<RoleInfo> Roles { get; } = [];
+
+        /// <summary>Passwords the fake server was given, by user name or id.</summary>
+        public Dictionary<string, string> Passwords { get; } = [];
+
+        public Task ChangeOwnPasswordAsync(string currentPassword, string newPassword, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            if (currentPassword != Password)
+            {
+                throw new ServerClientException(ServerErrorKind.InvalidInput, "The current password is not correct.");
+            }
+
+            Password = newPassword;
+            IsSignedIn = false;
+
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<UserInfo>> GetUsersAsync(CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            return Task.FromResult<IReadOnlyList<UserInfo>>(Users.Select(user => user.Clone()).ToList());
+        }
+
+        public Task<ListRolesReply> GetRolesAsync(CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            var reply = new ListRolesReply { Permissions = { "ViewDevices", "ManageDevices", "ManageSettings", "ManageUsers" } };
+            reply.Roles.AddRange(Roles.Select(role => role.Clone()));
+
+            return Task.FromResult(reply);
+        }
+
+        public Task CreateUserAsync(string userName, string password, IReadOnlyCollection<string> roleIds, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            var user = new UserInfo { Id = "user-" + (Users.Count + 1), UserName = userName, IsActive = true };
+            user.RoleIds.AddRange(roleIds);
+            Users.Add(user);
+            Passwords[userName] = password;
+
+            return Task.CompletedTask;
+        }
+
+        public Task SetUserActiveAsync(string userId, bool isActive, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            Users.Single(user => user.Id == userId).IsActive = isActive;
+
+            return Task.CompletedTask;
+        }
+
+        public Task SetUserRolesAsync(string userId, IReadOnlyCollection<string> roleIds, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            var user = Users.Single(user => user.Id == userId);
+            user.RoleIds.Clear();
+            user.RoleIds.AddRange(roleIds);
+
+            return Task.CompletedTask;
+        }
+
+        public Task ResetUserPasswordAsync(string userId, string newPassword, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            Passwords[userId] = newPassword;
+
+            return Task.CompletedTask;
+        }
+
+        public Task CreateRoleAsync(string name, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            Roles.Add(new RoleInfo { Id = "role-" + (Roles.Count + 1), Name = name });
+
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteRoleAsync(string roleId, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            Roles.RemoveAll(role => role.Id == roleId);
+
+            foreach (var user in Users)
+            {
+                user.RoleIds.Remove(roleId);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task AddAccessRuleAsync(string roleId, string permission, string deviceId, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            Roles.Single(role => role.Id == roleId).Rules.Add(new AccessRuleInfo { Permission = permission, DeviceId = deviceId });
+
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAccessRuleAsync(string roleId, string permission, string deviceId, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            var rules = Roles.Single(role => role.Id == roleId).Rules;
+            rules.Remove(rules.Single(rule => rule.Permission == permission && rule.DeviceId == deviceId));
+
+            return Task.CompletedTask;
+        }
+
         public List<DeviceInfo> Devices { get; } = [];
 
         public List<(string Name, string IpAddress)> AddedDevices { get; } = [];

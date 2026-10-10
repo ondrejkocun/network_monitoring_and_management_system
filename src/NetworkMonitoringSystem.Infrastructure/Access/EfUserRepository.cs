@@ -36,9 +36,31 @@ public sealed class EfUserRepository : IUserRepository
         return _dbContext.Roles.Include(role => role.Rules).FirstOrDefaultAsync(role => role.Name == name, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<User>> GetUsersAsync(CancellationToken cancellationToken = default)
+    {
+        return await UsersWithRoles().OrderBy(user => user.UserName).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Role>> GetRolesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Roles.Include(role => role.Rules).OrderBy(role => role.Name).ToListAsync(cancellationToken);
+    }
+
+    public Task<Role?> GetRoleByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return _dbContext.Roles.Include(role => role.Rules).FirstOrDefaultAsync(role => role.Id == id, cancellationToken);
+    }
+
     public void AddUser(User user) => _dbContext.Users.Add(user);
 
     public void AddRole(Role role) => _dbContext.Roles.Add(role);
+
+    public void RemoveRole(Role role) => _dbContext.Roles.Remove(role);
+
+    public async Task<IReadOnlyList<UserSession>> GetSessionsOfUserAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.UserSessions.Where(session => session.UserId == userId).ToListAsync(cancellationToken);
+    }
 
     public Task<UserSession?> GetSessionAsync(string tokenHash, CancellationToken cancellationToken = default)
     {

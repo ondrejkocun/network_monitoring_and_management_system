@@ -48,6 +48,84 @@ public sealed class GrpcServerClient : IServerClient
         }
     }
 
+    public async Task ChangeOwnPasswordAsync(string currentPassword, string newPassword, CancellationToken cancellationToken = default)
+    {
+        await CallAsync(() => _client.ChangeOwnPasswordAsync(
+            new ChangeOwnPasswordRequest { CurrentPassword = currentPassword, NewPassword = newPassword },
+            Headers(), cancellationToken: cancellationToken));
+
+        _token = null;
+    }
+
+    public async Task<IReadOnlyList<UserInfo>> GetUsersAsync(CancellationToken cancellationToken = default)
+    {
+        return (await CallAsync(() => _client.ListUsersAsync(new ListUsersRequest(), Headers(), cancellationToken: cancellationToken))).Users;
+    }
+
+    public Task<ListRolesReply> GetRolesAsync(CancellationToken cancellationToken = default)
+    {
+        return CallAsync(() => _client.ListRolesAsync(new ListRolesRequest(), Headers(), cancellationToken: cancellationToken));
+    }
+
+    public async Task CreateUserAsync(string userName, string password, IReadOnlyCollection<string> roleIds, CancellationToken cancellationToken = default)
+    {
+        var request = new CreateUserRequest { UserName = userName, Password = password };
+        request.RoleIds.AddRange(roleIds);
+
+        await CallAsync(() => _client.CreateUserAsync(request, Headers(), cancellationToken: cancellationToken));
+    }
+
+    public async Task SetUserActiveAsync(string userId, bool isActive, CancellationToken cancellationToken = default)
+    {
+        await CallAsync(() => _client.SetUserActiveAsync(
+            new SetUserActiveRequest { UserId = userId, IsActive = isActive },
+            Headers(), cancellationToken: cancellationToken));
+    }
+
+    public async Task SetUserRolesAsync(string userId, IReadOnlyCollection<string> roleIds, CancellationToken cancellationToken = default)
+    {
+        var request = new SetUserRolesRequest { UserId = userId };
+        request.RoleIds.AddRange(roleIds);
+
+        await CallAsync(() => _client.SetUserRolesAsync(request, Headers(), cancellationToken: cancellationToken));
+    }
+
+    public async Task ResetUserPasswordAsync(string userId, string newPassword, CancellationToken cancellationToken = default)
+    {
+        await CallAsync(() => _client.ResetUserPasswordAsync(
+            new ResetUserPasswordRequest { UserId = userId, NewPassword = newPassword },
+            Headers(), cancellationToken: cancellationToken));
+    }
+
+    public async Task CreateRoleAsync(string name, CancellationToken cancellationToken = default)
+    {
+        await CallAsync(() => _client.CreateRoleAsync(new CreateRoleRequest { Name = name }, Headers(), cancellationToken: cancellationToken));
+    }
+
+    public async Task DeleteRoleAsync(string roleId, CancellationToken cancellationToken = default)
+    {
+        await CallAsync(() => _client.DeleteRoleAsync(new DeleteRoleRequest { RoleId = roleId }, Headers(), cancellationToken: cancellationToken));
+    }
+
+    public async Task AddAccessRuleAsync(string roleId, string permission, string deviceId, CancellationToken cancellationToken = default)
+    {
+        await CallAsync(() => _client.AddAccessRuleAsync(CreateRuleRequest(roleId, permission, deviceId), Headers(), cancellationToken: cancellationToken));
+    }
+
+    public async Task RemoveAccessRuleAsync(string roleId, string permission, string deviceId, CancellationToken cancellationToken = default)
+    {
+        await CallAsync(() => _client.RemoveAccessRuleAsync(CreateRuleRequest(roleId, permission, deviceId), Headers(), cancellationToken: cancellationToken));
+    }
+
+    private static AccessRuleRequest CreateRuleRequest(string roleId, string permission, string deviceId)
+    {
+        return new AccessRuleRequest
+        {
+            RoleId = roleId,
+            Rule = new AccessRuleInfo { Permission = permission, DeviceId = deviceId },
+        };
+    }
+
     public async Task<IReadOnlyList<DeviceInfo>> GetDevicesAsync(CancellationToken cancellationToken = default)
     {
         var reply = await CallAsync(() => _client.ListDevicesAsync(new ListDevicesRequest(), Headers(), cancellationToken: cancellationToken));
@@ -117,7 +195,7 @@ public sealed class GrpcServerClient : IServerClient
         {
             throw exception.StatusCode switch
             {
-                StatusCode.InvalidArgument => new ServerClientException(ServerErrorKind.InvalidInput, exception.Status.Detail, exception),
+                StatusCode.InvalidArgument or StatusCode.FailedPrecondition => new ServerClientException(ServerErrorKind.InvalidInput, exception.Status.Detail, exception),
                 StatusCode.NotFound => new ServerClientException(ServerErrorKind.NotFound, exception.Status.Detail, exception),
                 StatusCode.PermissionDenied => new ServerClientException(ServerErrorKind.AccessDenied, exception.Status.Detail, exception),
                 StatusCode.Unauthenticated => new ServerClientException(ServerErrorKind.NotSignedIn, exception.Status.Detail, exception),

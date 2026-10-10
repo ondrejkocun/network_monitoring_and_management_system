@@ -32,11 +32,24 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) => _refreshTimer.Stop();
 
-        // Signing out and an expired session both end in the sign-in window, which the application shows next.
+        // Signing out, a changed password and an expired session all end in the sign-in window, which the application shows next.
         _viewModel.SessionEnded += (_, _) =>
         {
             _refreshTimer.Stop();
             Close();
         };
+    }
+
+    private void OnAccessClick(object sender, RoutedEventArgs e)
+    {
+        new AccessWindow(_viewModel.CreateAccessViewModel()) { Owner = this }.ShowDialog();
+    }
+
+    private void OnChangePasswordClick(object sender, RoutedEventArgs e)
+    {
+        if (new ChangePasswordWindow(_viewModel.CreateChangePasswordViewModel()) { Owner = this }.ShowDialog() == true)
+        {
+            _viewModel.EndSessionAfterPasswordChange();
+        }
     }
 }

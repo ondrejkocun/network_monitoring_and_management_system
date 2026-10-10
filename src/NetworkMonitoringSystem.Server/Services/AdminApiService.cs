@@ -22,14 +22,17 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
     private readonly IDeviceHistoryService _historyService;
     private readonly IAuthenticationService _authenticationService;
     private readonly DeniedAccessLog _deniedAccessLog;
+    private readonly IAccessManagementService _accessManagement;
 
     public AdminApiService(
         IDeviceService deviceService,
         IMonitoringSettingsService settingsService,
         IDeviceHistoryService historyService,
         IAuthenticationService authenticationService,
+        IAccessManagementService accessManagement,
         DeniedAccessLog deniedAccessLog)
     {
+        _accessManagement = accessManagement;
         _historyService = historyService;
         _authenticationService = authenticationService;
         _deniedAccessLog = deniedAccessLog;
@@ -64,6 +67,103 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         await _authenticationService.LogoutAsync(AdminAuthenticationInterceptor.ReadToken(context) ?? string.Empty, context.CancellationToken);
 
         return new LogoutReply();
+    }
+
+    public override async Task<ChangeOwnPasswordReply> ChangeOwnPassword(ChangeOwnPasswordRequest request, ServerCallContext context)
+    {
+        var user = AdminAuthenticationInterceptor.GetUser(context);
+
+        await ManageAsync(() => _accessManagement.ChangeOwnPasswordAsync(user, request.CurrentPassword, request.NewPassword, context.CancellationToken));
+
+        return new ChangeOwnPasswordReply();
+    }
+
+    public override async Task<ListUsersReply> ListUsers(ListUsersRequest request, ServerCallContext context)
+    {
+        await RequireAsync(context, Permission.ManageUsers);
+
+        var reply = new ListUsersReply();
+        reply.Users.AddRange((await _accessManagement.GetUsersAsync(context.CancellationToken)).Select(ToUserInfo));
+
+        return reply;
+    }
+
+    public override async Task<UserInfo> CreateUser(CreateUserRequest request, ServerCallContext context)
+    {
+        var actor = await RequireAsync(context, Permission.ManageUsers);
+
+        return ToUserInfo(await ManageAsync(() => _accessManagement.CreateUserAsync(
+            actor, request.UserName, request.Password, ParseIds(request.RoleIds), context.CancellationToken)));
+    }
+
+    public override async Task<UserInfo> SetUserActive(SetUserActiveRequest request, ServerCallContext context)
+    {
+        var actor = await RequireAsync(context, Permission.ManageUsers);
+
+        return ToUserInfo(await ManageAsync(() => _accessManagement.SetUserActiveAsync(
+            actor, ParseId(request.UserId), request.IsActive, context.CancellationToken)));
+    }
+
+    public override async Task<UserInfo> SetUserRoles(SetUserRolesRequest request, ServerCallContext context)
+    {
+        var actor = await RequireAsync(context, Permission.ManageUsers);
+
+        return ToUserInfo(await ManageAsync(() => _accessManagement.SetUserRolesAsync(
+            actor, ParseId(request.UserId), ParseIds(request.RoleIds), context.CancellationToken)));
+    }
+
+    public override async Task<ResetUserPasswordReply> ResetUserPassword(ResetUserPasswordRequest request, ServerCallContext context)
+    {
+        var actor = await RequireAsync(context, Permission.ManageUsers);
+
+        await ManageAsync(() => _accessManagement.ResetPasswordAsync(actor, ParseId(request.UserId), request.NewPassword, context.CancellationToken));
+
+        return new ResetUserPasswordReply();
+    }
+
+    public override async Task<ListRolesReply> ListRoles(ListRolesRequest request, ServerCallContext context)
+    {
+        await RequireAsync(context, Permission.ManageUsers);
+
+        var reply = new ListRolesReply();
+        reply.Roles.AddRange((await _accessManagement.GetRolesAsync(context.CancellationToken)).Select(ToRoleInfo));
+        reply.Permissions.AddRange(System.Enum.GetNames<Permission>());
+
+        return reply;
+    }
+
+    public override async Task<RoleInfo> CreateRole(CreateRoleRequest request, ServerCallContext context)
+    {
+        var actor = await RequireAsync(context, Permission.ManageUsers);
+
+        return ToRoleInfo(await ManageAsync(() => _accessManagement.CreateRoleAsync(actor, request.Name, context.CancellationToken)));
+    }
+
+    public override async Task<DeleteRoleReply> DeleteRole(DeleteRoleRequest request, ServerCallContext context)
+    {
+        var actor = await RequireAsync(context, Permission.ManageUsers);
+
+        await ManageAsync(() => _accessManagement.DeleteRoleAsync(actor, ParseId(request.RoleId), context.CancellationToken));
+
+        return new DeleteRoleReply();
+    }
+
+    public override async Task<RoleInfo> AddAccessRule(AccessRuleRequest request, ServerCallContext context)
+    {
+        var actor = await RequireAsync(context, Permission.ManageUsers);
+        var (permission, deviceId) = ParseRule(request.Rule);
+
+        return ToRoleInfo(await ManageAsync(() => _accessManagement.AllowAsync(
+            actor, ParseId(request.RoleId), permission, deviceId, context.CancellationToken)));
+    }
+
+    public override async Task<RoleInfo> RemoveAccessRule(AccessRuleRequest request, ServerCallContext context)
+    {
+        var actor = await RequireAsync(context, Permission.ManageUsers);
+        var (permission, deviceId) = ParseRule(request.Rule);
+
+        return ToRoleInfo(await ManageAsync(() => _accessManagement.RevokeAsync(
+            actor, ParseId(request.RoleId), permission, deviceId, context.CancellationToken)));
     }
 
     public override async Task<ListDevicesReply> ListDevices(ListDevicesRequest request, ServerCallContext context)
@@ -304,8 +404,89 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         }
     }
 
+    /// <summary>Runs a management operation and turns its failures into the matching gRPC status.</summary>
+    private static async Task<T> ManageAsync<T>(Func<Task<T>> operation)
+    {
+        try
+        {
+            return await operation();
+        }
+        catch (ArgumentException exception)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
+        }
+        catch (AccessItemNotFoundException exception)
+        {
+            throw new RpcException(new Status(StatusCode.NotFound, exception.Message));
+        }
+        catch (AccessChangeRefusedException exception)
+        {
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, exception.Message));
+        }
+        catch (AuthenticationFailedException)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "The current password is not correct."));
+        }
+    }
+
+    private static Task ManageAsync(Func<Task> operation)
+    {
+        return ManageAsync(async () =>
+        {
+            await operation();
+
+            return true;
+        });
+    }
+
+    private static Guid ParseId(string text)
+    {
+        return Guid.TryParse(text, out var id)
+            ? id
+            : throw new RpcException(new Status(StatusCode.NotFound, "The item does not exist."));
+    }
+
+    private static List<Guid> ParseIds(IEnumerable<string> texts) => texts.Select(ParseId).ToList();
+
+    private static (Permission Permission, Guid? DeviceId) ParseRule(AccessRuleInfo? rule)
+    {
+        if (rule is null || !System.Enum.TryParse<Permission>(rule.Permission, out var permission) || !System.Enum.IsDefined(permission))
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Unknown permission."));
+        }
+
+        return (permission, string.IsNullOrEmpty(rule.DeviceId) ? null : ParseId(rule.DeviceId));
+    }
+
+    private static UserInfo ToUserInfo(UserDto user)
+    {
+        var info = new UserInfo
+        {
+            Id = user.Id.ToString(),
+            UserName = user.UserName,
+            IsActive = user.IsActive,
+            IsLocked = user.IsLocked,
+            CreatedAt = Timestamp.FromDateTimeOffset(user.CreatedAt),
+        };
+        info.RoleIds.AddRange(user.RoleIds.Select(roleId => roleId.ToString()));
+
+        return info;
+    }
+
+    private static RoleInfo ToRoleInfo(RoleDto role)
+    {
+        var info = new RoleInfo { Id = role.Id.ToString(), Name = role.Name, IsBuiltIn = role.IsBuiltIn };
+        info.Rules.AddRange(role.Rules.Select(rule => new AccessRuleInfo
+        {
+            Permission = rule.Permission.ToString(),
+            DeviceId = rule.DeviceId?.ToString() ?? string.Empty,
+        }));
+
+        return info;
+    }
+
     /// <summary>Refuses the call unless the user holds the permission for all devices.</summary>
-    private async Task RequireAsync(ServerCallContext context, Permission permission)
+    private async Task<AuthenticatedUser> RequireAsync(ServerCallContext context, Permission permission)
     {
         var user = AdminAuthenticationInterceptor.GetUser(context);
 
@@ -313,6 +494,8 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         {
             throw await DenyAsync(context, user, deviceId: null);
         }
+
+        return user;
     }
 
     /// <summary>Refuses the call unless the user holds the permission for the device.</summary>
