@@ -16,4 +16,16 @@ public enum Permission
 
     /// <summary>Manage users, roles and access rules.</summary>
     ManageUsers = 4,
+
+    // One permission for each remote command; a user may send only the commands they hold.
+    RestartDevice = 101,
+    ShutDownDevice = 102,
+    KillProcess = 103,
+    StartService = 104,
+    StopService = 105,
+    RestartService = 106,
+    SynchronizeNow = 107,
+    Ping = 108,
+    Traceroute = 109,
+    FlushDnsCache = 110,
 }

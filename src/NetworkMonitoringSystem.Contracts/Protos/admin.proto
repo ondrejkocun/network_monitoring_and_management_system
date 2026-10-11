@@ -47,6 +47,12 @@ service AdminApi {
   // Returns the availability, outages, events and resource use of the device in a period.
   rpc GetDeviceHistory (GetDeviceHistoryRequest) returns (DeviceHistoryReply);
 
+  // Queues a command for the device's agent. Requires the permission of that command on the device.
+  rpc SendCommand (SendCommandRequest) returns (CommandInfo);
+
+  // Returns the most recent commands sent to the device with their results, the newest first.
+  rpc ListDeviceCommands (ListDeviceCommandsRequest) returns (ListDeviceCommandsReply);
+
   rpc GetMonitoringSettings (GetMonitoringSettingsRequest) returns (MonitoringSettingsInfo);
 
   // Changes the global interval in which device state is synchronized and recorded.
@@ -327,6 +333,35 @@ message ResourcePointInfo {
   optional double cpu_usage_percent = 2;
   uint64 memory_used_bytes = 3;
   uint64 memory_total_bytes = 4;
+}
+
+message SendCommandRequest {
+  string device_id = 1;
+  // Name of the command, which is also the name of the permission it needs, for example "RestartDevice".
+  string type = 2;
+  // Process identifier, service name or target address, depending on the command; empty when it takes none.
+  string parameter = 3;
+}
+
+message CommandInfo {
+  string id = 1;
+  string type = 2;
+  string parameter = 3;
+  // "Pending", "Sent", "Succeeded", "Failed" or "Expired".
+  string status = 4;
+  string requested_by = 5;
+  google.protobuf.Timestamp requested_at = 6;
+  // Not set until the command has finished.
+  google.protobuf.Timestamp completed_at = 7;
+  string result_message = 8;
+}
+
+message ListDeviceCommandsRequest {
+  string device_id = 1;
+}
+
+message ListDeviceCommandsReply {
+  repeated CommandInfo commands = 1;
 }
 
 message GetMonitoringSettingsRequest {

@@ -13,11 +13,63 @@ service AgentApi {
 
   // Tells the server that the device is alive and, when measured, how its system resources are used.
   rpc Heartbeat (HeartbeatRequest) returns (HeartbeatReply);
+
+  // Asks for the commands waiting for this device. The agent calls it every few seconds.
+  rpc FetchCommands (FetchCommandsRequest) returns (FetchCommandsReply);
+
+  // Reports how a command handed over by FetchCommands ended.
+  rpc ReportCommandResult (CommandResultRequest) returns (CommandResultReply);
 }
 
 message AgentCredentials {
   string device_id = 1;
   string agent_key = 2;
+}
+
+// The fixed list of commands a device can be asked to carry out. There is no command that runs an arbitrary program.
+enum CommandType {
+  COMMAND_TYPE_UNSPECIFIED = 0;
+  COMMAND_TYPE_RESTART_DEVICE = 1;
+  COMMAND_TYPE_SHUT_DOWN_DEVICE = 2;
+  // Parameter: process identifier.
+  COMMAND_TYPE_KILL_PROCESS = 3;
+  // Parameter of the three service commands: service name.
+  COMMAND_TYPE_START_SERVICE = 4;
+  COMMAND_TYPE_STOP_SERVICE = 5;
+  COMMAND_TYPE_RESTART_SERVICE = 6;
+  COMMAND_TYPE_SYNCHRONIZE_NOW = 7;
+  // Parameter of ping and traceroute: IP address or host name.
+  COMMAND_TYPE_PING = 8;
+  COMMAND_TYPE_TRACEROUTE = 9;
+  COMMAND_TYPE_FLUSH_DNS_CACHE = 10;
+}
+
+message AgentCommand {
+  string id = 1;
+  CommandType type = 2;
+  // Empty when the command takes no parameter.
+  string parameter = 3;
+}
+
+message FetchCommandsRequest {
+  AgentCredentials credentials = 1;
+}
+
+message FetchCommandsReply {
+  repeated AgentCommand commands = 1;
+  // How long the agent should wait before asking again.
+  int32 poll_interval_seconds = 2;
+}
+
+message CommandResultRequest {
+  AgentCredentials credentials = 1;
+  string command_id = 2;
+  bool succeeded = 3;
+  // What the command printed or why it failed.
+  string message = 4;
+}
+
+message CommandResultReply {
 }
 
 message RegisterRequest {

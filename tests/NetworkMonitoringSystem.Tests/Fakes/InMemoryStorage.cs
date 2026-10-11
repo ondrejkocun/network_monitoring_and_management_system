@@ -1,10 +1,12 @@
 namespace NetworkMonitoringSystem.Tests.Fakes;
 
 using NetworkMonitoringSystem.Application.Access;
+using NetworkMonitoringSystem.Application.Commands;
 using NetworkMonitoringSystem.Application.Common;
 using NetworkMonitoringSystem.Application.Devices;
 using NetworkMonitoringSystem.Application.Monitoring;
 using NetworkMonitoringSystem.Domain.Access;
+using NetworkMonitoringSystem.Domain.Commands;
 using NetworkMonitoringSystem.Domain.Devices;
 using NetworkMonitoringSystem.Domain.Monitoring;
 
@@ -287,5 +289,34 @@ public sealed class InMemoryUserRepository : IUserRepository
     public Task<int> DeleteSessionsExpiredBeforeAsync(DateTimeOffset time, CancellationToken cancellationToken = default)
     {
         return Task.FromResult(Sessions.RemoveAll(session => session.ExpiresAt < time));
+    }
+}
+
+public sealed class InMemoryRemoteCommandRepository : IRemoteCommandRepository
+{
+    public List<RemoteCommand> Commands { get; } = [];
+
+    public void Add(RemoteCommand command) => Commands.Add(command);
+
+    public Task<RemoteCommand?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Commands.FirstOrDefault(command => command.Id == id));
+    }
+
+    public Task<IReadOnlyList<RemoteCommand>> GetUnfinishedAsync(Guid deviceId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<RemoteCommand>>(Commands
+            .Where(command => command.DeviceId == deviceId && !command.IsFinished)
+            .OrderBy(command => command.RequestedAt)
+            .ToList());
+    }
+
+    public Task<IReadOnlyList<RemoteCommand>> GetRecentAsync(Guid deviceId, int limit, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<RemoteCommand>>(Commands
+            .Where(command => command.DeviceId == deviceId)
+            .OrderByDescending(command => command.RequestedAt)
+            .Take(limit)
+            .ToList());
     }
 }

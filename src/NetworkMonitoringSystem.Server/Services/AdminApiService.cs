@@ -1,7 +1,9 @@
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using NetworkMonitoringSystem.Application.Access;
+using NetworkMonitoringSystem.Application.Commands;
 using NetworkMonitoringSystem.Application.Devices;
+using NetworkMonitoringSystem.Domain.Commands;
 using NetworkMonitoringSystem.Domain.Access;
 using NetworkMonitoringSystem.Application.Monitoring;
 using NetworkMonitoringSystem.Contracts.Admin;
@@ -23,6 +25,7 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
     private readonly IAuthenticationService _authenticationService;
     private readonly DeniedAccessLog _deniedAccessLog;
     private readonly IAccessManagementService _accessManagement;
+    private readonly IRemoteCommandService _commandService;
 
     public AdminApiService(
         IDeviceService deviceService,
@@ -30,8 +33,10 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         IDeviceHistoryService historyService,
         IAuthenticationService authenticationService,
         IAccessManagementService accessManagement,
+        IRemoteCommandService commandService,
         DeniedAccessLog deniedAccessLog)
     {
+        _commandService = commandService;
         _accessManagement = accessManagement;
         _historyService = historyService;
         _authenticationService = authenticationService;
@@ -382,6 +387,63 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         }));
 
         return reply;
+    }
+
+    public override async Task<CommandInfo> SendCommand(SendCommandRequest request, ServerCallContext context)
+    {
+        if (!System.Enum.TryParse<RemoteCommandType>(request.Type, out var type) || !System.Enum.IsDefined(type))
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Unknown command."));
+        }
+
+        var user = AdminAuthenticationInterceptor.GetUser(context);
+        var deviceId = await AuthorizeForDeviceAsync(context, RemoteCommand.PermissionFor(type), request.DeviceId);
+
+        try
+        {
+            var command = deviceId is { } id
+                ? await _commandService.RequestAsync(user, id, type, request.Parameter, context.CancellationToken)
+                : null;
+
+            return command is null
+                ? throw new RpcException(new Status(StatusCode.NotFound, "The device does not exist."))
+                : ToCommandInfo(command);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
+        }
+        catch (RemoteCommandRefusedException exception)
+        {
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, exception.Message));
+        }
+    }
+
+    public override async Task<ListDeviceCommandsReply> ListDeviceCommands(ListDeviceCommandsRequest request, ServerCallContext context)
+    {
+        var reply = new ListDeviceCommandsReply();
+
+        if (await AuthorizeForDeviceAsync(context, Permission.ViewDevices, request.DeviceId) is { } id)
+        {
+            reply.Commands.AddRange((await _commandService.GetRecentAsync(id, context.CancellationToken)).Select(ToCommandInfo));
+        }
+
+        return reply;
+    }
+
+    private static CommandInfo ToCommandInfo(RemoteCommandDto command)
+    {
+        return new CommandInfo
+        {
+            Id = command.Id.ToString(),
+            Type = command.Type.ToString(),
+            Parameter = command.Parameter ?? string.Empty,
+            Status = command.Status.ToString(),
+            RequestedBy = command.RequestedByUserName,
+            RequestedAt = Timestamp.FromDateTimeOffset(command.RequestedAt),
+            CompletedAt = command.CompletedAt is { } completedAt ? Timestamp.FromDateTimeOffset(completedAt) : null,
+            ResultMessage = command.ResultMessage ?? string.Empty,
+        };
     }
 
     public override async Task<MonitoringSettingsInfo> GetMonitoringSettings(GetMonitoringSettingsRequest request, ServerCallContext context)

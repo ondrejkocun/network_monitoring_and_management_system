@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using NetworkMonitoringSystem.Domain.Access;
+using NetworkMonitoringSystem.Domain.Commands;
 using NetworkMonitoringSystem.Domain.Devices;
 using NetworkMonitoringSystem.Domain.Monitoring;
 
@@ -33,6 +34,8 @@ public sealed class MonitoringDbContext : DbContext
     public DbSet<Role> Roles => Set<Role>();
 
     public DbSet<UserSession> UserSessions => Set<UserSession>();
+
+    public DbSet<RemoteCommand> RemoteCommands => Set<RemoteCommand>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

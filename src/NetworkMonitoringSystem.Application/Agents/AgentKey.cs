@@ -19,6 +19,14 @@ internal static class AgentKey
         return expectedHash is not null && FixedTimeEquals(Hash(key), expectedHash);
     }
 
+    /// <summary>True when the device exists, is enabled and the credentials carry its key.</summary>
+    public static bool IsValidFor(Domain.Devices.Device? device, AgentCredentials credentials)
+    {
+        return device is { IsEnabled: true }
+            && !string.IsNullOrEmpty(credentials.AgentKey)
+            && Matches(credentials.AgentKey, device.AgentKeyHash);
+    }
+
     /// <summary>Compares two secrets without revealing through timing where they differ.</summary>
     public static bool FixedTimeEquals(string left, string right)
     {

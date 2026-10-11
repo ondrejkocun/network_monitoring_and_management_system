@@ -1,4 +1,5 @@
 using NetworkMonitoringSystem.Agent;
+using NetworkMonitoringSystem.Agent.Commands;
 using NetworkMonitoringSystem.Agent.Identity;
 using NetworkMonitoringSystem.Agent.Metrics;
 using NetworkMonitoringSystem.Contracts.Agents;
@@ -22,7 +23,11 @@ builder.Services.AddSingleton<IAgentIdentityStore, ProtectedFileIdentityStore>()
 builder.Services.AddSingleton<ISystemMetricsCollector, WindowsSystemMetricsCollector>();
 builder.Services.AddSingleton<ISystemActivityCollector, WindowsSystemActivityCollector>();
 builder.Services.AddSingleton<AgentReporter>();
+builder.Services.AddSingleton<SynchronizationSignal>();
+builder.Services.AddSingleton<ISystemProgramRunner, SystemProgramRunner>();
+builder.Services.AddSingleton<ICommandExecutor, WindowsCommandExecutor>();
 builder.Services.AddHostedService<Worker>();
+builder.Services.AddHostedService<CommandWorker>();
 
 var host = builder.Build();
 host.Run();

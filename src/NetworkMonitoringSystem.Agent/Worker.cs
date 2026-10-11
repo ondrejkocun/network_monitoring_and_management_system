@@ -1,12 +1,16 @@
+using NetworkMonitoringSystem.Agent.Commands;
+
 namespace NetworkMonitoringSystem.Agent;
 
 public class Worker : BackgroundService
 {
     private readonly AgentReporter _reporter;
     private readonly ILogger<Worker> _logger;
+    private readonly SynchronizationSignal _synchronizationSignal;
 
-    public Worker(AgentReporter reporter, ILogger<Worker> logger)
+    public Worker(AgentReporter reporter, SynchronizationSignal synchronizationSignal, ILogger<Worker> logger)
     {
+        _synchronizationSignal = synchronizationSignal;
         _reporter = reporter;
         _logger = logger;
     }
@@ -19,7 +23,8 @@ public class Worker : BackgroundService
 
             _logger.LogDebug("Next report in {Delay}.", delay);
 
-            await Task.Delay(delay, stoppingToken);
+            // A command from the server can ask for the next report at once.
+            await _synchronizationSignal.WaitAsync(delay, stoppingToken);
         }
     }
 }

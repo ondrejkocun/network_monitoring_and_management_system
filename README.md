@@ -20,7 +20,8 @@ The project is under development. This is what works today and what is still to 
 | Network traffic capture | Planned |
 | Users, roles and access rules; sign-in; permission check on every administration call | Done |
 | Managing users, roles and rules from the desktop application; changing one's own password | Done |
-| Remote commands with audit | Planned |
+| Remote commands with audit: server queue, execution by the agent, a permission for each command | Done |
+| Sending remote commands from the desktop application | Planned |
 | Desktop application: device list, adding and removing devices, changing the interval | Done |
 | Desktop application: outages, availability, event log and resource charts for a chosen period | Done |
 
@@ -150,6 +151,9 @@ dotnet ef migrations add <Name> --project src/NetworkMonitoringSystem.Infrastruc
 - Passwords are stored as PBKDF2-HMAC-SHA256 hashes with a random salt and 600,000 iterations. After five wrong passwords in a row an account is locked for five minutes.
 - An administrator manages users, roles and rules in the desktop application. The built-in `Administrator` role always holds every permission and cannot be changed, and the last active administrator cannot be deactivated or lose the role, so the system cannot lock itself. Every such change is written to the event log with its author.
 - Changing or resetting a password ends all sessions of that user. Changing one's own password requires the current one, and wrong attempts count towards locking the account.
+- Remote commands are a fixed list (restart, shut down, end a process, start, stop or restart a service, synchronize now, ping, traceroute, flush the DNS cache). There is no command that runs an arbitrary program, and nothing received from the server is passed to a command line: parameters are validated on the server and again by the agent, and used as a number, a service name or an address through system interfaces.
+- Each command has its own permission, for all devices or a single one. Every request is stored with who asked, when, on which device and how it ended, and is kept even after the device or the user is removed. A command not picked up within ten minutes expires instead of running later.
+- An agent receives only the commands of its own device and can report a result only for a command it was handed, once.
 - Every administration operation checks the permission of the user on the server, for all devices or for a single one. A refused attempt is written to the event log, as are failed and successful sign-ins.
 - The desktop application refuses a server address that is not HTTPS and keeps the session token only in memory.
 - The local database is published only on `127.0.0.1`.

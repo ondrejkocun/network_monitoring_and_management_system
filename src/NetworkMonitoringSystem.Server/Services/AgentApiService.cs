@@ -1,5 +1,6 @@
 using Grpc.Core;
 using NetworkMonitoringSystem.Application.Agents;
+using NetworkMonitoringSystem.Application.Commands;
 using NetworkMonitoringSystem.Contracts.Agents;
 using AgentCredentials = NetworkMonitoringSystem.Application.Agents.AgentCredentials;
 using DomainTransportProtocol = NetworkMonitoringSystem.Domain.Monitoring.TransportProtocol;
@@ -11,11 +12,15 @@ namespace NetworkMonitoringSystem.Server.Services;
 /// </summary>
 public sealed class AgentApiService : AgentApi.AgentApiBase
 {
+    private const int CommandPollIntervalSeconds = 5;
+
     private readonly IAgentService _agentService;
+    private readonly IRemoteCommandService _commandService;
     private readonly ILogger<AgentApiService> _logger;
 
-    public AgentApiService(IAgentService agentService, ILogger<AgentApiService> logger)
+    public AgentApiService(IAgentService agentService, IRemoteCommandService commandService, ILogger<AgentApiService> logger)
     {
+        _commandService = commandService;
         _agentService = agentService;
         _logger = logger;
     }
@@ -76,6 +81,73 @@ public sealed class AgentApiService : AgentApi.AgentApiBase
         {
             _logger.LogWarning("Heartbeat with invalid credentials for device {DeviceId} from {Peer}.", deviceId, context.Peer);
 
+            throw Unauthenticated();
+        }
+    }
+
+    public override async Task<FetchCommandsReply> FetchCommands(FetchCommandsRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.Credentials?.DeviceId, out var deviceId))
+        {
+            throw Unauthenticated();
+        }
+
+        try
+        {
+            var commands = await _commandService.FetchPendingAsync(
+                new AgentCredentials(deviceId, request.Credentials.AgentKey),
+                context.CancellationToken);
+
+            var reply = new FetchCommandsReply { PollIntervalSeconds = CommandPollIntervalSeconds };
+            reply.Commands.AddRange(commands.Select(command => new Contracts.Agents.AgentCommand
+            {
+                Id = command.Id.ToString(),
+                // The two lists have the same numbers on purpose.
+                Type = (CommandType)(int)command.Type,
+                Parameter = command.Parameter ?? string.Empty,
+            }));
+
+            foreach (var command in commands)
+            {
+                _logger.LogInformation("Command {Type} {CommandId} handed to device {DeviceId}.", command.Type, command.Id, deviceId);
+            }
+
+            return reply;
+        }
+        catch (AgentAuthenticationException)
+        {
+            throw Unauthenticated();
+        }
+    }
+
+    public override async Task<CommandResultReply> ReportCommandResult(CommandResultRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.Credentials?.DeviceId, out var deviceId))
+        {
+            throw Unauthenticated();
+        }
+
+        try
+        {
+            var accepted = Guid.TryParse(request.CommandId, out var commandId)
+                && await _commandService.CompleteAsync(
+                    new AgentCredentials(deviceId, request.Credentials.AgentKey),
+                    commandId,
+                    request.Succeeded,
+                    request.Message,
+                    context.CancellationToken);
+
+            if (!accepted)
+            {
+                _logger.LogWarning("Device {DeviceId} reported a result for a command it was not handed.", deviceId);
+
+                throw new RpcException(new Status(StatusCode.NotFound, "No such command is waiting for a result."));
+            }
+
+            return new CommandResultReply();
+        }
+        catch (AgentAuthenticationException)
+        {
             throw Unauthenticated();
         }
     }

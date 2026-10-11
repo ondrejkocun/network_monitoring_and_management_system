@@ -217,6 +217,8 @@ Používateľ má roly, rola má pravidlá. `AccessRule` hovorí: rola smie vyko
 
 ### Vzdialená správa
 
+Implementované s tromi spresneniami: príkaz má najviac jeden parameter, preto je `Parameters` obyčajný text (`Parameter`), nie JSON; záznam si drží aj meno zariadenia a používateľa, aby prežil ich odstránenie; stav `Rejected` sa nepoužíva (zamietnutý pokus sa do frontu nedostane a je v `Event`), namiesto neho je `Expired` pre príkaz, ktorý agent neprevzal alebo nepotvrdil do 10 minút.
+
 `RemoteCommand` je zároveň front príkazov aj auditný záznam: kto, kedy, čo, na ktorom zariadení a s akým výsledkom. `CommandType` je pevný zoznam schválených príkazov; `Parameters` nesie ich overené parametre (napríklad PID alebo názov služby). Zamietnuté pokusy bez oprávnenia sa zapisujú do `Event`.
 
 ## Návrhové rozhodnutia

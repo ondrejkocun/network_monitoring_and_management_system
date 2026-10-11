@@ -12,6 +12,7 @@ public enum MonitoringEventType
     LoginFailed = 7,
     AccessDenied = 8,
     AccessChanged = 9,
+    RemoteCommand = 10,
 }
 
 public enum EventSeverity

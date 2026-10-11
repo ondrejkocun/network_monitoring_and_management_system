@@ -2,7 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NetworkMonitoringSystem.Application.Access;
+using NetworkMonitoringSystem.Application.Commands;
 using NetworkMonitoringSystem.Application.Common;
+using NetworkMonitoringSystem.Infrastructure.Commands;
 using NetworkMonitoringSystem.Infrastructure.Access;
 using NetworkMonitoringSystem.Application.Devices;
 using NetworkMonitoringSystem.Application.Monitoring;
@@ -30,6 +32,7 @@ public static class DependencyInjection
         services.AddScoped<IMonitoringHistoryRepository, EfMonitoringHistoryRepository>();
         services.AddScoped<IDeviceActivityRepository, EfDeviceActivityRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();
+        services.AddScoped<IRemoteCommandRepository, EfRemoteCommandRepository>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddSingleton<IDeviceReachabilityProbe, PingReachabilityProbe>();
 

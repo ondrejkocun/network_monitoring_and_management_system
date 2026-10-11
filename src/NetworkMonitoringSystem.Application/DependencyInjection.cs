@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NetworkMonitoringSystem.Application.Access;
 using NetworkMonitoringSystem.Application.Agents;
+using NetworkMonitoringSystem.Application.Commands;
 using NetworkMonitoringSystem.Application.Devices;
 using NetworkMonitoringSystem.Application.Monitoring;
 
@@ -17,6 +18,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IAccessManagementService, AccessManagementService>();
         services.AddScoped<IAgentService, AgentService>();
+        services.AddScoped<IRemoteCommandService, RemoteCommandService>();
         services.AddScoped<AvailabilityRecorder>();
         services.AddScoped<DeviceActivityRecorder>();
         services.AddScoped<IDeviceAvailabilityMonitor, DeviceAvailabilityMonitor>();

@@ -109,10 +109,7 @@ public sealed class AgentService : IAgentService
 
         var device = await _deviceRepository.GetByIdAsync(credentials.DeviceId, cancellationToken);
 
-        if (device is null
-            || !device.IsEnabled
-            || string.IsNullOrEmpty(credentials.AgentKey)
-            || !AgentKey.Matches(credentials.AgentKey, device.AgentKeyHash))
+        if (device is null || !AgentKey.IsValidFor(device, credentials))
         {
             throw new AgentAuthenticationException("Agent credentials are not valid.");
         }

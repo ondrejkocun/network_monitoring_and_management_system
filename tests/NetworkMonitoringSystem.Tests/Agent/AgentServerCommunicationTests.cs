@@ -8,11 +8,15 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NetworkMonitoringSystem.Agent;
+using NetworkMonitoringSystem.Agent.Commands;
 using NetworkMonitoringSystem.Agent.Identity;
 using NetworkMonitoringSystem.Agent.Metrics;
 using AdminContracts = NetworkMonitoringSystem.Contracts.Admin;
 using NetworkMonitoringSystem.Contracts.Agents;
+using NetworkMonitoringSystem.Application.Access;
+using NetworkMonitoringSystem.Domain.Access;
 using NetworkMonitoringSystem.Domain.Devices;
+using NetworkMonitoringSystem.Domain.Monitoring;
 using NetworkMonitoringSystem.Tests.Infrastructure;
 
 /// <summary>
@@ -211,6 +215,152 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
             new HeartbeatRequest { Credentials = new AgentCredentials { DeviceId = "not-a-guid", AgentKey = "key" } }));
 
         Assert.Equal(StatusCode.Unauthenticated, exception.StatusCode);
+    }
+
+    [Fact]
+    public async Task Command_SentByAdministrator_IsCarriedOutByTheAgent_AndItsResultCanBeRead()
+    {
+        await CreateReporter(Token).ReportOnceAsync(CancellationToken.None);
+        var identity = _identityStore.Load()!;
+        var admin = new AdminContracts.AdminApi.AdminApiClient(await Server.TestAdministrator.SignInAsync(_channel));
+        var signal = new SynchronizationSignal();
+        var worker = CreateCommandWorker(signal);
+
+        // The tests of this class share one device: a command another test left waiting is carried out first,
+        // and what was logged before does not count.
+        await worker.PollOnceAsync(CancellationToken.None);
+        await signal.WaitAsync(TimeSpan.Zero, CancellationToken.None);
+        var loggedBefore = await CountCommandEventsAsync(identity.DeviceId);
+
+        var ping = await admin.SendCommandAsync(new AdminContracts.SendCommandRequest { DeviceId = identity.DeviceId, Type = "Ping", Parameter = "127.0.0.1" });
+        var synchronize = await admin.SendCommandAsync(new AdminContracts.SendCommandRequest { DeviceId = identity.DeviceId, Type = "SynchronizeNow" });
+        Assert.Equal(("Pending", "admin"), (ping.Status, ping.RequestedBy));
+
+        Assert.Equal(TimeSpan.FromSeconds(5), await worker.PollOnceAsync(CancellationToken.None));
+
+        var commands = (await admin.ListDeviceCommandsAsync(new AdminContracts.ListDeviceCommandsRequest { DeviceId = identity.DeviceId })).Commands;
+        var finishedPing = Assert.Single(commands, command => command.Id == ping.Id);
+        Assert.Equal("Succeeded", finishedPing.Status);
+        Assert.Contains("replies received", finishedPing.ResultMessage);
+        Assert.NotNull(finishedPing.CompletedAt);
+        Assert.Equal("Succeeded", Assert.Single(commands, command => command.Id == synchronize.Id).Status);
+
+        // The command to synchronize woke the reporting loop.
+        Assert.True(await signal.WaitAsync(TimeSpan.FromSeconds(1), CancellationToken.None));
+
+        // Nothing is carried out twice.
+        await worker.PollOnceAsync(CancellationToken.None);
+        Assert.False(await signal.WaitAsync(TimeSpan.FromMilliseconds(100), CancellationToken.None));
+
+        // Each of the two commands is logged when it is sent and when it ends.
+        Assert.Equal(loggedBefore + 4, await CountCommandEventsAsync(identity.DeviceId));
+    }
+
+    private async Task<int> CountCommandEventsAsync(string deviceId)
+    {
+        await using var dbContext = _database.CreateDbContext();
+
+        return await dbContext.Events.CountAsync(logged =>
+            logged.Type == MonitoringEventType.RemoteCommand && logged.DeviceId == Guid.Parse(deviceId));
+    }
+
+    [Fact]
+    public async Task Command_IsRefused_WithoutItsPermission_ForInvalidInput_AndForDeviceThatIsOffline()
+    {
+        await CreateReporter(Token).ReportOnceAsync(CancellationToken.None);
+        var identity = _identityStore.Load()!;
+        var deviceId = Guid.Parse(identity.DeviceId);
+        var admin = new AdminContracts.AdminApi.AdminApiClient(await Server.TestAdministrator.SignInAsync(_channel));
+
+        // A user who may look at the device and ping from it, but nothing else.
+        var userName = "user-" + Guid.NewGuid().ToString("N");
+        Guid userId;
+
+        await using (var dbContext = _database.CreateDbContext())
+        {
+            var role = new Role(Guid.NewGuid(), "Role-" + Guid.NewGuid().ToString("N"));
+            role.Allow(Permission.ViewDevices, deviceId);
+            role.Allow(Permission.Ping, deviceId);
+
+            var user = new User(
+                Guid.NewGuid(),
+                userName,
+                PasswordHasher.Hash("operator-password"),
+                DateTimeOffset.UtcNow);
+            user.AssignRole(role);
+            dbContext.Users.Add(user);
+            await dbContext.SaveChangesAsync();
+            userId = user.Id;
+        }
+
+        var session = await new AdminContracts.AdminApi.AdminApiClient(_channel).LoginAsync(
+            new AdminContracts.LoginRequest { UserName = userName, Password = "operator-password" });
+        var operatorClient = new AdminContracts.AdminApi.AdminApiClient(Server.TestAdministrator.WithToken(_channel, session.Token));
+
+        var allowed = await operatorClient.SendCommandAsync(new AdminContracts.SendCommandRequest { DeviceId = identity.DeviceId, Type = "Ping", Parameter = "127.0.0.1" });
+        Assert.Equal("Pending", allowed.Status);
+
+        var denied = await Assert.ThrowsAsync<RpcException>(async () => await operatorClient.SendCommandAsync(
+            new AdminContracts.SendCommandRequest { DeviceId = identity.DeviceId, Type = "RestartDevice" }));
+        Assert.Equal(StatusCode.PermissionDenied, denied.StatusCode);
+
+        foreach (var (type, parameter) in new[] { ("Ping", "8.8.8.8 & calc"), ("KillProcess", "abc"), ("RunProgram", "calc.exe"), ("RestartDevice", "/f") })
+        {
+            var invalid = await Assert.ThrowsAsync<RpcException>(async () => await admin.SendCommandAsync(
+                new AdminContracts.SendCommandRequest { DeviceId = identity.DeviceId, Type = type, Parameter = parameter }));
+            Assert.Equal(StatusCode.InvalidArgument, invalid.StatusCode);
+        }
+
+        await MarkDeviceOfflineAsync(identity.DeviceId);
+
+        var offline = await Assert.ThrowsAsync<RpcException>(async () => await admin.SendCommandAsync(
+            new AdminContracts.SendCommandRequest { DeviceId = identity.DeviceId, Type = "Ping", Parameter = "127.0.0.1" }));
+        Assert.Equal(StatusCode.FailedPrecondition, offline.StatusCode);
+
+        await using var readContext = _database.CreateDbContext();
+
+        // Only the allowed command was queued; the refused restart is in the event log instead.
+        var queued = await readContext.RemoteCommands.SingleAsync(command => command.RequestedByUserName == userName);
+        Assert.Equal((allowed.Id, deviceId), (queued.Id.ToString(), queued.DeviceId));
+        Assert.True(await readContext.Events.AnyAsync(logged =>
+            logged.Type == MonitoringEventType.AccessDenied
+            && logged.UserId == userId
+            && logged.DeviceId == deviceId
+            && logged.Message.Contains("SendCommand")));
+    }
+
+    [Fact]
+    public async Task Agent_WithWrongKey_GetsNoCommands_AndCannotReportResults()
+    {
+        await CreateReporter(Token).ReportOnceAsync(CancellationToken.None);
+        var identity = _identityStore.Load()!;
+        var agent = new AgentApi.AgentApiClient(_channel);
+        var wrong = new AgentCredentials { DeviceId = identity.DeviceId, AgentKey = "wrong-key" };
+
+        var fetch = await Assert.ThrowsAsync<RpcException>(async () => await agent.FetchCommandsAsync(new FetchCommandsRequest { Credentials = wrong }));
+        Assert.Equal(StatusCode.Unauthenticated, fetch.StatusCode);
+
+        var report = await Assert.ThrowsAsync<RpcException>(async () => await agent.ReportCommandResultAsync(
+            new CommandResultRequest { Credentials = wrong, CommandId = Guid.NewGuid().ToString(), Succeeded = true }));
+        Assert.Equal(StatusCode.Unauthenticated, report.StatusCode);
+
+        // With the right key, a result for a command the device was never handed is not accepted either.
+        var unknown = await Assert.ThrowsAsync<RpcException>(async () => await agent.ReportCommandResultAsync(new CommandResultRequest
+        {
+            Credentials = new AgentCredentials { DeviceId = identity.DeviceId, AgentKey = identity.AgentKey },
+            CommandId = Guid.NewGuid().ToString(),
+            Succeeded = true,
+        }));
+        Assert.Equal(StatusCode.NotFound, unknown.StatusCode);
+    }
+
+    private CommandWorker CreateCommandWorker(SynchronizationSignal signal)
+    {
+        return new CommandWorker(
+            new AgentApi.AgentApiClient(_channel),
+            _identityStore,
+            new WindowsCommandExecutor(new SystemProgramRunner(), signal),
+            NullLogger<CommandWorker>.Instance);
     }
 
     private AgentReporter CreateReporter(string enrollmentToken)
