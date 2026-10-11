@@ -162,6 +162,22 @@ public sealed class GrpcServerClient : IServerClient
             Headers(), cancellationToken: cancellationToken));
     }
 
+    public async Task SendCommandAsync(string deviceId, string type, string parameter, CancellationToken cancellationToken = default)
+    {
+        await CallAsync(() => _client.SendCommandAsync(
+            new SendCommandRequest { DeviceId = deviceId, Type = type, Parameter = parameter },
+            Headers(), cancellationToken: cancellationToken));
+    }
+
+    public async Task<IReadOnlyList<CommandInfo>> GetDeviceCommandsAsync(string deviceId, CancellationToken cancellationToken = default)
+    {
+        var reply = await CallAsync(() => _client.ListDeviceCommandsAsync(
+            new ListDeviceCommandsRequest { DeviceId = deviceId },
+            Headers(), cancellationToken: cancellationToken));
+
+        return reply.Commands;
+    }
+
     public async Task RemoveDeviceAsync(string id, CancellationToken cancellationToken = default)
     {
         await CallAsync(() => _client.RemoveDeviceAsync(new RemoveDeviceRequest { Id = id }, Headers(), cancellationToken: cancellationToken));

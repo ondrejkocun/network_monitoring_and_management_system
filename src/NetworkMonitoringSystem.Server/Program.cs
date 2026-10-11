@@ -27,9 +27,10 @@ builder.Services.AddHostedService<HistoryCleanupService>();
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+// In development the database always follows the migrations in the repository. Elsewhere the administrator
+// decides: changing the structure of a database with data in it should not happen by surprise.
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 {
-    // Keeps the local development database in sync with the migrations in the repository.
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider.GetRequiredService<MonitoringDbContext>().Database.MigrateAsync();
 }

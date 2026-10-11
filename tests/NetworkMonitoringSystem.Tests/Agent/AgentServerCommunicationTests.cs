@@ -5,6 +5,7 @@ using Grpc.Net.Client;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NetworkMonitoringSystem.Agent;
@@ -352,6 +353,32 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
             Succeeded = true,
         }));
         Assert.Equal(StatusCode.NotFound, unknown.StatusCode);
+    }
+
+    [Fact]
+    public async Task RegisterCommand_RegistersTheComputerOnce_AndFailsWithAWrongToken()
+    {
+        // What the installer runs before it creates the service.
+        Assert.Equal(1, await AgentCommandLine.RegisterAsync(CreateAgentServices("wrong-token")));
+        Assert.Null(_identityStore.Load());
+
+        Assert.Equal(0, await AgentCommandLine.RegisterAsync(CreateAgentServices(Token)));
+        var identity = _identityStore.Load();
+        Assert.NotNull(identity);
+
+        // Running the installer again keeps the identity the computer already has.
+        Assert.Equal(0, await AgentCommandLine.RegisterAsync(CreateAgentServices(Token)));
+        Assert.Equal(identity, _identityStore.Load());
+    }
+
+    private ServiceProvider CreateAgentServices(string enrollmentToken)
+    {
+        return new ServiceCollection()
+            .AddLogging()
+            .AddSingleton(Options.Create(new AgentOptions { ServerUrl = "https://localhost", EnrollmentToken = enrollmentToken }))
+            .AddSingleton<IAgentIdentityStore>(_identityStore)
+            .AddSingleton(CreateReporter(enrollmentToken))
+            .BuildServiceProvider();
     }
 
     private CommandWorker CreateCommandWorker(SynchronizationSignal signal)

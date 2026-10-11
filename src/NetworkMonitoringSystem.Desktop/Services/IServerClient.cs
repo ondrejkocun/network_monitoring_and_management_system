@@ -62,6 +62,15 @@ public interface IServerClient
     /// <exception cref="ServerClientException">The server could not be reached or the device does not exist.</exception>
     Task<DeviceHistoryReply> GetDeviceHistoryAsync(string id, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
 
+    /// <summary>Queues a remote command for the device's agent.</summary>
+    /// <param name="parameter">Process identifier, service name or target address; empty when the command takes none.</param>
+    /// <exception cref="ServerClientException">The user lacks the permission, the input is invalid, the device is offline, or the server could not be reached.</exception>
+    Task SendCommandAsync(string deviceId, string type, string parameter, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns the most recent commands sent to the device with their results, the newest first.</summary>
+    /// <exception cref="ServerClientException">The server could not be reached or refused the call.</exception>
+    Task<IReadOnlyList<CommandInfo>> GetDeviceCommandsAsync(string deviceId, CancellationToken cancellationToken = default);
+
     /// <exception cref="ServerClientException">The server could not be reached or the device does not exist.</exception>
     Task RemoveDeviceAsync(string id, CancellationToken cancellationToken = default);
 

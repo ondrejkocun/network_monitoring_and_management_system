@@ -3,6 +3,7 @@ using Grpc.Net.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NetworkMonitoringSystem.Contracts.Admin;
+using NetworkMonitoringSystem.Contracts.Security;
 using NetworkMonitoringSystem.Desktop.Services;
 using NetworkMonitoringSystem.Desktop.ViewModels;
 using NetworkMonitoringSystem.Desktop.Views;
@@ -15,6 +16,7 @@ namespace NetworkMonitoringSystem.Desktop;
 public partial class App : System.Windows.Application
 {
     private const string ServerUrlKey = "Server:Url";
+    private const string ServerCertificateKey = "Server:CertificateSha256";
 
     private ServiceProvider? _serviceProvider;
 
@@ -91,7 +93,10 @@ public partial class App : System.Windows.Application
             throw new InvalidOperationException($"'{ServerUrlKey}' must be an https address.");
         }
 
-        services.AddSingleton(GrpcChannel.ForAddress(serverUrl));
+        // With a pin, the application talks only to a server presenting exactly that certificate.
+        var handler = CertificatePin.CreateHandler(configuration[ServerCertificateKey]);
+
+        services.AddSingleton(GrpcChannel.ForAddress(serverUrl, new GrpcChannelOptions { HttpHandler = handler, DisposeHttpClient = true }));
         services.AddSingleton(provider => new AdminApi.AdminApiClient(provider.GetRequiredService<GrpcChannel>()));
         services.AddSingleton<IServerClient, GrpcServerClient>();
         services.AddSingleton<IConfirmationDialog, MessageBoxConfirmationDialog>();

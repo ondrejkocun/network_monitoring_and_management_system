@@ -684,6 +684,42 @@ public class MainWindowViewModelTests
             return Task.CompletedTask;
         }
 
+        /// <summary>Commands by device id, the newest first, as the fake server holds them.</summary>
+        public Dictionary<string, List<CommandInfo>> Commands { get; } = [];
+
+        public List<(string DeviceId, string Type, string Parameter)> SentCommands { get; } = [];
+
+        public Task SendCommandAsync(string deviceId, string type, string parameter, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            SentCommands.Add((deviceId, type, parameter));
+
+            if (!Commands.TryGetValue(deviceId, out var commands))
+            {
+                Commands[deviceId] = commands = [];
+            }
+
+            commands.Insert(0, new CommandInfo
+            {
+                Id = "command-" + SentCommands.Count,
+                Type = type,
+                Parameter = parameter,
+                Status = "Pending",
+                RequestedBy = "admin",
+            });
+
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<CommandInfo>> GetDeviceCommandsAsync(string deviceId, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            return Task.FromResult<IReadOnlyList<CommandInfo>>(
+                Commands.TryGetValue(deviceId, out var commands) ? commands.Select(command => command.Clone()).ToList() : []);
+        }
+
         public List<UserInfo> Users { get; } = [];
 
         public List<RoleInfo> Roles { get; } = [];

@@ -29,3 +29,6 @@ appsettings.*.Local.json
 
 logs/
 *.log
+
+# Output of the publish scripts
+artifacts/

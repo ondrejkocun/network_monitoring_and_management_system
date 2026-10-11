@@ -13,6 +13,7 @@ public sealed class DeviceRowViewModel
         Name = device.Name;
         Address = string.IsNullOrEmpty(device.IpAddress) ? device.HostName : device.IpAddress;
         Status = device.Status;
+        HasAgent = device.MonitoringMode == MonitoringMode.Agent;
         OperatingSystem = device.OperatingSystem;
         LastSeenAt = device.LastSeenAt?.ToDateTimeOffset().ToLocalTime();
 
@@ -41,6 +42,9 @@ public sealed class DeviceRowViewModel
     public string ModeText { get; }
 
     public DeviceStatus Status { get; }
+
+    /// <summary>True when an agent runs on the device, so it can be sent commands.</summary>
+    public bool HasAgent { get; }
 
     public string StatusText { get; }
 

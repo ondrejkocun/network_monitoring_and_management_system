@@ -17,11 +17,12 @@ The project is under development. This is what works today and what is still to 
 | CPU, memory, disk and network interface metrics | Done |
 | Automatic deletion of history older than the retention period | Done |
 | Open ports, processes and active connections, each linked to its process | Done |
+| Agent as a Windows service; server certificate pinned by agents and the desktop application | Done |
 | Network traffic capture | Planned |
 | Users, roles and access rules; sign-in; permission check on every administration call | Done |
 | Managing users, roles and rules from the desktop application; changing one's own password | Done |
 | Remote commands with audit: server queue, execution by the agent, a permission for each command | Done |
-| Sending remote commands from the desktop application | Planned |
+| Sending remote commands from the desktop application and viewing their results | Done |
 | Desktop application: device list, adding and removing devices, changing the interval | Done |
 | Desktop application: outages, availability, event log and resource charts for a chosen period | Done |
 
@@ -43,7 +44,7 @@ flowchart LR
 
 - The **agent** runs on each monitored Windows device. It registers with the server once, receives its own key, and then reports at an interval the server dictates. Each report carries the processor load, memory use, local disks and network interfaces, and the complete list of running processes, listening ports and connections.
 - The **server** authenticates agents and stores what they report. Devices that cannot run an agent, such as routers and switches, it checks itself with ping once per interval. When a device has not been seen for several intervals, the server marks it offline, opens an outage and writes an event; the outage is closed when the device is seen again. It keeps processes and open ports as periods (started and ended, opened and closed) by comparing each report with the previous one, and writes an event when a device opens a new port. Once an hour it deletes history older than the retention period (30 days by default).
-- The **desktop application** is the administrator's console. It shows the devices and their status and, for the selected device, its latest system resources, processes, open ports and connections. For a chosen period (the last hour up to the last 30 days) it shows the device's outages with their start, end and duration, its availability in percent, its event log and charts of processor and memory use. It adds devices without an agent, removes devices and changes the global synchronization interval.
+- The **desktop application** is the administrator's console. It shows the devices and their status and, for the selected device, its latest system resources, processes, open ports and connections. For a chosen period (the last hour up to the last 30 days) it shows the device's outages with their start, end and duration, its availability in percent, its event log and charts of processor and memory use. A device with an agent can be sent a remote command (for example a ping from the device, restarting a service or restarting the device), and the list of commands shows who sent each one and how it ended. It adds devices without an agent, removes devices and changes the global synchronization interval.
 
 The planned data model is described in [docs/datovy-model.md](docs/datovy-model.md) (in Slovak).
 
@@ -121,6 +122,10 @@ dotnet run --project src/NetworkMonitoringSystem.Desktop
 
 Sign in as `admin` with the administrator password you configured. The application lists the devices and refreshes every five seconds. The server address is set in `src/NetworkMonitoringSystem.Desktop/appsettings.json`.
 
+## More than one computer
+
+To put the server on one computer and agents on others, see [docs/deployment.md](docs/deployment.md). It covers the server's certificate, installing the agent as a Windows service and pointing the desktop application at a server elsewhere.
+
 ## Tests
 
 ```powershell
@@ -145,7 +150,8 @@ dotnet ef migrations add <Name> --project src/NetworkMonitoringSystem.Infrastruc
 - An agent registers with a shared enrollment token and is then issued its own random key; the server stores only a SHA-256 hash of that key.
 - Values measured by an agent are not trusted: the server limits them to valid ranges, shortens overlong texts and caps the number of disks and interfaces in one report.
 - A device whose agent is reporting cannot be registered again, so the enrollment token alone is not enough to take over a working device.
-- The agent keeps its identity in a file encrypted with Windows DPAPI for the account it runs under.
+- The agent keeps its identity in a file encrypted with Windows DPAPI: for the account it runs under, or, when installed as a service, for the computer in a folder only the system and administrators can open.
+- Agents and the desktop application can be given the SHA-256 hash of the server's certificate and then talk only to a server presenting exactly that certificate. The enrollment token is not stored on a monitored computer; the installer uses it once.
 - The agent refuses to connect to a server address that is not HTTPS.
 - The administration API serves only signed-in users. Signing in returns a random session token valid for 12 hours; the server stores only its hash and checks it on every call, so signing out or deactivating a user takes effect immediately.
 - Passwords are stored as PBKDF2-HMAC-SHA256 hashes with a random salt and 600,000 iterations. After five wrong passwords in a row an account is locked for five minutes.

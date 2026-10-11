@@ -28,6 +28,12 @@ public sealed class MainWindowViewModel : ViewModelBase
     private DeviceActivityViewModel? _selectedDeviceActivity;
     private DeviceResourcesReply? _shownResources;
     private DeviceActivityReply? _shownActivity;
+    private IReadOnlyList<CommandInfo>? _shownCommands;
+    private IReadOnlyList<CommandRowViewModel> _deviceCommands = [];
+    private CommandRowViewModel? _selectedCommandRow;
+    private CommandOption _selectedCommand = CommandOption.All[0];
+    private string _commandParameter = string.Empty;
+    private string _commandMessage = string.Empty;
     private string _resourcesMessage = NoDeviceSelectedMessage;
     private bool _isRebuildingList;
     private bool _sessionEnded;
@@ -57,6 +63,150 @@ public sealed class MainWindowViewModel : ViewModelBase
             SaveSyncIntervalAsync,
             () => int.TryParse(SyncIntervalText, NumberStyles.None, CultureInfo.InvariantCulture, out _));
         LogoutCommand = new AsyncRelayCommand(LogoutAsync);
+        SendCommandCommand = new AsyncRelayCommand(
+            SendCommandAsync,
+            () => CanSendCommands && (!SelectedCommand.NeedsParameter || !string.IsNullOrWhiteSpace(CommandParameter)));
+    }
+
+    public AsyncRelayCommand SendCommandCommand { get; }
+
+    /// <summary>The remote commands the user can choose from. Whether they may send one is decided by the server.</summary>
+    public IReadOnlyList<CommandOption> CommandOptions => CommandOption.All;
+
+    public CommandOption SelectedCommand
+    {
+        get => _selectedCommand;
+        set
+        {
+            // The view reports no selection while it is being built; a command is always chosen.
+            if (value is null || !SetProperty(ref _selectedCommand, value))
+            {
+                return;
+            }
+
+            // A process identifier must not be sent as a service name by mistake.
+            CommandParameter = string.Empty;
+            OnPropertyChanged(nameof(CommandParameterLabel));
+            OnPropertyChanged(nameof(IsCommandParameterNeeded));
+            SendCommandCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    public string CommandParameterLabel => SelectedCommand.ParameterLabel ?? string.Empty;
+
+    public bool IsCommandParameterNeeded => SelectedCommand.NeedsParameter;
+
+    public string CommandParameter
+    {
+        get => _commandParameter;
+        set
+        {
+            if (SetProperty(ref _commandParameter, value))
+            {
+                SendCommandCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    /// <summary>True when the selected device has an agent that could carry a command out.</summary>
+    public bool CanSendCommands => SelectedDevice is { HasAgent: true };
+
+    /// <summary>Says what happened to the last command sent, or why commands cannot be sent.</summary>
+    public string CommandMessage
+    {
+        get => _commandMessage;
+        private set => SetProperty(ref _commandMessage, value);
+    }
+
+    /// <summary>The most recent commands sent to the selected device, the newest first.</summary>
+    public IReadOnlyList<CommandRowViewModel> DeviceCommands
+    {
+        get => _deviceCommands;
+        private set
+        {
+            if (SetProperty(ref _deviceCommands, value))
+            {
+                OnPropertyChanged(nameof(CommandsHeader));
+            }
+        }
+    }
+
+    public string CommandsHeader => DeviceCommands.Count == 0 ? "Príkazy" : $"Príkazy ({DeviceCommands.Count})";
+
+    /// <summary>The command whose whole result is shown under the list.</summary>
+    public CommandRowViewModel? SelectedCommandRow
+    {
+        get => _selectedCommandRow;
+        set => SetProperty(ref _selectedCommandRow, value);
+    }
+
+    /// <summary>Loads the commands sent to the selected device from the server.</summary>
+    public async Task LoadSelectedDeviceCommandsAsync()
+    {
+        var device = SelectedDevice;
+
+        if (device is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var commands = await _server.GetDeviceCommandsAsync(device.Id);
+
+            // The answer may arrive after the user has selected another device.
+            if (SelectedDevice?.Id != device.Id || (_shownCommands is not null && commands.SequenceEqual(_shownCommands)))
+            {
+                return;
+            }
+
+            // The list is rebuilt, so the selection is carried over to the row of the same command.
+            var selectedId = SelectedCommandRow?.Id;
+
+            _shownCommands = commands;
+            DeviceCommands = commands.Select(command => new CommandRowViewModel(command)).ToList();
+            SelectedCommandRow = DeviceCommands.FirstOrDefault(command => command.Id == selectedId);
+        }
+        catch (ServerClientException)
+        {
+            // What is on screen stays; the status bar already says when the server cannot be reached.
+        }
+    }
+
+    private async Task SendCommandAsync()
+    {
+        var device = SelectedDevice;
+        var command = SelectedCommand;
+
+        if (device is null)
+        {
+            return;
+        }
+
+        if (command.Warning is not null && !_confirmation.Confirm(
+                command.Label,
+                $"Naozaj chcete zariadeniu „{device.Name}“ poslať príkaz „{command.Label}“? {command.Warning}"))
+        {
+            return;
+        }
+
+        try
+        {
+            await _server.SendCommandAsync(device.Id, command.Name, command.NeedsParameter ? CommandParameter.Trim() : string.Empty);
+        }
+        catch (ServerClientException exception)
+        {
+            CommandMessage = Describe(exception);
+
+            return;
+        }
+
+        CommandMessage = $"Príkaz „{command.Label}“ bol odoslaný. Výsledok sa zobrazí v zozname, keď ho agent vykoná.";
+
+        await LoadSelectedDeviceCommandsAsync();
+
+        // The command just sent is the first in the list; showing it saves the user a click.
+        SelectedCommandRow = DeviceCommands.FirstOrDefault();
     }
 
     /// <summary>
@@ -174,6 +324,12 @@ public sealed class MainWindowViewModel : ViewModelBase
                 SelectedDeviceActivity = null;
                 _shownResources = null;
                 _shownActivity = null;
+                _shownCommands = null;
+                DeviceCommands = [];
+                SelectedCommandRow = null;
+                CommandMessage = value is { HasAgent: false } ? "Príkazy možno posielať len zariadeniu s agentom." : string.Empty;
+                OnPropertyChanged(nameof(CanSendCommands));
+                SendCommandCommand.RaiseCanExecuteChanged();
                 SelectedDeviceHistory = null;
                 _historyLoadedAt = null;
                 ResourcesMessage = value is null ? NoDeviceSelectedMessage : "Načítavam…";
@@ -325,6 +481,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        await LoadSelectedDeviceCommandsAsync();
         await LoadSelectedDeviceHistoryAsync();
     }
 
