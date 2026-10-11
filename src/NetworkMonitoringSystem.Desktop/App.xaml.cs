@@ -27,6 +27,8 @@ public partial class App : System.Windows.Application
         var configuration = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: false)
+            // Settings of this one computer, such as the pin of its server's certificate; the file is not committed.
+            .AddJsonFile("appsettings.Local.json", optional: true)
             .Build();
 
         var services = new ServiceCollection();

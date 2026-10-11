@@ -38,19 +38,18 @@ New-NetFirewallRule -DisplayName "Network Monitoring System server" -Direction I
 
 ### Start the server
 
+Tell the server once which certificate is its own, then start it with the `network` launch profile:
+
 ```powershell
-$env:ASPNETCORE_ENVIRONMENT = "Development"
-$env:Kestrel__Endpoints__Https__Url = "https://0.0.0.0:7006"
-$env:Kestrel__Endpoints__Https__Certificate__Subject = "SERVER01"
-$env:Kestrel__Endpoints__Https__Certificate__Store = "My"
-$env:Kestrel__Endpoints__Https__Certificate__Location = "CurrentUser"
-$env:Kestrel__Endpoints__Https__Certificate__AllowInvalid = "true"
+dotnet user-secrets set "Kestrel:Endpoints:Https:Certificate:Subject" "SERVER01" --project src/NetworkMonitoringSystem.Server
 
 docker compose up -d
-dotnet run --project src/NetworkMonitoringSystem.Server --no-launch-profile
+dotnet run --project src/NetworkMonitoringSystem.Server --launch-profile network
 ```
 
-`AllowInvalid` only tells the server that its own certificate may be self-signed. `--no-launch-profile` matters: the launch profile would make the server listen on `localhost` only.
+The profile makes the server listen on all network addresses on port 7006 and take the certificate from your personal store. Its `AllowInvalid` setting only tells the server that its own certificate may be self-signed. The `https` profile keeps working as before, on `localhost` with the development certificate.
+
+Without `dotnet run`, the same is set with environment variables: `Kestrel__Endpoints__Https__Url` (`https://0.0.0.0:7006`), `Kestrel__Endpoints__Https__Certificate__Subject`, `__Store` (`My`), `__Location` (`CurrentUser`) and `__AllowInvalid` (`true`).
 
 The `Development` environment keeps using your user secrets (database password, enrollment token, first administrator's password) and applies database migrations on start. Outside it, set the same values as environment variables (`Database__Password`, `Agents__EnrollmentToken`, `Access__InitialAdminPassword`) and set `Database__MigrateOnStartup` to `true` when the database should be created or updated on start.
 
@@ -107,7 +106,7 @@ Running `Install-Agent.ps1` again from a newer package replaces the program and 
 
 ## 3. Desktop application on another computer
 
-Set the address and the pin in `appsettings.json` next to the application:
+Set the address and the pin in `appsettings.json` next to the application, or in an `appsettings.Local.json` beside it, which is read as well and is not committed to the repository:
 
 ```json
 {

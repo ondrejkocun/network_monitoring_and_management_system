@@ -78,12 +78,9 @@ Write-Host ''
 Write-Host 'Pin for agents and the desktop application (SHA-256 of the certificate):'
 Write-Host "  $pin"
 Write-Host ''
-Write-Host 'Start the server with this certificate by setting, before "dotnet run" or in its environment:'
-Write-Host '  $env:Kestrel__Endpoints__Https__Url = "https://0.0.0.0:7006"'
-Write-Host "  `$env:Kestrel__Endpoints__Https__Certificate__Subject = `"$($DnsName[0])`""
-Write-Host '  $env:Kestrel__Endpoints__Https__Certificate__Store = "My"'
-Write-Host '  $env:Kestrel__Endpoints__Https__Certificate__Location = "CurrentUser"'
-Write-Host '  $env:Kestrel__Endpoints__Https__Certificate__AllowInvalid = "true"'
+Write-Host 'Tell the server which certificate is its own and start it on the network:'
+Write-Host "  dotnet user-secrets set `"Kestrel:Endpoints:Https:Certificate:Subject`" `"$($DnsName[0])`" --project src/NetworkMonitoringSystem.Server"
+Write-Host '  dotnet run --project src/NetworkMonitoringSystem.Server --launch-profile network'
 
 # The pin is also returned, so the script can be used from another script.
 $pin
