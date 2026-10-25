@@ -51,6 +51,20 @@ public class DeviceServiceTests
     }
 
     [Fact]
+    public async Task RegisterDeviceAsync_Throws_WhenIpAddressAlreadyExists()
+    {
+        await _service.RegisterDeviceAsync(
+            new RegisterDeviceRequest("Router", MonitoringMode.Agentless, IpAddress: "192.168.50.1"));
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => _service.RegisterDeviceAsync(
+            new RegisterDeviceRequest("Router Copy", MonitoringMode.Agentless, IpAddress: "192.168.50.1")));
+
+        Assert.Contains("already exists", exception.Message);
+        Assert.Single(await _service.GetDevicesAsync());
+        Assert.Equal(1, _unitOfWork.SaveCount);
+    }
+
+    [Fact]
     public async Task RegisterDeviceAsync_Throws_WhenIpAddressIsInvalid()
     {
         await Assert.ThrowsAsync<ArgumentException>(() => _service.RegisterDeviceAsync(

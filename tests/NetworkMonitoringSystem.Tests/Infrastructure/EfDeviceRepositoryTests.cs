@@ -55,6 +55,25 @@ public class EfDeviceRepositoryTests : IClassFixture<DatabaseFixture>
     }
 
     [Fact]
+    public async Task GetByIpAddressAsync_ReturnsMatchingDevice()
+    {
+        var ipAddress = IPAddress.Parse("192.0.2.40");
+        var device = new Device(Guid.NewGuid(), "Router", MonitoringMode.Agentless, null, ipAddress, CreatedAt);
+
+        await using (var writeContext = _database.CreateDbContext())
+        {
+            new EfDeviceRepository(writeContext).Add(device);
+            await writeContext.SaveChangesAsync();
+        }
+
+        await using var readContext = _database.CreateDbContext();
+        var stored = await new EfDeviceRepository(readContext).GetByIpAddressAsync(ipAddress);
+
+        Assert.NotNull(stored);
+        Assert.Equal(device.Id, stored.Id);
+    }
+
+    [Fact]
     public async Task GetAllAsync_ReturnsDevicesOrderedByName()
     {
         var prefix = Guid.NewGuid().ToString("N");

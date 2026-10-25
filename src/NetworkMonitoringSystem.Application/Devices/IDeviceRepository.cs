@@ -1,3 +1,4 @@
+using System.Net;
 using NetworkMonitoringSystem.Domain.Devices;
 
 namespace NetworkMonitoringSystem.Application.Devices;
@@ -11,6 +12,9 @@ public interface IDeviceRepository
 
     /// <summary>Finds the device monitored by an agent with the given host name, ignoring case.</summary>
     Task<Device?> GetAgentDeviceByHostNameAsync(string hostName, CancellationToken cancellationToken = default);
+
+    /// <summary>Finds a device by its IP address.</summary>
+    Task<Device?> GetByIpAddressAsync(IPAddress ipAddress, CancellationToken cancellationToken = default);
 
     /// <summary>Returns enabled, online devices that have not been seen since the given time.</summary>
     Task<IReadOnlyList<Device>> GetOnlineDevicesNotSeenSinceAsync(DateTimeOffset threshold, CancellationToken cancellationToken = default);

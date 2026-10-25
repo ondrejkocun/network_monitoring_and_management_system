@@ -1,5 +1,6 @@
 namespace NetworkMonitoringSystem.Tests.Fakes;
 
+using System.Net;
 using NetworkMonitoringSystem.Application.Access;
 using NetworkMonitoringSystem.Application.Commands;
 using NetworkMonitoringSystem.Application.Common;
@@ -25,6 +26,11 @@ public sealed class InMemoryDeviceRepository : IDeviceRepository
         return Task.FromResult(_devices.FirstOrDefault(device =>
             device.MonitoringMode == MonitoringMode.Agent
             && string.Equals(device.HostName, hostName, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    public Task<Device?> GetByIpAddressAsync(IPAddress ipAddress, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(_devices.FirstOrDefault(device => Equals(device.IpAddress, ipAddress)));
     }
 
     public Task<IReadOnlyList<Device>> GetEnabledAgentlessDevicesAsync(CancellationToken cancellationToken = default)

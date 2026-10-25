@@ -197,6 +197,21 @@ public sealed class AdminApiTests : IClassFixture<DatabaseFixture>, IAsyncLifeti
     }
 
     [Fact]
+    public async Task AddDevice_WithDuplicateIpAddress_IsRejected_AndStoresNothing()
+    {
+        var ipAddress = "192.0.2.60";
+        await _client.AddAgentlessDeviceAsync("Router-" + Guid.NewGuid().ToString("N"), ipAddress);
+        var before = (await _client.GetDevicesAsync()).Count;
+
+        var exception = await Assert.ThrowsAsync<ServerClientException>(() =>
+            _client.AddAgentlessDeviceAsync("Router Copy-" + Guid.NewGuid().ToString("N"), ipAddress));
+
+        Assert.Equal(ServerErrorKind.InvalidInput, exception.Kind);
+        Assert.Contains("already exists", exception.Message);
+        Assert.Equal(before, (await _client.GetDevicesAsync()).Count);
+    }
+
+    [Fact]
     public async Task ChangedInterval_IsStored_Logged_AndGivenToAgents()
     {
         var updated = await _client.UpdateSyncIntervalAsync(25);

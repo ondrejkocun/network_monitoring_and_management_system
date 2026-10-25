@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.EntityFrameworkCore;
 using NetworkMonitoringSystem.Application.Devices;
 using NetworkMonitoringSystem.Domain.Devices;
@@ -30,6 +31,11 @@ public sealed class EfDeviceRepository : IDeviceRepository
                 && device.HostName != null
                 && device.HostName.ToLower() == normalized,
             cancellationToken);
+    }
+
+    public Task<Device?> GetByIpAddressAsync(IPAddress ipAddress, CancellationToken cancellationToken = default)
+    {
+        return _dbContext.Devices.FirstOrDefaultAsync(device => device.IpAddress == ipAddress, cancellationToken);
     }
 
     public async Task<IReadOnlyList<Device>> GetOnlineDevicesNotSeenSinceAsync(

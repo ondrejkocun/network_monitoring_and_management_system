@@ -38,13 +38,27 @@ public sealed class DeviceService : IDeviceService
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        var ipAddress = ParseIpAddress(request.IpAddress);
+
         var device = new Device(
             Guid.NewGuid(),
             request.Name,
             request.MonitoringMode,
             request.HostName,
-            ParseIpAddress(request.IpAddress),
+            ipAddress,
             _timeProvider.GetUtcNow());
+
+        if (device.MonitoringMode == MonitoringMode.Agentless && device.IpAddress is not null)
+        {
+            var existingDevice = await _deviceRepository.GetByIpAddressAsync(device.IpAddress, cancellationToken);
+
+            if (existingDevice is not null)
+            {
+                throw new ArgumentException(
+                    $"A device with IP address '{device.IpAddress}' already exists.",
+                    nameof(request));
+            }
+        }
 
         _deviceRepository.Add(device);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
