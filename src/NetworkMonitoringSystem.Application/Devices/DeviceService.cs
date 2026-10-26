@@ -48,6 +48,16 @@ public sealed class DeviceService : IDeviceService
             ipAddress,
             _timeProvider.GetUtcNow());
 
+        if (request.TcpPort is not null)
+        {
+            if (device.MonitoringMode != MonitoringMode.Agentless)
+            {
+                throw new ArgumentException("Only a device without an agent is checked on a TCP port.", nameof(request));
+            }
+
+            device.SetTcpPort(request.TcpPort);
+        }
+
         if (device.MonitoringMode == MonitoringMode.Agentless && device.IpAddress is not null)
         {
             var existingDevice = await _deviceRepository.GetByIpAddressAsync(device.IpAddress, cancellationToken);

@@ -20,6 +20,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _statusMessage = "Pripájam sa k serveru…";
     private string _newDeviceName = string.Empty;
     private string _newDeviceIpAddress = string.Empty;
+    private string _newDeviceTcpPort = string.Empty;
     private string _syncIntervalText = string.Empty;
     private string _syncIntervalHint = string.Empty;
     private bool _settingsLoaded;
@@ -57,7 +58,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         AddDeviceCommand = new AsyncRelayCommand(
             AddDeviceAsync,
-            () => !string.IsNullOrWhiteSpace(NewDeviceName) && !string.IsNullOrWhiteSpace(NewDeviceIpAddress));
+            () => !string.IsNullOrWhiteSpace(NewDeviceName)
+                && !string.IsNullOrWhiteSpace(NewDeviceIpAddress)
+                && TryParseTcpPort(NewDeviceTcpPort, out _));
         RemoveDeviceCommand = new AsyncRelayCommand(RemoveSelectedDeviceAsync, () => SelectedDevice is not null);
         ToggleDeviceEnabledCommand = new AsyncRelayCommand(ToggleSelectedDeviceEnabledAsync, () => SelectedDevice is not null);
         SaveSyncIntervalCommand = new AsyncRelayCommand(
@@ -523,6 +526,39 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Optional TCP port for a device that blocks ping, as typed by the user; empty for none.</summary>
+    public string NewDeviceTcpPort
+    {
+        get => _newDeviceTcpPort;
+        set
+        {
+            if (SetProperty(ref _newDeviceTcpPort, value))
+            {
+                AddDeviceCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    /// <summary>An empty text means no port; otherwise it must be a port number from 1 to 65535.</summary>
+    private static bool TryParseTcpPort(string text, out int? port)
+    {
+        port = null;
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return true;
+        }
+
+        if (int.TryParse(text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) && parsed is >= 1 and <= 65535)
+        {
+            port = parsed;
+
+            return true;
+        }
+
+        return false;
+    }
+
     /// <summary>The global synchronization interval in seconds, as typed by the user.</summary>
     public string SyncIntervalText
     {
@@ -593,7 +629,9 @@ public sealed class MainWindowViewModel : ViewModelBase
     {
         try
         {
-            await _server.AddAgentlessDeviceAsync(NewDeviceName.Trim(), NewDeviceIpAddress.Trim());
+            TryParseTcpPort(NewDeviceTcpPort, out var tcpPort);
+
+            await _server.AddAgentlessDeviceAsync(NewDeviceName.Trim(), NewDeviceIpAddress.Trim(), tcpPort);
         }
         catch (ServerClientException exception)
         {
@@ -605,6 +643,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         var addedName = NewDeviceName.Trim();
         NewDeviceName = string.Empty;
         NewDeviceIpAddress = string.Empty;
+        NewDeviceTcpPort = string.Empty;
 
         await RefreshAsync();
 

@@ -137,11 +137,52 @@ public class MainWindowViewModelTests
 
         await viewModel.AddDeviceCommand.ExecuteAsync();
 
-        Assert.Equal(("Router", "192.168.50.1"), Assert.Single(_server.AddedDevices));
+        Assert.Equal(("Router", "192.168.50.1", (int?)null), Assert.Single(_server.AddedDevices));
         Assert.Equal(string.Empty, viewModel.NewDeviceName);
         Assert.Equal(string.Empty, viewModel.NewDeviceIpAddress);
         Assert.Equal("Router", Assert.Single(viewModel.Devices).Name);
         Assert.Contains("bolo pridané", viewModel.StatusMessage);
+    }
+
+    [Fact]
+    public async Task AddDeviceCommand_SendsTcpPort_AndClearsIt()
+    {
+        var viewModel = new MainWindowViewModel(_server, _confirmation)
+        {
+            NewDeviceName = "NAS",
+            NewDeviceIpAddress = "192.168.50.5",
+            NewDeviceTcpPort = " 445 ",
+        };
+
+        await viewModel.AddDeviceCommand.ExecuteAsync();
+
+        Assert.Equal(445, Assert.Single(_server.AddedDevices).TcpPort);
+        Assert.Equal(string.Empty, viewModel.NewDeviceTcpPort);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("65536")]
+    [InlineData("http")]
+    [InlineData("-1")]
+    public void AddDeviceCommand_IsDisabled_ForInvalidTcpPort(string tcpPort)
+    {
+        var viewModel = new MainWindowViewModel(_server, _confirmation)
+        {
+            NewDeviceName = "NAS",
+            NewDeviceIpAddress = "192.168.50.5",
+            NewDeviceTcpPort = tcpPort,
+        };
+
+        Assert.False(viewModel.AddDeviceCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void DeviceRow_ShowsTcpPortNextToAddress()
+    {
+        var row = new DeviceRowViewModel(new DeviceInfo { IpAddress = "192.168.50.5", TcpPort = 445 });
+
+        Assert.Equal("192.168.50.5 (TCP 445)", row.Address);
     }
 
     [Fact]
@@ -911,7 +952,7 @@ public class MainWindowViewModelTests
 
         public List<DeviceInfo> Devices { get; } = [];
 
-        public List<(string Name, string IpAddress)> AddedDevices { get; } = [];
+        public List<(string Name, string IpAddress, int? TcpPort)> AddedDevices { get; } = [];
 
         public List<string> RemovedDeviceIds { get; } = [];
 
@@ -938,11 +979,11 @@ public class MainWindowViewModelTests
             return Task.FromResult<IReadOnlyList<DeviceInfo>>(Devices.ToList());
         }
 
-        public Task AddAgentlessDeviceAsync(string name, string ipAddress, CancellationToken cancellationToken = default)
+        public Task AddAgentlessDeviceAsync(string name, string ipAddress, int? tcpPort = null, CancellationToken cancellationToken = default)
         {
             ThrowIfFailing();
 
-            AddedDevices.Add((name, ipAddress));
+            AddedDevices.Add((name, ipAddress, tcpPort));
             Devices.Add(new DeviceInfo { Name = name, IpAddress = ipAddress, MonitoringMode = MonitoringMode.Agentless });
 
             return Task.CompletedTask;

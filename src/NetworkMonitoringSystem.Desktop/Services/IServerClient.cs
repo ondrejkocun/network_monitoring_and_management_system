@@ -48,7 +48,7 @@ public interface IServerClient
     Task<IReadOnlyList<DeviceInfo>> GetDevicesAsync(CancellationToken cancellationToken = default);
 
     /// <exception cref="ServerClientException">The server could not be reached or rejected the device.</exception>
-    Task AddAgentlessDeviceAsync(string name, string ipAddress, CancellationToken cancellationToken = default);
+    Task AddAgentlessDeviceAsync(string name, string ipAddress, int? tcpPort = null, CancellationToken cancellationToken = default);
 
     /// <summary>Returns the latest system resources of the device; <c>HasData</c> is false when there are none.</summary>
     /// <exception cref="ServerClientException">The server could not be reached or refused the call.</exception>

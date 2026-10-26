@@ -51,6 +51,24 @@ public class DeviceServiceTests
     }
 
     [Fact]
+    public async Task RegisterDeviceAsync_StoresTcpPort_OfDeviceWithoutAgent()
+    {
+        var registered = await _service.RegisterDeviceAsync(
+            new RegisterDeviceRequest("NAS", MonitoringMode.Agentless, IpAddress: "192.168.50.5", TcpPort: 445));
+
+        Assert.Equal(445, registered.TcpPort);
+    }
+
+    [Fact]
+    public async Task RegisterDeviceAsync_Throws_WhenDeviceWithAgentHasTcpPort()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.RegisterDeviceAsync(
+            new RegisterDeviceRequest("PC", MonitoringMode.Agent, "pc-01", TcpPort: 3389)));
+
+        Assert.Empty(await _service.GetDevicesAsync());
+    }
+
+    [Fact]
     public async Task RegisterDeviceAsync_Throws_WhenIpAddressAlreadyExists()
     {
         await _service.RegisterDeviceAsync(

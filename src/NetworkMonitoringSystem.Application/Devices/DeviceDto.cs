@@ -12,7 +12,8 @@ public sealed record DeviceDto(
     DateTimeOffset? LastSeenAt,
     bool IsEnabled,
     DateTimeOffset CreatedAt,
-    string? OperatingSystem)
+    string? OperatingSystem,
+    int? TcpPort = null)
 {
     public static DeviceDto FromDevice(Device device)
     {
@@ -28,6 +29,7 @@ public sealed record DeviceDto(
             device.LastSeenAt,
             device.IsEnabled,
             device.CreatedAt,
-            device.OperatingSystem);
+            device.OperatingSystem,
+            device.TcpPort);
     }
 }

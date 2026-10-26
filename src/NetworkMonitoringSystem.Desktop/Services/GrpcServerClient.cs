@@ -133,11 +133,16 @@ public sealed class GrpcServerClient : IServerClient
         return reply.Devices;
     }
 
-    public async Task AddAgentlessDeviceAsync(string name, string ipAddress, CancellationToken cancellationToken = default)
+    public async Task AddAgentlessDeviceAsync(string name, string ipAddress, int? tcpPort = null, CancellationToken cancellationToken = default)
     {
-        await CallAsync(() => _client.AddAgentlessDeviceAsync(
-            new AddAgentlessDeviceRequest { Name = name, IpAddress = ipAddress },
-            Headers(), cancellationToken: cancellationToken));
+        var request = new AddAgentlessDeviceRequest { Name = name, IpAddress = ipAddress };
+
+        if (tcpPort is { } port)
+        {
+            request.TcpPort = port;
+        }
+
+        await CallAsync(() => _client.AddAgentlessDeviceAsync(request, Headers(), cancellationToken: cancellationToken));
     }
 
     public Task<DeviceResourcesReply> GetDeviceResourcesAsync(string id, CancellationToken cancellationToken = default)

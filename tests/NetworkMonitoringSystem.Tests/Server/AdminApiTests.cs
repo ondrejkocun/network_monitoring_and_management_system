@@ -74,6 +74,22 @@ public sealed class AdminApiTests : IClassFixture<DatabaseFixture>, IAsyncLifeti
         Assert.Equal(string.Empty, device.HostName);
         Assert.True(device.IsEnabled);
         Assert.True(Guid.TryParse(device.Id, out _));
+        Assert.False(device.HasTcpPort);
+    }
+
+    [Fact]
+    public async Task AddedDevice_WithTcpPort_KeepsIt_AndInvalidPortIsRejected()
+    {
+        var name = "NAS-" + Guid.NewGuid().ToString("N");
+
+        await _client.AddAgentlessDeviceAsync(name, "192.0.2.80", tcpPort: 445);
+
+        Assert.Equal(445, Assert.Single(await _client.GetDevicesAsync(), device => device.Name == name).TcpPort);
+
+        var exception = await Assert.ThrowsAsync<ServerClientException>(() =>
+            _client.AddAgentlessDeviceAsync("NAS-" + Guid.NewGuid().ToString("N"), "192.0.2.81", tcpPort: 70000));
+        Assert.Equal(ServerErrorKind.InvalidInput, exception.Kind);
+        Assert.Contains("between 1 and 65535", exception.Message);
     }
 
     [Fact]

@@ -196,7 +196,11 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         try
         {
             var device = await _deviceService.RegisterDeviceAsync(
-                new RegisterDeviceRequest(request.Name, DomainMonitoringMode.Agentless, IpAddress: request.IpAddress),
+                new RegisterDeviceRequest(
+                    request.Name,
+                    DomainMonitoringMode.Agentless,
+                    IpAddress: request.IpAddress,
+                    TcpPort: request.HasTcpPort ? request.TcpPort : null),
                 context.CancellationToken);
 
             return ToDeviceInfo(device);
@@ -614,7 +618,7 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
 
     private static DeviceInfo ToDeviceInfo(DeviceDto device)
     {
-        return new DeviceInfo
+        var info = new DeviceInfo
         {
             Id = device.Id.ToString(),
             Name = device.Name,
@@ -637,6 +641,13 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
             IsEnabled = device.IsEnabled,
             OperatingSystem = device.OperatingSystem ?? string.Empty,
         };
+
+        if (device.TcpPort is { } tcpPort)
+        {
+            info.TcpPort = tcpPort;
+        }
+
+        return info;
     }
 
     private static MonitoringSettingsInfo ToSettingsInfo(MonitoringSettingsDto settings)

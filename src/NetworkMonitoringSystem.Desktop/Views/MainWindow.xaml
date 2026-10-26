@@ -313,6 +313,10 @@
                 <TextBlock Text="IP adresa:" VerticalAlignment="Center" Margin="16,0,6,0" />
                 <TextBox Width="160" VerticalContentAlignment="Center"
                          Text="{Binding NewDeviceIpAddress, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Text="TCP port:" VerticalAlignment="Center" Margin="16,0,6,0" />
+                <TextBox Width="70" VerticalContentAlignment="Center"
+                         ToolTip="Nepovinné. Ak zariadenie neodpovedá na ping, server sa skúsi pripojiť na tento port."
+                         Text="{Binding NewDeviceTcpPort, UpdateSourceTrigger=PropertyChanged}" />
                 <Button Content="Pridať" Padding="12,4" Margin="16,0,0,0" Command="{Binding AddDeviceCommand}" />
             </StackPanel>
         </GroupBox>

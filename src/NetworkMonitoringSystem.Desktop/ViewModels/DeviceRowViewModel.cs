@@ -12,6 +12,11 @@ public sealed class DeviceRowViewModel
         Id = device.Id;
         Name = device.Name;
         Address = string.IsNullOrEmpty(device.IpAddress) ? device.HostName : device.IpAddress;
+
+        if (device.HasTcpPort)
+        {
+            Address += $" (TCP {device.TcpPort})";
+        }
         Status = device.Status;
         HasAgent = device.MonitoringMode == MonitoringMode.Agent;
         IsEnabled = device.IsEnabled;
@@ -37,7 +42,7 @@ public sealed class DeviceRowViewModel
 
     public string Name { get; }
 
-    /// <summary>IP address when the device has one, otherwise its host name.</summary>
+    /// <summary>IP address when the device has one, otherwise its host name; with the TCP port checked, if any.</summary>
     public string Address { get; }
 
     public string ModeText { get; }

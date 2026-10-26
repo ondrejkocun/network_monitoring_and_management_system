@@ -197,6 +197,8 @@ message DeviceInfo {
   google.protobuf.Timestamp last_seen_at = 7;
   bool is_enabled = 8;
   string operating_system = 9;
+  // TCP port the server tries when the device does not answer ping; not set when it relies on ping only.
+  optional int32 tcp_port = 10;
 }
 
 message ListDevicesRequest {
@@ -209,6 +211,8 @@ message ListDevicesReply {
 message AddAgentlessDeviceRequest {
   string name = 1;
   string ip_address = 2;
+  // Optional TCP port for a device that blocks ping.
+  optional int32 tcp_port = 3;
 }
 
 message RemoveDeviceRequest {
