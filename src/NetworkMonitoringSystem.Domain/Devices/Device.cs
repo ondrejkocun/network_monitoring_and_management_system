@@ -69,6 +69,27 @@ public sealed class Device
     public string? OperatingSystem { get; private set; }
 
     /// <summary>
+    /// TCP port the server tries when a device without an agent does not answer ping, or null to rely on ping only.
+    /// </summary>
+    public int? TcpPort { get; private set; }
+
+    /// <summary>Sets the TCP port checked when the device does not answer ping; null removes it.</summary>
+    public void SetTcpPort(int? tcpPort)
+    {
+        if (tcpPort is not null && MonitoringMode != MonitoringMode.Agentless)
+        {
+            throw new InvalidOperationException("Only a device without an agent is checked on a TCP port.");
+        }
+
+        if (tcpPort is < 1 or > 65535)
+        {
+            throw new ArgumentOutOfRangeException(nameof(tcpPort), tcpPort, "TCP port must be between 1 and 65535.");
+        }
+
+        TcpPort = tcpPort;
+    }
+
+    /// <summary>
     /// Sets the identity of the agent running on this device. A previously issued key stops working.
     /// </summary>
     public void AssignAgentIdentity(string agentKeyHash, string? operatingSystem)

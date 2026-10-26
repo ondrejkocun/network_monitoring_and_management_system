@@ -240,6 +240,9 @@ namespace NetworkMonitoringSystem.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<int?>("TcpPort")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("HostName");
@@ -320,6 +323,10 @@ namespace NetworkMonitoringSystem.Infrastructure.Persistence.Migrations
 
                     b.Property<long?>("MemoryUsedBytes")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("ReachedBy")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<DateTimeOffset>("RecordedAt")
                         .HasColumnType("timestamp with time zone");

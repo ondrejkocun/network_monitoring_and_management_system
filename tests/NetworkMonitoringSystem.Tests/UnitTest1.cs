@@ -51,4 +51,36 @@ public class UnitTest1
         Assert.Null(device.HostName);
         Assert.Equal(IPAddress.Parse("192.168.50.1"), device.IpAddress);
     }
+
+    [Fact]
+    public void Device_WithoutAgent_CanHaveTcpPort_AndLoseItAgain()
+    {
+        var device = new Device(Guid.NewGuid(), "NAS", MonitoringMode.Agentless, null, IPAddress.Parse("192.168.50.5"), CreatedAt);
+        Assert.Null(device.TcpPort);
+
+        device.SetTcpPort(445);
+        Assert.Equal(445, device.TcpPort);
+
+        device.SetTcpPort(null);
+        Assert.Null(device.TcpPort);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(65536)]
+    [InlineData(-1)]
+    public void Device_RejectsTcpPortOutOfRange(int port)
+    {
+        var device = new Device(Guid.NewGuid(), "NAS", MonitoringMode.Agentless, null, IPAddress.Parse("192.168.50.5"), CreatedAt);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => device.SetTcpPort(port));
+    }
+
+    [Fact]
+    public void Device_WithAgent_CannotHaveTcpPort()
+    {
+        var device = new Device(Guid.NewGuid(), "PC", MonitoringMode.Agent, "pc-01", null, CreatedAt);
+
+        Assert.Throws<InvalidOperationException>(() => device.SetTcpPort(3389));
+    }
 }

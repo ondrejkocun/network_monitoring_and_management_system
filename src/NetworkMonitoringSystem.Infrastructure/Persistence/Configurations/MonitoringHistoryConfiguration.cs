@@ -16,6 +16,7 @@ internal sealed class DeviceSnapshotConfiguration : IEntityTypeConfiguration<Dev
         builder.Property(snapshot => snapshot.RecordedAt);
         builder.Property(snapshot => snapshot.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(snapshot => snapshot.ResponseTimeMs);
+        builder.Property(snapshot => snapshot.ReachedBy).HasConversion<string>().HasMaxLength(20);
         builder.Property(snapshot => snapshot.HasResources);
         builder.Property(snapshot => snapshot.CpuUsagePercent);
         builder.Property(snapshot => snapshot.MemoryTotalBytes);

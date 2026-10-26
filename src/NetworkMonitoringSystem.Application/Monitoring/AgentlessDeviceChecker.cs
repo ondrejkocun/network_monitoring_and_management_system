@@ -54,7 +54,8 @@ public sealed class AgentlessDeviceChecker : IAgentlessDeviceChecker
             {
                 if (result.IsReachable)
                 {
-                    await _recorder.RecordOnlineAsync(device, now, result.ResponseTimeMs, cancellationToken: cancellationToken);
+                    await _recorder.RecordOnlineAsync(
+                        device, now, result.ResponseTimeMs, reachedBy: result.ReachedBy, cancellationToken: cancellationToken);
                 }
                 else
                 {
@@ -83,7 +84,7 @@ public sealed class AgentlessDeviceChecker : IAgentlessDeviceChecker
             try
             {
                 // A device without an agent always has an IP address; the domain model guarantees it.
-                return (device, await _probe.ProbeAsync(device.IpAddress!, ProbeTimeout, cancellationToken));
+                return (device, await _probe.ProbeAsync(device.IpAddress!, device.TcpPort, ProbeTimeout, cancellationToken));
             }
             finally
             {

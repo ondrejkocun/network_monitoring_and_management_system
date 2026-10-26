@@ -120,6 +120,44 @@ public class AgentlessDeviceCheckerTests
     }
 
     [Fact]
+    public async Task DeviceThatBlocksPing_ButAcceptsItsTcpPort_IsOnline_AndSnapshotSaysHow()
+    {
+        var server = AddAgentlessDevice("File server", RouterAddress);
+        server.SetTcpPort(445);
+        _probe.OpenPort(RouterAddress, 445, responseTimeMs: 4);
+
+        await CreateChecker().CheckAllAsync();
+
+        Assert.Equal(DeviceStatus.Online, server.Status);
+        var snapshot = Assert.Single(_history.Snapshots);
+        Assert.Equal(ReachabilityCheck.TcpPort, snapshot.ReachedBy);
+        Assert.Equal(4, snapshot.ResponseTimeMs);
+    }
+
+    [Fact]
+    public async Task DeviceThatBlocksPing_WithoutTcpPort_IsOffline()
+    {
+        var server = AddAgentlessDevice("File server", RouterAddress);
+        _probe.OpenPort(RouterAddress, 445, responseTimeMs: 4);
+
+        await CreateChecker().CheckAllAsync();
+
+        Assert.Equal(DeviceStatus.Offline, server.Status);
+        Assert.Null(Assert.Single(_history.Snapshots).ReachedBy);
+    }
+
+    [Fact]
+    public async Task DeviceThatAnswersPing_IsRecordedAsReachedByPing()
+    {
+        AddAgentlessDevice("Router", RouterAddress).SetTcpPort(80);
+        _probe.Answer(RouterAddress, responseTimeMs: 2);
+
+        await CreateChecker().CheckAllAsync();
+
+        Assert.Equal(ReachabilityCheck.Ping, Assert.Single(_history.Snapshots).ReachedBy);
+    }
+
+    [Fact]
     public async Task DisabledDevice_IsNotChecked_AndNeverGoesOffline()
     {
         var router = AddAgentlessDevice("Router", RouterAddress);
@@ -201,6 +239,7 @@ public class AgentlessDeviceCheckerTests
     private sealed class FakeProbe : IDeviceReachabilityProbe
     {
         private readonly Dictionary<IPAddress, int> _answering = [];
+        private readonly Dictionary<(IPAddress, int), int> _openPorts = [];
 
         public List<IPAddress> ProbedAddresses { get; } = [];
 
@@ -208,15 +247,27 @@ public class AgentlessDeviceCheckerTests
 
         public void StopAnswering(IPAddress address) => _answering.Remove(address);
 
-        public Task<ReachabilityResult> ProbeAsync(IPAddress address, TimeSpan timeout, CancellationToken cancellationToken = default)
+        /// <summary>The address accepts connections to the port, whether or not it answers ping.</summary>
+        public void OpenPort(IPAddress address, int port, int responseTimeMs) => _openPorts[(address, port)] = responseTimeMs;
+
+        public Task<ReachabilityResult> ProbeAsync(
+            IPAddress address,
+            int? tcpPort,
+            TimeSpan timeout,
+            CancellationToken cancellationToken = default)
         {
             lock (ProbedAddresses)
             {
                 ProbedAddresses.Add(address);
             }
 
-            return Task.FromResult(_answering.TryGetValue(address, out var responseTimeMs)
-                ? ReachabilityResult.Reachable(responseTimeMs)
+            if (_answering.TryGetValue(address, out var responseTimeMs))
+            {
+                return Task.FromResult(ReachabilityResult.Reachable(responseTimeMs));
+            }
+
+            return Task.FromResult(tcpPort is { } port && _openPorts.TryGetValue((address, port), out var connectTimeMs)
+                ? ReachabilityResult.Reachable(connectTimeMs, ReachabilityCheck.TcpPort)
                 : ReachabilityResult.Unreachable);
         }
     }

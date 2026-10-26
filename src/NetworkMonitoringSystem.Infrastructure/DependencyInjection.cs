@@ -34,7 +34,7 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, EfUserRepository>();
         services.AddScoped<IRemoteCommandRepository, EfRemoteCommandRepository>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
-        services.AddSingleton<IDeviceReachabilityProbe, PingReachabilityProbe>();
+        services.AddSingleton<IDeviceReachabilityProbe, NetworkReachabilityProbe>();
 
         return services;
     }

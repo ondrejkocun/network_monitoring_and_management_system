@@ -55,6 +55,28 @@ public class EfDeviceRepositoryTests : IClassFixture<DatabaseFixture>
     }
 
     [Fact]
+    public async Task TcpPort_AndHowSnapshotReachedTheDevice_AreStored()
+    {
+        var device = new Device(Guid.NewGuid(), "NAS", MonitoringMode.Agentless, null, IPAddress.Parse("192.0.2.41"), CreatedAt);
+        device.SetTcpPort(445);
+
+        await using (var writeContext = _database.CreateDbContext())
+        {
+            new EfDeviceRepository(writeContext).Add(device);
+            writeContext.DeviceSnapshots.Add(new DeviceSnapshot(
+                device.Id, CreatedAt, DeviceStatus.Online, responseTimeMs: 3, reachedBy: ReachabilityCheck.TcpPort));
+            await writeContext.SaveChangesAsync();
+        }
+
+        await using var readContext = _database.CreateDbContext();
+        var stored = await new EfDeviceRepository(readContext).GetByIdAsync(device.Id);
+        var snapshot = await readContext.DeviceSnapshots.SingleAsync(snapshot => snapshot.DeviceId == device.Id);
+
+        Assert.Equal(445, stored!.TcpPort);
+        Assert.Equal(ReachabilityCheck.TcpPort, snapshot.ReachedBy);
+    }
+
+    [Fact]
     public async Task GetByIpAddressAsync_ReturnsMatchingDevice()
     {
         var ipAddress = IPAddress.Parse("192.0.2.40");

@@ -11,7 +11,12 @@ public sealed class DeviceSnapshot
     private readonly List<NetworkInterfaceUsage> _networkInterfaces = [];
     private readonly List<ProcessUsage> _processUsages = [];
 
-    public DeviceSnapshot(Guid deviceId, DateTimeOffset recordedAt, DeviceStatus status, int? responseTimeMs = null)
+    public DeviceSnapshot(
+        Guid deviceId,
+        DateTimeOffset recordedAt,
+        DeviceStatus status,
+        int? responseTimeMs = null,
+        ReachabilityCheck? reachedBy = null)
     {
         if (deviceId == Guid.Empty)
         {
@@ -27,6 +32,7 @@ public sealed class DeviceSnapshot
         RecordedAt = recordedAt;
         Status = status;
         ResponseTimeMs = responseTimeMs;
+        ReachedBy = reachedBy;
     }
 
     public long Id { get; private set; }
@@ -39,6 +45,9 @@ public sealed class DeviceSnapshot
 
     /// <summary>Network response time, known only for devices the server checks itself.</summary>
     public int? ResponseTimeMs { get; }
+
+    /// <summary>The check that reached a device without an agent; null for agents and unreachable devices.</summary>
+    public ReachabilityCheck? ReachedBy { get; }
 
     /// <summary>True when the snapshot carries system resources measured by an agent.</summary>
     public bool HasResources { get; private set; }
