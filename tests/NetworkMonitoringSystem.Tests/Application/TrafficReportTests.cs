@@ -49,6 +49,19 @@ public class TrafficReportTests
     }
 
     [Fact]
+    public void ToRecords_KeepsConversationsTheDeviceTookPartIn_BeforeLargerOnesItOnlyReceived()
+    {
+        var received = Enumerable.Range(1, TrafficReport.MaxConversations)
+            .Select(index => Conversation("SSDP", 10_000) with { RemoteAddress = $"192.0.2.{index % 250}", ServicePort = index, PacketsSent = 0 });
+        var ping = new ConversationReport(TrafficTransport.Icmp, "ICMP", "192.0.2.1", null, 4, 4, 296, 296);
+
+        var records = new TrafficReport(ReceivedAt, ReceivedAt, [.. received, ping]).ToRecords(DeviceId, ReceivedAt);
+
+        Assert.Equal(TrafficReport.MaxConversations, records.Count);
+        Assert.Contains(records, record => record.Transport == TrafficTransport.Icmp);
+    }
+
+    [Fact]
     public void ToRecords_LeavesOutWhatCannotBeStored_AndShortensProtocol()
     {
         var report = new TrafficReport(ReceivedAt, ReceivedAt,

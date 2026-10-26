@@ -41,6 +41,12 @@ service AdminApi {
   // Disables or enables a device. A disabled device is not checked, is never reported offline and its agent is refused.
   rpc SetDeviceEnabled (SetDeviceEnabledRequest) returns (DeviceInfo);
 
+  // Switches capture of network traffic on or off for a device with an agent. Requires ManageDevices on the device.
+  rpc SetDeviceTrafficCapture (SetDeviceTrafficCaptureRequest) returns (DeviceInfo);
+
+  // Returns how much the device communicated in a period, summed per remote address, protocol and service port.
+  rpc GetDeviceTraffic (GetDeviceTrafficRequest) returns (DeviceTrafficReply);
+
   // Returns the most recent system resources reported by the device's agent.
   rpc GetDeviceResources (GetDeviceResourcesRequest) returns (DeviceResourcesReply);
 
@@ -199,6 +205,10 @@ message DeviceInfo {
   string operating_system = 9;
   // TCP port the server tries when the device does not answer ping; not set when it relies on ping only.
   optional int32 tcp_port = 10;
+  // True while the device's agent is asked to capture network traffic.
+  bool capture_traffic = 11;
+  // Why the agent cannot capture although it is asked to; empty when there is no problem.
+  string traffic_capture_problem = 12;
 }
 
 message ListDevicesRequest {
@@ -225,6 +235,36 @@ message RemoveDeviceReply {
 message SetDeviceEnabledRequest {
   string id = 1;
   bool is_enabled = 2;
+}
+
+message SetDeviceTrafficCaptureRequest {
+  string id = 1;
+  bool capture = 2;
+}
+
+message GetDeviceTrafficRequest {
+  string id = 1;
+  google.protobuf.Timestamp from = 2;
+  google.protobuf.Timestamp to = 3;
+}
+
+message DeviceTrafficReply {
+  // The largest conversations first; at most a few hundred.
+  repeated TrafficEntry entries = 1;
+}
+
+message TrafficEntry {
+  // Tcp, Udp, Icmp or Other.
+  string transport = 1;
+  // The highest protocol recognised in the packets, for example TLS or DNS.
+  string protocol = 2;
+  string remote_address = 3;
+  // Not set for traffic without ports, such as ICMP.
+  optional int32 service_port = 4;
+  int64 packets_sent = 5;
+  int64 packets_received = 6;
+  int64 bytes_sent = 7;
+  int64 bytes_received = 8;
 }
 
 message GetDeviceResourcesRequest {

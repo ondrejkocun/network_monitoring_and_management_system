@@ -23,7 +23,8 @@ public sealed record TrafficReport(
     /// <summary>
     /// Converts the report into records to store. The period is placed to end at <paramref name="receivedAt"/> by the
     /// server's clock, so an agent whose clock is wrong cannot put traffic in the past or the future. Entries that
-    /// cannot be stored are left out; only the largest <see cref="MaxConversations"/> are kept.
+    /// cannot be stored are left out; <see cref="MaxConversations"/> are kept, those the device sent packets in first,
+    /// each group from the largest.
     /// </summary>
     public IReadOnlyList<TrafficRecord> ToRecords(Guid deviceId, DateTimeOffset receivedAt)
     {
@@ -33,7 +34,10 @@ public sealed record TrafficReport(
 
         return Conversations
             .Where(IsStorable)
-            .OrderByDescending(conversation => Clamp(conversation.BytesSent) + Clamp(conversation.BytesReceived))
+            // Conversations the device took part in come first, however small (a ping); only then what it merely
+            // received, such as announcements of other devices on the network.
+            .OrderByDescending(conversation => conversation.PacketsSent > 0)
+            .ThenByDescending(conversation => Clamp(conversation.BytesSent) + Clamp(conversation.BytesReceived))
             .Take(MaxConversations)
             .Select(conversation => new TrafficRecord(
                 deviceId,

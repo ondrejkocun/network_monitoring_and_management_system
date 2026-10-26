@@ -24,4 +24,13 @@ public interface IDeviceService
     /// <param name="userId">The user who made the change, recorded in the event.</param>
     /// <returns>The device after the change, or null when no such device exists.</returns>
     Task<DeviceDto?> SetDeviceEnabledAsync(Guid id, bool isEnabled, Guid? userId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Switches capture of network traffic on or off; the agent learns it from the reply to its next report.</summary>
+    /// <param name="userId">The user who made the change, recorded in the event.</param>
+    /// <returns>The device after the change, or null when no such device exists.</returns>
+    /// <exception cref="ArgumentException">The device has no agent, so nothing could capture its traffic.</exception>
+    Task<DeviceDto?> SetTrafficCaptureAsync(Guid id, bool capture, Guid? userId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns the traffic of the device in the period, summed per conversation, the largest first.</summary>
+    Task<IReadOnlyList<TrafficEntryDto>> GetTrafficAsync(Guid id, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
 }

@@ -15,6 +15,7 @@ public enum MonitoringEventType
     RemoteCommand = 10,
     DeviceDisabled = 11,
     DeviceEnabled = 12,
+    TrafficCaptureChanged = 13,
 }
 
 public enum EventSeverity

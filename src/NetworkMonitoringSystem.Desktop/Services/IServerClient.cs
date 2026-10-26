@@ -78,6 +78,14 @@ public interface IServerClient
     /// <exception cref="ServerClientException">The server could not be reached, refused the call or the device does not exist.</exception>
     Task<DeviceInfo> SetDeviceEnabledAsync(string id, bool isEnabled, CancellationToken cancellationToken = default);
 
+    /// <summary>Switches capture of network traffic on or off for a device with an agent and returns it after the change.</summary>
+    /// <exception cref="ServerClientException">The server could not be reached, refused the call or the device does not exist.</exception>
+    Task<DeviceInfo> SetDeviceTrafficCaptureAsync(string id, bool capture, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns the traffic of the device in the period, summed per conversation, the largest first.</summary>
+    /// <exception cref="ServerClientException">The server could not be reached or refused the call.</exception>
+    Task<IReadOnlyList<TrafficEntry>> GetDeviceTrafficAsync(string id, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
+
     /// <exception cref="ServerClientException">The server could not be reached or refused the call.</exception>
     Task<MonitoringSettingsInfo> GetSettingsAsync(CancellationToken cancellationToken = default);
 

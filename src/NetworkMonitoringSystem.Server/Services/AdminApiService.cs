@@ -333,6 +333,76 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         return reply;
     }
 
+    public override async Task<DeviceInfo> SetDeviceTrafficCapture(SetDeviceTrafficCaptureRequest request, ServerCallContext context)
+    {
+        var id = await AuthorizeForDeviceAsync(context, Permission.ManageDevices, request.Id);
+        var user = AdminAuthenticationInterceptor.GetUser(context);
+        DeviceDto? device;
+
+        try
+        {
+            device = id is null
+                ? null
+                : await _deviceService.SetTrafficCaptureAsync(id.Value, request.Capture, user.Id, context.CancellationToken);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
+        }
+
+        return device is null
+            ? throw new RpcException(new Status(StatusCode.NotFound, "The device does not exist."))
+            : ToDeviceInfo(device);
+    }
+
+    public override async Task<DeviceTrafficReply> GetDeviceTraffic(GetDeviceTrafficRequest request, ServerCallContext context)
+    {
+        if (request.From is null || request.To is null)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "The period must have a start and an end."));
+        }
+
+        var reply = new DeviceTrafficReply();
+
+        if (await AuthorizeForDeviceAsync(context, Permission.ViewDevices, request.Id) is not { } id)
+        {
+            return reply;
+        }
+
+        try
+        {
+            var entries = await _deviceService.GetTrafficAsync(
+                id, request.From.ToDateTimeOffset(), request.To.ToDateTimeOffset(), context.CancellationToken);
+
+            reply.Entries.AddRange(entries.Select(entry =>
+            {
+                var info = new TrafficEntry
+                {
+                    Transport = entry.Transport.ToString(),
+                    Protocol = entry.Protocol,
+                    RemoteAddress = entry.RemoteAddress,
+                    PacketsSent = entry.PacketsSent,
+                    PacketsReceived = entry.PacketsReceived,
+                    BytesSent = entry.BytesSent,
+                    BytesReceived = entry.BytesReceived,
+                };
+
+                if (entry.ServicePort is { } port)
+                {
+                    info.ServicePort = port;
+                }
+
+                return info;
+            }));
+        }
+        catch (ArgumentException exception)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
+        }
+
+        return reply;
+    }
+
     public override async Task<DeviceHistoryReply> GetDeviceHistory(GetDeviceHistoryRequest request, ServerCallContext context)
     {
         if (request.From is null || request.To is null)
@@ -640,6 +710,8 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
             LastSeenAt = device.LastSeenAt is { } lastSeenAt ? Timestamp.FromDateTimeOffset(lastSeenAt) : null,
             IsEnabled = device.IsEnabled,
             OperatingSystem = device.OperatingSystem ?? string.Empty,
+            CaptureTraffic = device.CaptureTraffic,
+            TrafficCaptureProblem = device.TrafficCaptureProblem ?? string.Empty,
         };
 
         if (device.TcpPort is { } tcpPort)

@@ -198,7 +198,7 @@ public sealed partial class TsharkTrafficCapture : ITrafficCapture
             startInfo.ArgumentList.Add(field);
         }
 
-        var aggregator = new TrafficAggregator(LocalAddresses(), _timeProvider.GetUtcNow());
+        var aggregator = new TrafficAggregator(LocalAddresses(), _timeProvider.GetUtcNow(), BroadcastAddresses());
         var process = Process.Start(startInfo) ?? throw new InvalidOperationException("TShark did not start.");
 
         _process = process;
@@ -324,6 +324,28 @@ public sealed partial class TsharkTrafficCapture : ITrafficCapture
             .Select(address => address.Address)
             .Append(IPAddress.Loopback)
             .Append(IPAddress.IPv6Loopback);
+    }
+
+    /// <summary>The broadcast address of every IPv4 network this computer is in, for example 192.168.1.255.</summary>
+    private static IEnumerable<IPAddress> BroadcastAddresses()
+    {
+        return NetworkInterface.GetAllNetworkInterfaces()
+            .SelectMany(adapter => adapter.GetIPProperties().UnicastAddresses)
+            .Where(address => address.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                && address.IPv4Mask is not null
+                && !address.IPv4Mask.Equals(IPAddress.Any))
+            .Select(address =>
+            {
+                var bytes = address.Address.GetAddressBytes();
+                var mask = address.IPv4Mask.GetAddressBytes();
+
+                for (var i = 0; i < bytes.Length; i++)
+                {
+                    bytes[i] |= (byte)~mask[i];
+                }
+
+                return new IPAddress(bytes);
+            });
     }
 
     [GeneratedRegex(@"\\Device\\NPF_(?<id>\{[0-9A-Fa-f-]+\})")]

@@ -20,6 +20,8 @@ public sealed class DeviceRowViewModel
         Status = device.Status;
         HasAgent = device.MonitoringMode == MonitoringMode.Agent;
         IsEnabled = device.IsEnabled;
+        CaptureTraffic = device.CaptureTraffic;
+        TrafficCaptureProblem = device.TrafficCaptureProblem;
         OperatingSystem = device.OperatingSystem;
         LastSeenAt = device.LastSeenAt?.ToDateTimeOffset().ToLocalTime();
 
@@ -54,6 +56,12 @@ public sealed class DeviceRowViewModel
 
     /// <summary>False when the device is disabled: it is not monitored and its agent is refused.</summary>
     public bool IsEnabled { get; }
+
+    /// <summary>True while the device's agent is asked to capture network traffic.</summary>
+    public bool CaptureTraffic { get; }
+
+    /// <summary>Why the agent cannot capture although it is asked to; empty when there is no problem.</summary>
+    public string TrafficCaptureProblem { get; }
 
     public string StatusText { get; }
 

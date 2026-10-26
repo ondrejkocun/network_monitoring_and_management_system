@@ -269,6 +269,49 @@
                     </DataGrid>
                 </TabItem>
 
+                <TabItem Header="{Binding SelectedDeviceTraffic.Header, FallbackValue=Komunikácia}">
+                    <DockPanel Margin="6">
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                            <Button DockPanel.Dock="Right" Content="{Binding ToggleTrafficCaptureText}" Padding="12,4"
+                                    Command="{Binding ToggleTrafficCaptureCommand}"
+                                    Visibility="{Binding CanAddDevices, Converter={StaticResource VisibleWhenTrue}}" />
+                            <TextBlock Text="{Binding TrafficCaptureStatusText}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        </DockPanel>
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                            <Button DockPanel.Dock="Right" Content="Zobraziť všetko" Padding="12,4" Margin="8,0,0,0"
+                                    Command="{Binding ShowAllTrafficCommand}"
+                                    ToolTip="Znova zobrazí komunikáciu za celé zvolené obdobie." />
+                            <Button DockPanel.Dock="Right" Content="Vynulovať" Padding="12,4" Margin="8,0,0,0"
+                                    Command="{Binding ResetTrafficCommand}"
+                                    ToolTip="Vyprázdni tabuľku; potom ukazuje len komunikáciu, ktorá príde po tomto okamihu." />
+                            <StackPanel Orientation="Horizontal">
+                                <Label Content="_Filter:" Target="{Binding ElementName=TrafficFilterBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
+                                <TextBox x:Name="TrafficFilterBox" Width="200" VerticalContentAlignment="Center"
+                                         Text="{Binding SelectedDeviceTraffic.FilterText, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Adresa, protokol (napr. TLS, DNS) alebo presné číslo portu." />
+                                <Label Content="_Transport:" Target="{Binding ElementName=TrafficTransportBox}" Padding="0,0,6,0" Margin="12,0,0,0" VerticalAlignment="Center" />
+                                <ComboBox x:Name="TrafficTransportBox" Width="90"
+                                          ItemsSource="{Binding SelectedDeviceTraffic.TransportOptions}"
+                                          SelectedItem="{Binding SelectedDeviceTraffic.SelectedTransport}" />
+                            </StackPanel>
+                        </DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="{Binding TrafficSinceText}" Foreground="#1565C0" Margin="0,0,0,6"
+                                   Visibility="{Binding IsTrafficReset, Converter={StaticResource VisibleWhenTrue}}" />
+                        <TextBlock DockPanel.Dock="Bottom" Text="{Binding SelectedDeviceTraffic.TotalText}" Foreground="Gray" Margin="0,6,0,0" />
+                        <DataGrid ItemsSource="{Binding SelectedDeviceTraffic.Rows}" AutoGenerateColumns="False" IsReadOnly="True"
+                                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Vzdialená adresa" Binding="{Binding RemoteAddress}" Width="3*" />
+                                <DataGridTextColumn Header="Port" Binding="{Binding PortText}" Width="*" />
+                                <DataGridTextColumn Header="Protokol" Binding="{Binding Protocol}" Width="2*" />
+                                <DataGridTextColumn Header="Transport" Binding="{Binding Transport}" Width="*" />
+                                <DataGridTextColumn Header="Odoslané" Binding="{Binding SentText}" Width="2*" />
+                                <DataGridTextColumn Header="Prijaté" Binding="{Binding ReceivedText}" Width="2*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </TabItem>
+
                 <TabItem Header="Grafy">
                     <Grid Margin="6">
                         <Grid.ColumnDefinitions>

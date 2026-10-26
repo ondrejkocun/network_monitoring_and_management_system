@@ -88,15 +88,29 @@ public class TrafficCaptureTests
     }
 
     [Fact]
-    public void Aggregator_TreatsBroadcastFromAnotherDeviceAsReceivedFromIt()
+    public void Aggregator_CountsAnnouncementsOfOtherDevicesPerGroup_NotPerSender()
     {
-        var aggregator = new TrafficAggregator([Local], Start);
-        var neighbour = IPAddress.Parse("192.168.50.20");
+        var aggregator = new TrafficAggregator([Local], Start, [IPAddress.Parse("192.168.50.255")]);
 
-        aggregator.Add(new CapturedPacket(179, neighbour, IPAddress.Parse("239.255.255.250"), TrafficTransport.Udp, 52944, 1900, "SSDP"));
+        // Many neighbours announce themselves over SSDP, mDNS and NetBIOS broadcasts.
+        for (var host = 20; host < 120; host++)
+        {
+            var neighbour = IPAddress.Parse($"192.168.50.{host}");
+            aggregator.Add(new CapturedPacket(179, neighbour, IPAddress.Parse("239.255.255.250"), TrafficTransport.Udp, 50000 + host, 1900, "SSDP"));
+            aggregator.Add(new CapturedPacket(90, neighbour, IPAddress.Parse("ff02::fb"), TrafficTransport.Udp, 5353, 5353, "MDNS"));
+            aggregator.Add(new CapturedPacket(92, neighbour, IPAddress.Parse("192.168.50.255"), TrafficTransport.Udp, 137, 137, "NBNS"));
+        }
 
-        var conversation = Assert.Single(aggregator.TakeSummary(Start).Conversations);
-        Assert.Equal(("192.168.50.20", 1UL, 0UL), (conversation.RemoteAddress, conversation.PacketsReceived, conversation.PacketsSent));
+        // A packet addressed to this device alone is still counted per sender.
+        aggregator.Add(new CapturedPacket(60, IPAddress.Parse("192.168.50.20"), Local, TrafficTransport.Icmp, null, null, "ICMP"));
+
+        var conversations = aggregator.TakeSummary(Start).Conversations;
+
+        Assert.Equal(
+            ["192.168.50.20", "192.168.50.255", "239.255.255.250", "ff02::fb"],
+            conversations.Select(conversation => conversation.RemoteAddress).Order());
+        var ssdp = Assert.Single(conversations, conversation => conversation.Protocol == "SSDP");
+        Assert.Equal((100UL, 0UL), (ssdp.PacketsReceived, ssdp.PacketsSent));
     }
 
     [Fact]

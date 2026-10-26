@@ -193,6 +193,32 @@ public sealed class InMemoryDeviceActivityRepository : IDeviceActivityRepository
 
     public void AddTrafficRecords(IEnumerable<TrafficRecord> records) => TrafficRecords.AddRange(records);
 
+    public Task<IReadOnlyList<TrafficEntryDto>> GetTrafficAsync(
+        Guid deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        int maxEntries,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<TrafficEntryDto> entries = TrafficRecords
+            .Where(record => record.DeviceId == deviceId && record.PeriodEnd > from && record.PeriodStart < to)
+            .GroupBy(record => (record.Transport, record.Protocol, record.RemoteAddress, record.ServicePort))
+            .Select(group => new TrafficEntryDto(
+                group.Key.Transport,
+                group.Key.Protocol,
+                group.Key.RemoteAddress,
+                group.Key.ServicePort,
+                group.Sum(record => record.PacketsSent),
+                group.Sum(record => record.PacketsReceived),
+                group.Sum(record => record.BytesSent),
+                group.Sum(record => record.BytesReceived)))
+            .OrderByDescending(entry => entry.BytesSent + entry.BytesReceived)
+            .Take(maxEntries)
+            .ToList();
+
+        return Task.FromResult(entries);
+    }
+
     public Task ReplaceConnectionsAsync(Guid deviceId, IReadOnlyList<ActiveConnection> connections, CancellationToken cancellationToken = default)
     {
         Connections.RemoveAll(connection => connection.DeviceId == deviceId);

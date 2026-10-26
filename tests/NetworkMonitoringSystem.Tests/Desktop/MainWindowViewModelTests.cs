@@ -595,6 +595,140 @@ public class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task SelectingDevice_ShowsItsTraffic_LargestFirst_WithTotals()
+    {
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "PC-01", MonitoringMode = MonitoringMode.Agent, IsEnabled = true, CaptureTraffic = true });
+        _server.Traffic["device-1"] =
+        [
+            new TrafficEntry { Transport = "Tcp", Protocol = "TLSv1.3", RemoteAddress = "160.79.104.10", ServicePort = 443, PacketsSent = 10, PacketsReceived = 20, BytesSent = 2048, BytesReceived = 1048576 },
+            new TrafficEntry { Transport = "Icmp", Protocol = "ICMP", RemoteAddress = "1.1.1.1", PacketsSent = 1, PacketsReceived = 1, BytesSent = 74, BytesReceived = 74 },
+        ];
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+
+        viewModel.SelectedDevice = viewModel.Devices[0];
+
+        var traffic = viewModel.SelectedDeviceTraffic;
+        Assert.NotNull(traffic);
+        Assert.Equal("Komunikácia (2)", traffic.Header);
+        Assert.Equal(("160.79.104.10", "443", "TCP", "TLSv1.3"), (traffic.Rows[0].RemoteAddress, traffic.Rows[0].PortText, traffic.Rows[0].Transport, traffic.Rows[0].Protocol));
+        Assert.Equal("–", traffic.Rows[1].PortText);
+        Assert.Contains("1 MB (20 p.)", traffic.Rows[0].ReceivedText);
+        Assert.Contains("2 konverzáciách", traffic.TotalText);
+        Assert.Contains("zapnuté", viewModel.TrafficCaptureStatusText);
+    }
+
+    [Fact]
+    public void TrafficFilter_NarrowsRowsByTextPortOrTransport_AndStaysWhenNewDataArrives()
+    {
+        var traffic = new DeviceTrafficViewModel(
+        [
+            new TrafficEntry { Transport = "Tcp", Protocol = "TLSv1.3", RemoteAddress = "160.79.104.10", ServicePort = 443, BytesSent = 100, BytesReceived = 900 },
+            new TrafficEntry { Transport = "Udp", Protocol = "DNS", RemoteAddress = "192.168.50.1", ServicePort = 53, BytesSent = 10, BytesReceived = 20 },
+            new TrafficEntry { Transport = "Icmp", Protocol = "ICMP", RemoteAddress = "1.1.1.1", BytesSent = 74, BytesReceived = 74 },
+        ]);
+
+        traffic.FilterText = "tls";
+        Assert.Equal(["160.79.104.10"], traffic.Rows.Select(row => row.RemoteAddress));
+        Assert.Equal("Komunikácia (1 z 3)", traffic.Header);
+
+        traffic.FilterText = "53";
+        Assert.Equal(["DNS"], traffic.Rows.Select(row => row.Protocol));
+
+        traffic.FilterText = string.Empty;
+        traffic.SelectedTransport = "ICMP";
+        Assert.Equal(["1.1.1.1"], traffic.Rows.Select(row => row.RemoteAddress));
+        Assert.Contains("v 1 konverzáciách", traffic.TotalText);
+
+        traffic.Show([new TrafficEntry { Transport = "Tcp", Protocol = "HTTP", RemoteAddress = "192.0.2.80", ServicePort = 80, BytesSent = 1 }]);
+        Assert.Equal("ICMP", traffic.SelectedTransport);
+        Assert.Empty(traffic.Rows);
+        Assert.Equal("Filtru nezodpovedá žiadna komunikácia.", traffic.TotalText);
+
+        traffic.ClearFilter();
+        Assert.Equal(("Komunikácia (1)", false), (traffic.Header, traffic.IsFiltered));
+    }
+
+    [Fact]
+    public async Task ResetTraffic_EmptiesTable_ThenShowsOnlyTrafficSinceReset_UntilShowAll()
+    {
+        var now = new DateTimeOffset(2026, 10, 26, 12, 0, 0, TimeSpan.Zero);
+        var clock = new MutableTimeProvider(now);
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "PC-01", MonitoringMode = MonitoringMode.Agent, IsEnabled = true, CaptureTraffic = true });
+        _server.Traffic["device-1"] = [new TrafficEntry { Transport = "Tcp", Protocol = "TLS", RemoteAddress = "192.0.2.10", ServicePort = 443, BytesSent = 5 }];
+        var viewModel = new MainWindowViewModel(_server, _confirmation, clock);
+        await viewModel.RefreshAsync();
+        viewModel.SelectedDevice = viewModel.Devices[0];
+        viewModel.SelectedDeviceTraffic!.FilterText = "TLS";
+        Assert.Single(viewModel.SelectedDeviceTraffic.Rows);
+        Assert.False(viewModel.ShowAllTrafficCommand.CanExecute(null));
+
+        await viewModel.ResetTrafficCommand.ExecuteAsync();
+
+        Assert.Empty(viewModel.SelectedDeviceTraffic.Rows);
+        Assert.True(viewModel.IsTrafficReset);
+        Assert.Contains(now.ToLocalTime().ToString("HH:mm:ss"), viewModel.TrafficSinceText);
+        Assert.Equal("TLS", viewModel.SelectedDeviceTraffic.FilterText);
+
+        clock.Advance(TimeSpan.FromSeconds(90));
+        await viewModel.LoadSelectedDeviceTrafficAsync(clock.GetUtcNow());
+
+        Assert.Equal(("device-1", now, now.AddSeconds(90)), _server.TrafficRequests[^1]);
+        Assert.Single(viewModel.SelectedDeviceTraffic.Rows);
+
+        await viewModel.ShowAllTrafficCommand.ExecuteAsync();
+
+        Assert.False(viewModel.IsTrafficReset);
+        Assert.Equal(now.AddSeconds(90).AddHours(-24), _server.TrafficRequests[^1].From);
+    }
+
+    [Fact]
+    public async Task SelectingAnotherDevice_CancelsTrafficReset()
+    {
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "PC-01", MonitoringMode = MonitoringMode.Agent, IsEnabled = true });
+        _server.Devices.Add(new DeviceInfo { Id = "device-2", Name = "PC-02", MonitoringMode = MonitoringMode.Agent, IsEnabled = true });
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+        viewModel.SelectedDevice = viewModel.Devices[0];
+        await viewModel.ResetTrafficCommand.ExecuteAsync();
+
+        viewModel.SelectedDevice = viewModel.Devices[1];
+
+        Assert.False(viewModel.IsTrafficReset);
+    }
+
+    [Fact]
+    public async Task ToggleTrafficCapture_AsksBeforeSwitchingOn_AndShowsAgentProblem()
+    {
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "PC-01", MonitoringMode = MonitoringMode.Agent, IsEnabled = true });
+        _server.Devices.Add(new DeviceInfo { Id = "device-2", Name = "Router", MonitoringMode = MonitoringMode.Agentless, IsEnabled = true });
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+
+        viewModel.SelectedDevice = viewModel.Devices.Single(device => device.Name == "Router");
+        Assert.False(viewModel.ToggleTrafficCaptureCommand.CanExecute(null));
+        Assert.Contains("len na zariadení s agentom", viewModel.TrafficCaptureStatusText);
+
+        viewModel.SelectedDevice = viewModel.Devices.Single(device => device.Name == "PC-01");
+        Assert.Equal(("Zapnúť zachytávanie", "Zachytávanie komunikácie je vypnuté."), (viewModel.ToggleTrafficCaptureText, viewModel.TrafficCaptureStatusText));
+
+        await viewModel.ToggleTrafficCaptureCommand.ExecuteAsync();
+
+        Assert.Contains("Wireshark", Assert.Single(_confirmation.Questions));
+        Assert.True(_server.Devices[0].CaptureTraffic);
+        Assert.Equal("Vypnúť zachytávanie", viewModel.ToggleTrafficCaptureText);
+
+        _server.Devices[0].TrafficCaptureProblem = "TShark was not found.";
+        await viewModel.RefreshAsync();
+        Assert.Equal("Agent nemôže zachytávať: TShark was not found.", viewModel.TrafficCaptureStatusText);
+
+        // Switching off needs no confirmation.
+        await viewModel.ToggleTrafficCaptureCommand.ExecuteAsync();
+        Assert.Single(_confirmation.Questions);
+        Assert.False(_server.Devices[0].CaptureTraffic);
+    }
+
+    [Fact]
     public async Task History_IsReloaded_WhenPeriodChanges_ButNotWithEveryRefresh()
     {
         var now = new DateTimeOffset(2026, 10, 9, 12, 0, 0, TimeSpan.Zero);
@@ -1030,6 +1164,29 @@ public class MainWindowViewModelTests
             device.IsEnabled = isEnabled;
 
             return Task.FromResult(device);
+        }
+
+        public Dictionary<string, List<TrafficEntry>> Traffic { get; } = [];
+
+        public Task<DeviceInfo> SetDeviceTrafficCaptureAsync(string id, bool capture, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            var device = Devices.Single(device => device.Id == id);
+            device.CaptureTraffic = capture;
+
+            return Task.FromResult(device);
+        }
+
+        public List<(string Id, DateTimeOffset From, DateTimeOffset To)> TrafficRequests { get; } = [];
+
+        public Task<IReadOnlyList<TrafficEntry>> GetDeviceTrafficAsync(string id, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            TrafficRequests.Add((id, from, to));
+
+            return Task.FromResult<IReadOnlyList<TrafficEntry>>(Traffic.TryGetValue(id, out var entries) ? entries : []);
         }
 
         public Task<MonitoringSettingsInfo> GetSettingsAsync(CancellationToken cancellationToken = default)

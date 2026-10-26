@@ -192,6 +192,7 @@ public sealed class EventRowViewModel
             "PortOpened" => "Nový otvorený port",
             "DeviceDisabled" => "Zakázanie zariadenia",
             "DeviceEnabled" => "Povolenie zariadenia",
+            "TrafficCaptureChanged" => "Zachytávanie komunikácie",
             _ => monitoringEvent.Type,
         };
 

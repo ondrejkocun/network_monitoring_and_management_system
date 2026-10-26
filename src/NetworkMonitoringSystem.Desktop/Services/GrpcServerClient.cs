@@ -195,6 +195,22 @@ public sealed class GrpcServerClient : IServerClient
             Headers(), cancellationToken: cancellationToken));
     }
 
+    public Task<DeviceInfo> SetDeviceTrafficCaptureAsync(string id, bool capture, CancellationToken cancellationToken = default)
+    {
+        return CallAsync(() => _client.SetDeviceTrafficCaptureAsync(
+            new SetDeviceTrafficCaptureRequest { Id = id, Capture = capture },
+            Headers(), cancellationToken: cancellationToken));
+    }
+
+    public async Task<IReadOnlyList<TrafficEntry>> GetDeviceTrafficAsync(string id, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
+    {
+        var reply = await CallAsync(() => _client.GetDeviceTrafficAsync(
+            new GetDeviceTrafficRequest { Id = id, From = Timestamp.FromDateTimeOffset(from), To = Timestamp.FromDateTimeOffset(to) },
+            Headers(), cancellationToken: cancellationToken));
+
+        return reply.Entries;
+    }
+
     public Task<MonitoringSettingsInfo> GetSettingsAsync(CancellationToken cancellationToken = default)
     {
         return CallAsync(() => _client.GetMonitoringSettingsAsync(new GetMonitoringSettingsRequest(), Headers(), cancellationToken: cancellationToken));

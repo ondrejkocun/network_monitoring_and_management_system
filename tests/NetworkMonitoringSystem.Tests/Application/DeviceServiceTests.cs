@@ -11,14 +11,16 @@ public class DeviceServiceTests
 
     private readonly CountingUnitOfWork _unitOfWork = new();
     private readonly InMemoryMonitoringHistoryRepository _history = new();
+    private readonly InMemoryDeviceActivityRepository _activity;
     private readonly DeviceService _service;
 
     public DeviceServiceTests()
     {
+        _activity = new InMemoryDeviceActivityRepository(_history);
         _service = new DeviceService(
             new InMemoryDeviceRepository(),
             _history,
-            new InMemoryDeviceActivityRepository(_history),
+            _activity,
             _unitOfWork,
             new MutableTimeProvider(Now));
     }
@@ -202,6 +204,61 @@ public class DeviceServiceTests
     {
         Assert.Null(await _service.SetDeviceEnabledAsync(Guid.NewGuid(), isEnabled: false));
         Assert.Equal(0, _unitOfWork.SaveCount);
+    }
+
+    [Fact]
+    public async Task SetTrafficCaptureAsync_SwitchesOnAndOff_WithEventsAndTheirAuthor()
+    {
+        var registered = await _service.RegisterDeviceAsync(new RegisterDeviceRequest("PC", MonitoringMode.Agent, "pc-01"));
+        var userId = Guid.NewGuid();
+
+        Assert.True((await _service.SetTrafficCaptureAsync(registered.Id, capture: true, userId))!.CaptureTraffic);
+        Assert.True((await _service.SetTrafficCaptureAsync(registered.Id, capture: true, userId))!.CaptureTraffic);
+        Assert.False((await _service.SetTrafficCaptureAsync(registered.Id, capture: false, userId))!.CaptureTraffic);
+
+        // Switching on twice changes nothing the second time.
+        Assert.Equal(2, _history.Events.Count);
+        Assert.All(_history.Events, monitoringEvent =>
+        {
+            Assert.Equal(MonitoringEventType.TrafficCaptureChanged, monitoringEvent.Type);
+            Assert.Equal(userId, monitoringEvent.UserId);
+        });
+    }
+
+    [Fact]
+    public async Task SetTrafficCaptureAsync_RefusesDeviceWithoutAgent_AndIgnoresUnknownDevice()
+    {
+        var router = await _service.RegisterDeviceAsync(
+            new RegisterDeviceRequest("Router", MonitoringMode.Agentless, IpAddress: "192.168.50.1"));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.SetTrafficCaptureAsync(router.Id, capture: true));
+        Assert.Null(await _service.SetTrafficCaptureAsync(Guid.NewGuid(), capture: true));
+        Assert.Empty(_history.Events);
+    }
+
+    [Fact]
+    public async Task GetTrafficAsync_SumsSummariesThatOverlapThePeriod_LargestFirst()
+    {
+        var deviceId = Guid.NewGuid();
+        _activity.AddTrafficRecords(
+        [
+            Traffic(deviceId, Now.AddMinutes(-2), "DNS", "192.168.50.1", 53, 300),
+            Traffic(deviceId, Now.AddMinutes(-1), "DNS", "192.168.50.1", 53, 200),
+            Traffic(deviceId, Now.AddMinutes(-1), "TLSv1.3", "160.79.104.10", 443, 9000),
+            Traffic(deviceId, Now.AddHours(-3), "TLSv1.3", "160.79.104.10", 443, 1),
+            Traffic(Guid.NewGuid(), Now.AddMinutes(-1), "HTTP", "192.0.2.80", 80, 5),
+        ]);
+
+        var entries = await _service.GetTrafficAsync(deviceId, Now.AddHours(-1), Now);
+
+        Assert.Equal(["TLSv1.3", "DNS"], entries.Select(entry => entry.Protocol));
+        Assert.Equal((500L, 2L), (entries[1].BytesReceived, entries[1].PacketsReceived));
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.GetTrafficAsync(deviceId, Now, Now));
+    }
+
+    private static TrafficRecord Traffic(Guid deviceId, DateTimeOffset periodEnd, string protocol, string remote, int port, long bytesReceived)
+    {
+        return new TrafficRecord(deviceId, periodEnd.AddMinutes(-1), periodEnd, TrafficTransport.Tcp, protocol, remote, port, 1, 1, 10, bytesReceived);
     }
 
     [Fact]

@@ -26,6 +26,17 @@ public interface IDeviceActivityRepository
 
     void AddTrafficRecords(IEnumerable<TrafficRecord> records);
 
+    /// <summary>
+    /// Returns the traffic of the device in summaries that overlap the period, summed per transport, protocol, remote
+    /// address and service port, the largest first. A summary partly inside the period counts whole.
+    /// </summary>
+    Task<IReadOnlyList<Devices.TrafficEntryDto>> GetTrafficAsync(
+        Guid deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        int maxEntries,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Replaces all stored connections of the device with the given ones.</summary>
     Task ReplaceConnectionsAsync(Guid deviceId, IReadOnlyList<ActiveConnection> connections, CancellationToken cancellationToken = default);
 }

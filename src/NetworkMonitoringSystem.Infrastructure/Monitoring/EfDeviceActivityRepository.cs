@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NetworkMonitoringSystem.Application.Devices;
 using NetworkMonitoringSystem.Application.Monitoring;
 using NetworkMonitoringSystem.Domain.Monitoring;
 using NetworkMonitoringSystem.Infrastructure.Persistence;
@@ -64,6 +65,42 @@ public sealed class EfDeviceActivityRepository : IDeviceActivityRepository
     public void AddListeningPort(ListeningPort port) => _dbContext.ListeningPorts.Add(port);
 
     public void AddTrafficRecords(IEnumerable<TrafficRecord> records) => _dbContext.TrafficRecords.AddRange(records);
+
+    public async Task<IReadOnlyList<TrafficEntryDto>> GetTrafficAsync(
+        Guid deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        int maxEntries,
+        CancellationToken cancellationToken = default)
+    {
+        // Summed and sorted in the database, so only the largest totals travel to the server.
+        var totals = await _dbContext.TrafficRecords
+            .Where(record => record.DeviceId == deviceId && record.PeriodEnd > from && record.PeriodStart < to)
+            .GroupBy(record => new { record.Transport, record.Protocol, record.RemoteAddress, record.ServicePort })
+            .Select(group => new
+            {
+                group.Key,
+                PacketsSent = group.Sum(record => record.PacketsSent),
+                PacketsReceived = group.Sum(record => record.PacketsReceived),
+                BytesSent = group.Sum(record => record.BytesSent),
+                BytesReceived = group.Sum(record => record.BytesReceived),
+            })
+            .OrderByDescending(total => total.BytesSent + total.BytesReceived)
+            .Take(maxEntries)
+            .ToListAsync(cancellationToken);
+
+        return totals
+            .Select(total => new TrafficEntryDto(
+                total.Key.Transport,
+                total.Key.Protocol,
+                total.Key.RemoteAddress,
+                total.Key.ServicePort,
+                total.PacketsSent,
+                total.PacketsReceived,
+                total.BytesSent,
+                total.BytesReceived))
+            .ToList();
+    }
 
     public async Task ReplaceConnectionsAsync(
         Guid deviceId,

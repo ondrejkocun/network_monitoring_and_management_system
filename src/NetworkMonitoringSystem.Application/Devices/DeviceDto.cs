@@ -13,7 +13,9 @@ public sealed record DeviceDto(
     bool IsEnabled,
     DateTimeOffset CreatedAt,
     string? OperatingSystem,
-    int? TcpPort = null)
+    int? TcpPort = null,
+    bool CaptureTraffic = false,
+    string? TrafficCaptureProblem = null)
 {
     public static DeviceDto FromDevice(Device device)
     {
@@ -30,6 +32,8 @@ public sealed record DeviceDto(
             device.IsEnabled,
             device.CreatedAt,
             device.OperatingSystem,
-            device.TcpPort);
+            device.TcpPort,
+            device.CaptureTraffic,
+            device.TrafficCaptureProblem);
     }
 }

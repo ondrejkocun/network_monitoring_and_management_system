@@ -8,6 +8,9 @@ namespace NetworkMonitoringSystem.Application.Devices;
 
 public sealed class DeviceService : IDeviceService
 {
+    /// <summary>Most conversations shown for one period; the rest are the smallest ones.</summary>
+    public const int MaxTrafficEntries = 500;
+
     private readonly IDeviceRepository _deviceRepository;
     private readonly IMonitoringHistoryRepository _history;
     private readonly IDeviceActivityRepository _activity;
@@ -179,6 +182,63 @@ public sealed class DeviceService : IDeviceService
             userId));
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return DeviceDto.FromDevice(device);
+    }
+
+    public Task<DeviceDto?> SetTrafficCaptureAsync(
+        Guid id,
+        bool capture,
+        Guid? userId = null,
+        CancellationToken cancellationToken = default)
+    {
+        return ConcurrencyRetry.RunAsync(
+            _unitOfWork,
+            () => SetTrafficCaptureOnceAsync(id, capture, userId, cancellationToken));
+    }
+
+    public Task<IReadOnlyList<TrafficEntryDto>> GetTrafficAsync(
+        Guid id,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        CancellationToken cancellationToken = default)
+    {
+        if (to <= from)
+        {
+            throw new ArgumentException("The period must end after it starts.", nameof(to));
+        }
+
+        return _activity.GetTrafficAsync(id, from, to, MaxTrafficEntries, cancellationToken);
+    }
+
+    private async Task<DeviceDto?> SetTrafficCaptureOnceAsync(Guid id, bool capture, Guid? userId, CancellationToken cancellationToken)
+    {
+        var device = await _deviceRepository.GetByIdAsync(id, cancellationToken);
+
+        if (device is null)
+        {
+            return null;
+        }
+
+        if (capture && device.MonitoringMode != MonitoringMode.Agent)
+        {
+            throw new ArgumentException("Only a device with an agent can capture network traffic.", nameof(id));
+        }
+
+        if (device.SetTrafficCapture(capture))
+        {
+            _history.AddEvent(new MonitoringEvent(
+                _timeProvider.GetUtcNow(),
+                MonitoringEventType.TrafficCaptureChanged,
+                EventSeverity.Info,
+                capture
+                    ? $"Capture of network traffic on device '{device.Name}' was switched on."
+                    : $"Capture of network traffic on device '{device.Name}' was switched off.",
+                device.Id,
+                userId));
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
 
         return DeviceDto.FromDevice(device);
     }

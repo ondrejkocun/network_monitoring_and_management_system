@@ -16,6 +16,7 @@ using DomainEventSeverity = NetworkMonitoringSystem.Domain.Monitoring.EventSever
 using Device = NetworkMonitoringSystem.Domain.Devices.Device;
 using DomainMonitoringMode = NetworkMonitoringSystem.Domain.Devices.MonitoringMode;
 using DomainDeviceStatus = NetworkMonitoringSystem.Domain.Devices.DeviceStatus;
+using TrafficTransport = NetworkMonitoringSystem.Domain.Monitoring.TrafficTransport;
 
 /// <summary>
 /// Calls the administration API of the real server (hosted in memory) with a real PostgreSQL database,
@@ -128,6 +129,51 @@ public sealed class AdminApiTests : IClassFixture<DatabaseFixture>, IAsyncLifeti
         var exception = await Assert.ThrowsAsync<ServerClientException>(() => _client.RemoveDeviceAsync(id));
 
         Assert.Equal(ServerErrorKind.NotFound, exception.Kind);
+    }
+
+    [Fact]
+    public async Task TrafficCapture_IsSwitchedOnForAgentDevice_AndItsTrafficIsReadSummedForThePeriod()
+    {
+        var now = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        var hostName = "pc-" + Guid.NewGuid().ToString("N");
+        var device = new Device(Guid.NewGuid(), hostName, DomainMonitoringMode.Agent, hostName, null, now.AddDays(-1));
+
+        await using (var dbContext = _database.CreateDbContext())
+        {
+            dbContext.Devices.Add(device);
+            dbContext.TrafficRecords.AddRange(
+                new TrafficRecord(device.Id, now.AddMinutes(-3), now.AddMinutes(-2), TrafficTransport.Udp, "DNS", "192.0.2.53", 53, 2, 2, 150, 400),
+                new TrafficRecord(device.Id, now.AddMinutes(-2), now.AddMinutes(-1), TrafficTransport.Udp, "DNS", "192.0.2.53", 53, 1, 1, 75, 200),
+                new TrafficRecord(device.Id, now.AddMinutes(-2), now.AddMinutes(-1), TrafficTransport.Icmp, "ICMP", "192.0.2.1", null, 4, 4, 296, 296),
+                new TrafficRecord(device.Id, now.AddDays(-2), now.AddDays(-2), TrafficTransport.Tcp, "TLSv1.3", "192.0.2.10", 443, 9, 9, 9000, 9000));
+            await dbContext.SaveChangesAsync();
+        }
+
+        var switchedOn = await _client.SetDeviceTrafficCaptureAsync(device.Id.ToString(), capture: true);
+        var entries = await _client.GetDeviceTrafficAsync(device.Id.ToString(), now.AddHours(-1), now);
+
+        Assert.True(switchedOn.CaptureTraffic);
+        Assert.Equal(2, entries.Count);
+        var dns = entries[0];
+        Assert.Equal(("Udp", "DNS", "192.0.2.53", 53), (dns.Transport, dns.Protocol, dns.RemoteAddress, dns.ServicePort));
+        Assert.Equal((3L, 225L, 600L), (dns.PacketsSent, dns.BytesSent, dns.BytesReceived));
+        Assert.False(entries[1].HasServicePort);
+
+        await using var readContext = _database.CreateDbContext();
+        Assert.True(await readContext.Events.AnyAsync(monitoringEvent =>
+            monitoringEvent.DeviceId == device.Id && monitoringEvent.Type == MonitoringEventType.TrafficCaptureChanged && monitoringEvent.UserId != null));
+    }
+
+    [Fact]
+    public async Task TrafficCapture_ForDeviceWithoutAgent_IsRejected()
+    {
+        var name = "Router-" + Guid.NewGuid().ToString("N");
+        await _client.AddAgentlessDeviceAsync(name, "192.0.2.90");
+        var router = Assert.Single(await _client.GetDevicesAsync(), device => device.Name == name);
+
+        var exception = await Assert.ThrowsAsync<ServerClientException>(() => _client.SetDeviceTrafficCaptureAsync(router.Id, capture: true));
+
+        Assert.Equal(ServerErrorKind.InvalidInput, exception.Kind);
     }
 
     [Fact]

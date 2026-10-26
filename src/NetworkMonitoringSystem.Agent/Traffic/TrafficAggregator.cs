@@ -124,13 +124,16 @@ public sealed class TrafficAggregator
 
     private readonly object _lock = new();
     private readonly HashSet<IPAddress> _localAddresses;
+    private readonly HashSet<IPAddress> _broadcastAddresses;
     private Dictionary<(TrafficTransport Transport, IPAddress Remote, int? Port), Conversation> _conversations = [];
     private DateTimeOffset _periodStart;
 
     /// <param name="localAddresses">Addresses of this device; they tell whether a packet was sent or received.</param>
-    public TrafficAggregator(IEnumerable<IPAddress> localAddresses, DateTimeOffset startedAt)
+    /// <param name="broadcastAddresses">Broadcast addresses of the networks this device is in, such as 192.168.1.255.</param>
+    public TrafficAggregator(IEnumerable<IPAddress> localAddresses, DateTimeOffset startedAt, IEnumerable<IPAddress>? broadcastAddresses = null)
     {
         _localAddresses = localAddresses.Select(CapturedPacket.WithoutScope).ToHashSet();
+        _broadcastAddresses = (broadcastAddresses ?? []).Select(CapturedPacket.WithoutScope).Append(IPAddress.Broadcast).ToHashSet();
         _periodStart = startedAt;
     }
 
@@ -143,7 +146,10 @@ public sealed class TrafficAggregator
 
         // A packet from this device is sent; anything else, including broadcasts from others, is received.
         var sent = _localAddresses.Contains(packet.Source);
-        var remote = sent ? packet.Destination : packet.Source;
+
+        // Announcements that other devices send to everyone (SSDP, mDNS, NetBIOS…) are counted per group, not per
+        // sender. On a busy network there are hundreds of senders, and they would crowd out the device's own traffic.
+        var remote = sent ? packet.Destination : IsGroupAddress(packet.Destination) ? packet.Destination : packet.Source;
 
         // The lower port is usually the service (443, 53); the other one changes with every connection.
         int? servicePort = packet is { SourcePort: { } a, DestinationPort: { } b } ? Math.Min(a, b) : null;
@@ -167,6 +173,19 @@ public sealed class TrafficAggregator
 
             conversation.Add(sent, packet.Length, packet.Protocol);
         }
+    }
+
+    private bool IsGroupAddress(IPAddress address)
+    {
+        if (address.IsIPv6Multicast)
+        {
+            return true;
+        }
+
+        var bytes = address.GetAddressBytes();
+
+        // 224.0.0.0/4 is the IPv4 multicast range.
+        return (bytes.Length == 4 && bytes[0] is >= 224 and <= 239) || _broadcastAddresses.Contains(address);
     }
 
     /// <summary>Returns what was counted since the previous call and starts counting again from zero.</summary>

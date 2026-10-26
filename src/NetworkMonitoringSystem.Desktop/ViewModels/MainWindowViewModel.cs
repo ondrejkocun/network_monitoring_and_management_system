@@ -41,6 +41,8 @@ public sealed class MainWindowViewModel : ViewModelBase
     private HashSet<string> _permissions = [];
     private string _currentUserName = string.Empty;
     private DeviceHistoryViewModel? _selectedDeviceHistory;
+    private DeviceTrafficViewModel? _selectedDeviceTraffic;
+    private DateTimeOffset? _trafficSince;
     private HistoryPeriodOption _selectedHistoryPeriod;
     private DateTimeOffset? _historyLoadedAt;
 
@@ -63,6 +65,9 @@ public sealed class MainWindowViewModel : ViewModelBase
                 && TryParseTcpPort(NewDeviceTcpPort, out _));
         RemoveDeviceCommand = new AsyncRelayCommand(RemoveSelectedDeviceAsync, () => SelectedDevice is not null);
         ToggleDeviceEnabledCommand = new AsyncRelayCommand(ToggleSelectedDeviceEnabledAsync, () => SelectedDevice is not null);
+        ToggleTrafficCaptureCommand = new AsyncRelayCommand(ToggleSelectedDeviceTrafficCaptureAsync, () => SelectedDevice is { HasAgent: true });
+        ResetTrafficCommand = new AsyncRelayCommand(ResetTrafficAsync, () => SelectedDevice is not null);
+        ShowAllTrafficCommand = new AsyncRelayCommand(ShowAllTrafficAsync, () => _trafficSince is not null);
         SaveSyncIntervalCommand = new AsyncRelayCommand(
             SaveSyncIntervalAsync,
             () => int.TryParse(SyncIntervalText, NumberStyles.None, CultureInfo.InvariantCulture, out _));
@@ -327,6 +332,10 @@ public sealed class MainWindowViewModel : ViewModelBase
             RemoveDeviceCommand.RaiseCanExecuteChanged();
             ToggleDeviceEnabledCommand.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(ToggleDeviceEnabledText));
+            ToggleTrafficCaptureCommand.RaiseCanExecuteChanged();
+            ResetTrafficCommand.RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(ToggleTrafficCaptureText));
+            OnPropertyChanged(nameof(TrafficCaptureStatusText));
 
             // Resources of another device must not stay on screen; those of the same device are simply reloaded.
             if (value?.Id != previousId)
@@ -342,6 +351,8 @@ public sealed class MainWindowViewModel : ViewModelBase
                 OnPropertyChanged(nameof(CanSendCommands));
                 SendCommandCommand.RaiseCanExecuteChanged();
                 SelectedDeviceHistory = null;
+                SelectedDeviceTraffic = null;
+                SetTrafficSince(null);
                 _historyLoadedAt = null;
                 ResourcesMessage = value is null ? NoDeviceSelectedMessage : "Načítavam…";
             }
@@ -431,8 +442,110 @@ public sealed class MainWindowViewModel : ViewModelBase
         catch (ServerClientException)
         {
             // What is on screen stays; the status bar already says when the server cannot be reached.
+            return;
+        }
+
+        await LoadSelectedDeviceTrafficAsync(now);
+    }
+
+    /// <summary>
+    /// Loads the traffic of the selected device for the selected period, or only since the table was reset.
+    /// </summary>
+    public async Task LoadSelectedDeviceTrafficAsync(DateTimeOffset now)
+    {
+        var device = SelectedDevice;
+        var period = SelectedHistoryPeriod;
+        var since = _trafficSince;
+
+        if (device is null)
+        {
+            return;
+        }
+
+        var from = since is { } resetAt && resetAt > now - period.Length ? resetAt : now - period.Length;
+
+        try
+        {
+            var traffic = from < now ? await _server.GetDeviceTrafficAsync(device.Id, from, now) : [];
+
+            // The answer may arrive after the user has selected another device or period, or reset the table again.
+            if (SelectedDevice?.Id != device.Id || SelectedHistoryPeriod != period || _trafficSince != since)
+            {
+                return;
+            }
+
+            // The same view model is kept, so a filter the user typed stays while new data arrives.
+            if (SelectedDeviceTraffic is null)
+            {
+                SelectedDeviceTraffic = new DeviceTrafficViewModel(traffic);
+            }
+            else
+            {
+                SelectedDeviceTraffic.Show(traffic);
+            }
+        }
+        catch (ServerClientException)
+        {
+            // What is on screen stays; the status bar already says when the server cannot be reached.
         }
     }
+
+    /// <summary>Who the selected device communicated with in the selected period, or null when not loaded.</summary>
+    public DeviceTrafficViewModel? SelectedDeviceTraffic
+    {
+        get => _selectedDeviceTraffic;
+        private set => SetProperty(ref _selectedDeviceTraffic, value);
+    }
+
+    /// <summary>Empties the traffic table; from now on it shows only traffic that arrives after this moment.</summary>
+    public AsyncRelayCommand ResetTrafficCommand { get; }
+
+    /// <summary>Shows the traffic of the whole selected period again.</summary>
+    public AsyncRelayCommand ShowAllTrafficCommand { get; }
+
+    /// <summary>True while the table shows only traffic since it was reset.</summary>
+    public bool IsTrafficReset => _trafficSince is not null;
+
+    public string TrafficSinceText => _trafficSince is { } since
+        ? $"Zobrazuje sa len komunikácia od {since.ToLocalTime():HH:mm:ss}. Nová pribudne s najbližším hlásením agenta."
+        : string.Empty;
+
+    private async Task ResetTrafficAsync()
+    {
+        var now = _timeProvider.GetUtcNow();
+
+        SetTrafficSince(now);
+        await LoadSelectedDeviceTrafficAsync(now);
+    }
+
+    private async Task ShowAllTrafficAsync()
+    {
+        SetTrafficSince(null);
+        await LoadSelectedDeviceTrafficAsync(_timeProvider.GetUtcNow());
+    }
+
+    private void SetTrafficSince(DateTimeOffset? since)
+    {
+        _trafficSince = since;
+        OnPropertyChanged(nameof(IsTrafficReset));
+        OnPropertyChanged(nameof(TrafficSinceText));
+        ShowAllTrafficCommand.RaiseCanExecuteChanged();
+    }
+
+    /// <summary>Switches capture of network traffic of the selected device on or off.</summary>
+    public AsyncRelayCommand ToggleTrafficCaptureCommand { get; }
+
+    public string ToggleTrafficCaptureText => SelectedDevice is { CaptureTraffic: true } ? "Vypnúť zachytávanie" : "Zapnúť zachytávanie";
+
+    /// <summary>Whether the traffic of the selected device is being captured and, if it cannot be, why.</summary>
+    public string TrafficCaptureStatusText => SelectedDevice switch
+    {
+        null => string.Empty,
+        { HasAgent: false } => "Komunikáciu možno zachytávať len na zariadení s agentom.",
+        { CaptureTraffic: false } => "Zachytávanie komunikácie je vypnuté.",
+        { TrafficCaptureProblem.Length: > 0 } device => $"Agent nemôže zachytávať: {device.TrafficCaptureProblem}",
+        _ => "Zachytávanie komunikácie je zapnuté. Súhrn prichádza s každým hlásením agenta.",
+    };
 
     /// <summary>Explains why no resources are shown; empty when they are.</summary>
     public string ResourcesMessage
@@ -724,6 +837,43 @@ public sealed class MainWindowViewModel : ViewModelBase
         StatusMessage = enable
             ? $"Zariadenie „{device.Name}“ bolo povolené. {StatusMessage}"
             : $"Zariadenie „{device.Name}“ bolo zakázané. {StatusMessage}";
+    }
+
+    private async Task ToggleSelectedDeviceTrafficCaptureAsync()
+    {
+        var device = SelectedDevice;
+
+        if (device is not { HasAgent: true })
+        {
+            return;
+        }
+
+        var capture = !device.CaptureTraffic;
+
+        if (capture && !_confirmation.Confirm(
+                "Zapnúť zachytávanie komunikácie",
+                $"Agent na zariadení „{device.Name}“ bude zaznamenávať, s kým zariadenie komunikuje a koľko dát prenesie. "
+                + "Obsah komunikácie sa neukladá. Na zariadení musí byť nainštalovaný Wireshark s Npcap. Pokračovať?"))
+        {
+            return;
+        }
+
+        try
+        {
+            await _server.SetDeviceTrafficCaptureAsync(device.Id, capture);
+        }
+        catch (ServerClientException exception)
+        {
+            StatusMessage = Describe(exception);
+
+            return;
+        }
+
+        await RefreshAsync();
+
+        StatusMessage = capture
+            ? $"Zachytávanie komunikácie na zariadení „{device.Name}“ sa začne pri jeho najbližšom hlásení. {StatusMessage}"
+            : $"Zachytávanie komunikácie na zariadení „{device.Name}“ bolo vypnuté. {StatusMessage}";
     }
 
     private async Task SaveSyncIntervalAsync()
