@@ -3,7 +3,7 @@ using NetworkMonitoringSystem.Domain.Monitoring;
 namespace NetworkMonitoringSystem.Application.Monitoring;
 
 /// <summary>
-/// Storage for what runs on devices: process runs, listening ports and connections.
+/// Storage for what runs on devices: process runs, listening ports, connections and summaries of their traffic.
 /// Additions and changes are saved through <see cref="Common.IUnitOfWork"/> unless stated otherwise.
 /// </summary>
 public interface IDeviceActivityRepository
@@ -23,6 +23,8 @@ public interface IDeviceActivityRepository
     void AddProcessRun(ProcessRun processRun);
 
     void AddListeningPort(ListeningPort port);
+
+    void AddTrafficRecords(IEnumerable<TrafficRecord> records);
 
     /// <summary>Replaces all stored connections of the device with the given ones.</summary>
     Task ReplaceConnectionsAsync(Guid deviceId, IReadOnlyList<ActiveConnection> connections, CancellationToken cancellationToken = default);

@@ -4,6 +4,7 @@ using NetworkMonitoringSystem.Application.Commands;
 using NetworkMonitoringSystem.Contracts.Agents;
 using AgentCredentials = NetworkMonitoringSystem.Application.Agents.AgentCredentials;
 using DomainTransportProtocol = NetworkMonitoringSystem.Domain.Monitoring.TransportProtocol;
+using DomainTrafficTransport = NetworkMonitoringSystem.Domain.Monitoring.TrafficTransport;
 
 namespace NetworkMonitoringSystem.Server.Services;
 
@@ -73,9 +74,10 @@ public sealed class AgentApiService : AgentApi.AgentApiBase
                 new AgentCredentials(deviceId, request.Credentials.AgentKey),
                 ToReport(request.Metrics),
                 ToReport(request.Activity),
+                ToReport(request.Traffic),
                 context.CancellationToken);
 
-            return new HeartbeatReply { SyncIntervalSeconds = result.SyncIntervalSeconds };
+            return new HeartbeatReply { SyncIntervalSeconds = result.SyncIntervalSeconds, CaptureTraffic = result.CaptureTraffic };
         }
         catch (AgentAuthenticationException)
         {
@@ -206,6 +208,39 @@ public sealed class AgentApiService : AgentApi.AgentApiBase
                     connection.State,
                     ToInt32(connection.Pid)))
                 .ToList());
+    }
+
+    private static TrafficReport? ToReport(TrafficSummary? traffic)
+    {
+        if (traffic is null)
+        {
+            return null;
+        }
+
+        var periodEnd = traffic.PeriodEnd?.ToDateTimeOffset() ?? DateTimeOffset.UnixEpoch;
+
+        return new TrafficReport(
+            traffic.PeriodStart?.ToDateTimeOffset() ?? periodEnd,
+            periodEnd,
+            traffic.Conversations
+                .Where(conversation => conversation.Transport != TrafficTransport.Unspecified)
+                .Select(conversation => new ConversationReport(
+                    conversation.Transport switch
+                    {
+                        TrafficTransport.Tcp => DomainTrafficTransport.Tcp,
+                        TrafficTransport.Udp => DomainTrafficTransport.Udp,
+                        TrafficTransport.Icmp => DomainTrafficTransport.Icmp,
+                        _ => DomainTrafficTransport.Other,
+                    },
+                    conversation.Protocol,
+                    conversation.RemoteAddress,
+                    conversation.HasServicePort ? ToInt32(conversation.ServicePort) : null,
+                    ToInt64(conversation.PacketsSent),
+                    ToInt64(conversation.PacketsReceived),
+                    ToInt64(conversation.BytesSent),
+                    ToInt64(conversation.BytesReceived)))
+                .ToList(),
+            string.IsNullOrWhiteSpace(traffic.CaptureProblem) ? null : traffic.CaptureProblem);
     }
 
     private static DomainTransportProtocol ToDomain(TransportProtocol protocol)

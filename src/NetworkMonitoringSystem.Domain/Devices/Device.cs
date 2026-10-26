@@ -73,6 +73,44 @@ public sealed class Device
     /// </summary>
     public int? TcpPort { get; private set; }
 
+    public const int MaxTrafficCaptureProblemLength = 500;
+
+    /// <summary>True when the device's agent should capture network traffic and report a summary of it.</summary>
+    public bool CaptureTraffic { get; private set; }
+
+    /// <summary>Why the agent cannot capture traffic although it should, as it last reported; null when there is no problem.</summary>
+    public string? TrafficCaptureProblem { get; private set; }
+
+    /// <summary>Switches traffic capture on or off. Only an agent can capture traffic.</summary>
+    /// <returns>True when this changed the setting.</returns>
+    public bool SetTrafficCapture(bool capture)
+    {
+        if (capture && MonitoringMode != MonitoringMode.Agent)
+        {
+            throw new InvalidOperationException("Only a device with an agent can capture network traffic.");
+        }
+
+        if (CaptureTraffic == capture)
+        {
+            return false;
+        }
+
+        CaptureTraffic = capture;
+        TrafficCaptureProblem = null;
+
+        return true;
+    }
+
+    /// <summary>Records why the agent cannot capture traffic, or that it can again (null). Overlong text is shortened.</summary>
+    public void RecordTrafficCaptureProblem(string? problem)
+    {
+        problem = string.IsNullOrWhiteSpace(problem) ? null : problem.Trim();
+
+        TrafficCaptureProblem = problem is { Length: > MaxTrafficCaptureProblemLength }
+            ? problem[..MaxTrafficCaptureProblemLength]
+            : problem;
+    }
+
     /// <summary>Sets the TCP port checked when the device does not answer ping; null removes it.</summary>
     public void SetTcpPort(int? tcpPort)
     {

@@ -42,6 +42,8 @@ public class HistoryRetentionPersistenceTests : IClassFixture<DatabaseFixture>
             endedLongAgo.End(old);
             dbContext.Outages.Add(endedLongAgo);
             dbContext.Outages.Add(new Outage(device.Id, old.AddDays(-100)));
+            dbContext.TrafficRecords.Add(Traffic(device.Id, old));
+            dbContext.TrafficRecords.Add(Traffic(device.Id, recent));
 
             await dbContext.SaveChangesAsync();
         }
@@ -58,7 +60,7 @@ public class HistoryRetentionPersistenceTests : IClassFixture<DatabaseFixture>
             removed = await service.CleanUpAsync();
         }
 
-        Assert.Equal(new HistoryCleanupResult(Snapshots: 1, Outages: 1, Events: 1), removed);
+        Assert.Equal(new HistoryCleanupResult(Snapshots: 1, Outages: 1, Events: 1, TrafficRecords: 1), removed);
 
         await using var readContext = _database.CreateDbContext();
 
@@ -79,7 +81,15 @@ public class HistoryRetentionPersistenceTests : IClassFixture<DatabaseFixture>
         var outage = await readContext.Outages.SingleAsync(outage => outage.DeviceId == device.Id);
         Assert.Null(outage.EndedAt);
 
+        var traffic = await readContext.TrafficRecords.SingleAsync(record => record.DeviceId == device.Id);
+        Assert.Equal((recent, "TLS", 443, 4000L), (traffic.PeriodEnd, traffic.Protocol, traffic.ServicePort, traffic.BytesReceived));
+
         Assert.True(await readContext.Devices.AnyAsync(stored => stored.Id == device.Id));
+    }
+
+    private static TrafficRecord Traffic(Guid deviceId, DateTimeOffset periodEnd)
+    {
+        return new TrafficRecord(deviceId, periodEnd.AddMinutes(-1), periodEnd, TrafficTransport.Tcp, "TLS", "192.0.2.10", 443, 10, 12, 1500, 4000);
     }
 
     private static DeviceSnapshot MeasuredSnapshot(Guid deviceId, DateTimeOffset recordedAt)

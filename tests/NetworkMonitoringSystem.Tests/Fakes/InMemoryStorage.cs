@@ -163,6 +163,8 @@ public sealed class InMemoryDeviceActivityRepository : IDeviceActivityRepository
 
     public List<ActiveConnection> Connections { get; } = [];
 
+    public List<TrafficRecord> TrafficRecords { get; } = [];
+
     public Task<IReadOnlyList<ProcessRun>> GetRunningProcessesAsync(Guid deviceId, CancellationToken cancellationToken = default)
     {
         return Task.FromResult<IReadOnlyList<ProcessRun>>(ProcessRuns.Where(run => run.DeviceId == deviceId && run.IsRunning).ToList());
@@ -188,6 +190,8 @@ public sealed class InMemoryDeviceActivityRepository : IDeviceActivityRepository
     public void AddProcessRun(ProcessRun processRun) => ProcessRuns.Add(processRun);
 
     public void AddListeningPort(ListeningPort port) => ListeningPorts.Add(port);
+
+    public void AddTrafficRecords(IEnumerable<TrafficRecord> records) => TrafficRecords.AddRange(records);
 
     public Task ReplaceConnectionsAsync(Guid deviceId, IReadOnlyList<ActiveConnection> connections, CancellationToken cancellationToken = default)
     {

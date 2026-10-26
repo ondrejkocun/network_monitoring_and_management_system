@@ -76,3 +76,26 @@ internal sealed class ActiveConnectionConfiguration : IEntityTypeConfiguration<A
         builder.HasIndex(connection => connection.DeviceId);
     }
 }
+
+internal sealed class TrafficRecordConfiguration : IEntityTypeConfiguration<TrafficRecord>
+{
+    public void Configure(EntityTypeBuilder<TrafficRecord> builder)
+    {
+        builder.HasKey(record => record.Id);
+
+        builder.Property(record => record.DeviceId);
+        builder.Property(record => record.PeriodStart);
+        builder.Property(record => record.PeriodEnd);
+        builder.Property(record => record.Transport).HasConversion<string>().HasMaxLength(10);
+        builder.Property(record => record.Protocol).HasMaxLength(TrafficRecord.MaxProtocolLength).IsRequired();
+        builder.Property(record => record.RemoteAddress).HasMaxLength(ListeningPort.MaxAddressLength).IsRequired();
+        builder.Property(record => record.ServicePort);
+        builder.Property(record => record.PacketsSent);
+        builder.Property(record => record.PacketsReceived);
+        builder.Property(record => record.BytesSent);
+        builder.Property(record => record.BytesReceived);
+
+        builder.HasOne<Device>().WithMany().HasForeignKey(record => record.DeviceId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(record => new { record.DeviceId, record.PeriodEnd });
+    }
+}

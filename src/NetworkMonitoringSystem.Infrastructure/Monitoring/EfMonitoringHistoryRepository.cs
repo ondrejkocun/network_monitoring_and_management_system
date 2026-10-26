@@ -58,7 +58,11 @@ public sealed class EfMonitoringHistoryRepository : IMonitoringHistoryRepository
             .Where(port => port.ClosedAt != null && port.ClosedAt < cutoff)
             .ExecuteDeleteAsync(cancellationToken);
 
-        return new HistoryCleanupResult(snapshots, outages, events, processRuns, listeningPorts);
+        var trafficRecords = await _dbContext.TrafficRecords
+            .Where(record => record.PeriodEnd < cutoff)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        return new HistoryCleanupResult(snapshots, outages, events, processRuns, listeningPorts, trafficRecords);
     }
 
     public async Task<IReadOnlyList<Outage>> GetOutagesAsync(

@@ -205,6 +205,9 @@ namespace NetworkMonitoringSystem.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<bool>("CaptureTraffic")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -242,6 +245,10 @@ namespace NetworkMonitoringSystem.Infrastructure.Persistence.Migrations
 
                     b.Property<int?>("TcpPort")
                         .HasColumnType("integer");
+
+                    b.Property<string>("TrafficCaptureProblem")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<uint>("xmin")
                         .IsConcurrencyToken()
@@ -623,6 +630,60 @@ namespace NetworkMonitoringSystem.Infrastructure.Persistence.Migrations
                     b.ToTable("ProcessUsages", (string)null);
                 });
 
+            modelBuilder.Entity("NetworkMonitoringSystem.Domain.Monitoring.TrafficRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("BytesReceived")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("BytesSent")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("PacketsReceived")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("PacketsSent")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("PeriodEnd")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("PeriodStart")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Protocol")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("RemoteAddress")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int?>("ServicePort")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Transport")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeviceId", "PeriodEnd");
+
+                    b.ToTable("TrafficRecords");
+                });
+
             modelBuilder.Entity("UserRoles", b =>
                 {
                     b.Property<Guid>("RoleId")
@@ -779,6 +840,15 @@ namespace NetworkMonitoringSystem.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("ProcessRun");
+                });
+
+            modelBuilder.Entity("NetworkMonitoringSystem.Domain.Monitoring.TrafficRecord", b =>
+                {
+                    b.HasOne("NetworkMonitoringSystem.Domain.Devices.Device", null)
+                        .WithMany()
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("UserRoles", b =>

@@ -63,6 +63,8 @@ public sealed class EfDeviceActivityRepository : IDeviceActivityRepository
 
     public void AddListeningPort(ListeningPort port) => _dbContext.ListeningPorts.Add(port);
 
+    public void AddTrafficRecords(IEnumerable<TrafficRecord> records) => _dbContext.TrafficRecords.AddRange(records);
+
     public async Task ReplaceConnectionsAsync(
         Guid deviceId,
         IReadOnlyList<ActiveConnection> connections,

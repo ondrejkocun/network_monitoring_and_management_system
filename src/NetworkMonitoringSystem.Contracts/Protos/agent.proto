@@ -89,6 +89,39 @@ message HeartbeatRequest {
   SystemMetrics metrics = 2;
   // Complete list of what is running on the device now. Not set when the agent could not read it.
   SystemActivity activity = 3;
+  // Summary of the traffic captured since the previous report. Set only while the server asks for capture.
+  TrafficSummary traffic = 4;
+}
+
+// How much the device communicated, per conversation, between two reports. No packet contents are included.
+message TrafficSummary {
+  // When counting started and ended, by the agent's clock.
+  google.protobuf.Timestamp period_start = 1;
+  google.protobuf.Timestamp period_end = 2;
+  repeated TrafficConversation conversations = 3;
+  // Why the agent cannot capture traffic, for example because TShark is not installed; empty when capture works.
+  string capture_problem = 4;
+}
+
+enum TrafficTransport {
+  TRAFFIC_TRANSPORT_UNSPECIFIED = 0;
+  TRAFFIC_TRANSPORT_TCP = 1;
+  TRAFFIC_TRANSPORT_UDP = 2;
+  TRAFFIC_TRANSPORT_ICMP = 3;
+  TRAFFIC_TRANSPORT_OTHER = 4;
+}
+
+message TrafficConversation {
+  TrafficTransport transport = 1;
+  // The highest protocol recognised in the packets, for example TLS, DNS or HTTP.
+  string protocol = 2;
+  string remote_address = 3;
+  // The lower of the two ports; not set for traffic without ports, such as ICMP.
+  optional uint32 service_port = 4;
+  uint64 packets_sent = 5;
+  uint64 packets_received = 6;
+  uint64 bytes_sent = 7;
+  uint64 bytes_received = 8;
 }
 
 message SystemActivity {
@@ -160,4 +193,6 @@ message NetworkInterfaceMetrics {
 message HeartbeatReply {
   // The global interval after which the agent should report again.
   int32 sync_interval_seconds = 1;
+  // True while the agent should capture network traffic and send its summary with each report.
+  bool capture_traffic = 2;
 }

@@ -23,6 +23,8 @@ internal sealed class DeviceConfiguration : IEntityTypeConfiguration<Device>
         builder.Property(device => device.AgentKeyHash).HasMaxLength(64);
         builder.Property(device => device.OperatingSystem).HasMaxLength(200);
         builder.Property(device => device.TcpPort);
+        builder.Property(device => device.CaptureTraffic);
+        builder.Property(device => device.TrafficCaptureProblem).HasMaxLength(Device.MaxTrafficCaptureProblemLength);
 
         // PostgreSQL's system column xmin changes with every update of the row. An update made from an older copy
         // of the device therefore fails instead of silently overwriting a newer state.

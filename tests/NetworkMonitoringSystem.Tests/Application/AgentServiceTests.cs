@@ -13,9 +13,15 @@ public class AgentServiceTests
 
     private readonly InMemoryDeviceRepository _devices = new();
     private readonly InMemoryMonitoringHistoryRepository _history = new();
+    private readonly InMemoryDeviceActivityRepository _activity;
     private readonly CountingUnitOfWork _unitOfWork = new();
     private readonly MonitoringSettings _settings = new(syncIntervalSeconds: 120);
     private readonly MutableTimeProvider _time = new(new DateTimeOffset(2026, 10, 9, 12, 0, 0, TimeSpan.Zero));
+
+    public AgentServiceTests()
+    {
+        _activity = new InMemoryDeviceActivityRepository(_history);
+    }
 
     [Fact]
     public async Task RegisterAsync_CreatesOnlineAgentDevice_AndReturnsCredentialsAndInterval()
@@ -175,6 +181,45 @@ public class AgentServiceTests
             () => CreateService().ReportHeartbeatAsync(new AgentCredentials(device.Id, string.Empty)));
     }
 
+    [Fact]
+    public async Task ReportHeartbeatAsync_TellsAgentToCaptureTraffic_AndStoresSummary_OnlyWhileSwitchedOn()
+    {
+        var service = CreateService();
+        var registration = await service.RegisterAsync(new RegisterAgentRequest(Token, "PC-01", null));
+        var traffic = new TrafficReport(
+            _time.GetUtcNow().AddSeconds(-60),
+            _time.GetUtcNow(),
+            [new ConversationReport(TrafficTransport.Udp, "DNS", "192.0.2.53", 53, 2, 2, 120, 300)]);
+
+        var whileOff = await service.ReportHeartbeatAsync(registration.Credentials, traffic: traffic);
+
+        Assert.False(whileOff.CaptureTraffic);
+        Assert.Empty(_activity.TrafficRecords);
+
+        (await _devices.GetByIdAsync(registration.Credentials.DeviceId))!.SetTrafficCapture(true);
+        var whileOn = await service.ReportHeartbeatAsync(registration.Credentials, traffic: traffic);
+
+        Assert.True(whileOn.CaptureTraffic);
+        var record = Assert.Single(_activity.TrafficRecords);
+        Assert.Equal(("DNS", "192.0.2.53", 53, 420L), (record.Protocol, record.RemoteAddress, record.ServicePort, record.BytesSent + record.BytesReceived));
+    }
+
+    [Fact]
+    public async Task ReportHeartbeatAsync_RecordsWhyAgentCannotCapture_UntilItCanAgain()
+    {
+        var service = CreateService();
+        var registration = await service.RegisterAsync(new RegisterAgentRequest(Token, "PC-01", null));
+        var device = (await _devices.GetByIdAsync(registration.Credentials.DeviceId))!;
+        device.SetTrafficCapture(true);
+        var now = _time.GetUtcNow();
+
+        await service.ReportHeartbeatAsync(registration.Credentials, traffic: new TrafficReport(now, now, [], "TShark was not found."));
+        Assert.Equal("TShark was not found.", device.TrafficCaptureProblem);
+
+        await service.ReportHeartbeatAsync(registration.Credentials, traffic: new TrafficReport(now, now, []));
+        Assert.Null(device.TrafficCaptureProblem);
+    }
+
     private AgentService CreateService(string? configuredToken = Token)
     {
         return new AgentService(
@@ -182,7 +227,8 @@ public class AgentServiceTests
             new FixedSettingsRepository(_settings),
             _history,
             new AvailabilityRecorder(_history),
-            new DeviceActivityRecorder(new InMemoryDeviceActivityRepository(_history), _history),
+            new DeviceActivityRecorder(_activity, _history),
+            _activity,
             _unitOfWork,
             Options.Create(new AgentEnrollmentOptions { EnrollmentToken = configuredToken }),
             _time);

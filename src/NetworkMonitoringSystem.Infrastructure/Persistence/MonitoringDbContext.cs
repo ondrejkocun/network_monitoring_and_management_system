@@ -29,6 +29,8 @@ public sealed class MonitoringDbContext : DbContext
 
     public DbSet<ActiveConnection> ActiveConnections => Set<ActiveConnection>();
 
+    public DbSet<TrafficRecord> TrafficRecords => Set<TrafficRecord>();
+
     public DbSet<User> Users => Set<User>();
 
     public DbSet<Role> Roles => Set<Role>();

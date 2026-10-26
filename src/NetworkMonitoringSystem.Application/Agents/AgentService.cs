@@ -14,6 +14,7 @@ public sealed class AgentService : IAgentService
     private readonly IMonitoringHistoryRepository _history;
     private readonly AvailabilityRecorder _recorder;
     private readonly DeviceActivityRecorder _activityRecorder;
+    private readonly IDeviceActivityRepository _activity;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IOptions<AgentEnrollmentOptions> _enrollmentOptions;
     private readonly TimeProvider _timeProvider;
@@ -24,6 +25,7 @@ public sealed class AgentService : IAgentService
         IMonitoringHistoryRepository history,
         AvailabilityRecorder recorder,
         DeviceActivityRecorder activityRecorder,
+        IDeviceActivityRepository activity,
         IUnitOfWork unitOfWork,
         IOptions<AgentEnrollmentOptions> enrollmentOptions,
         TimeProvider timeProvider)
@@ -33,6 +35,7 @@ public sealed class AgentService : IAgentService
         _history = history;
         _recorder = recorder;
         _activityRecorder = activityRecorder;
+        _activity = activity;
         _unitOfWork = unitOfWork;
         _enrollmentOptions = enrollmentOptions;
         _timeProvider = timeProvider;
@@ -108,6 +111,7 @@ public sealed class AgentService : IAgentService
         AgentCredentials credentials,
         SystemMetricsReport? metrics = null,
         SystemActivityReport? activity = null,
+        TrafficReport? traffic = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(credentials);
@@ -116,13 +120,14 @@ public sealed class AgentService : IAgentService
         // from the device as the check left it, so the device ends up online.
         return ConcurrencyRetry.RunAsync(
             _unitOfWork,
-            () => RecordHeartbeatAsync(credentials, metrics, activity, cancellationToken));
+            () => RecordHeartbeatAsync(credentials, metrics, activity, traffic, cancellationToken));
     }
 
     private async Task<AgentHeartbeatResult> RecordHeartbeatAsync(
         AgentCredentials credentials,
         SystemMetricsReport? metrics,
         SystemActivityReport? activity,
+        TrafficReport? traffic,
         CancellationToken cancellationToken)
     {
         var device = await _deviceRepository.GetByIdAsync(credentials.DeviceId, cancellationToken);
@@ -146,8 +151,16 @@ public sealed class AgentService : IAgentService
             await _activityRecorder.RecordAsync(device, activity, snapshot, settings.TopProcessCount, now, cancellationToken);
         }
 
+        // Traffic is stored only while capture is switched on for the device. A summary that arrives after it was
+        // switched off is dropped: the administrator no longer wants this device's communication recorded.
+        if (traffic is not null && device.CaptureTraffic)
+        {
+            device.RecordTrafficCaptureProblem(traffic.CaptureProblem);
+            _activity.AddTrafficRecords(traffic.ToRecords(device.Id, now));
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return new AgentHeartbeatResult(settings.SyncIntervalSeconds);
+        return new AgentHeartbeatResult(settings.SyncIntervalSeconds, device.CaptureTraffic);
     }
 }

@@ -112,6 +112,7 @@ public class SystemMetricsReportTests
             history,
             new AvailabilityRecorder(history),
             new DeviceActivityRecorder(new InMemoryDeviceActivityRepository(history), history),
+            new InMemoryDeviceActivityRepository(history),
             new CountingUnitOfWork(),
             Options.Create(new AgentEnrollmentOptions { EnrollmentToken = "token" }),
             new MutableTimeProvider(new DateTimeOffset(2026, 10, 9, 12, 0, 0, TimeSpan.Zero)));
