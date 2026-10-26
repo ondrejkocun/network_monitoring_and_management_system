@@ -47,28 +47,54 @@ public sealed class AgentlessDeviceChecker : IAgentlessDeviceChecker
         if (devices.Count > 0)
         {
             // The network checks run in parallel; their results are recorded afterwards, one at a time.
-            var results = await ProbeAllAsync(devices, cancellationToken);
+            var results = (await ProbeAllAsync(devices, cancellationToken))
+                .ToDictionary(probe => probe.Device.Id, probe => probe.Result);
             var now = _timeProvider.GetUtcNow();
 
-            foreach (var (device, result) in results)
-            {
-                if (result.IsReachable)
-                {
-                    await _recorder.RecordOnlineAsync(
-                        device, now, result.ResponseTimeMs, reachedBy: result.ReachedBy, cancellationToken: cancellationToken);
-                }
-                else
-                {
-                    _recorder.RecordUnreachable(device, now);
-                }
-            }
-
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            // When a device is changed meanwhile (for example disabled), only the recording starts again;
+            // the network checks are not repeated.
+            await ConcurrencyRetry.RunAsync(_unitOfWork, () => RecordAsync(results, now, cancellationToken));
         }
 
         var settings = await _settingsRepository.GetAsync(cancellationToken);
 
         return TimeSpan.FromSeconds(settings.SyncIntervalSeconds);
+    }
+
+    /// <summary>
+    /// Records the results on the devices as they are now. A device disabled or removed since it was checked is skipped.
+    /// </summary>
+    private async Task<int> RecordAsync(
+        IReadOnlyDictionary<Guid, ReachabilityResult> results,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var devices = await _deviceRepository.GetEnabledAgentlessDevicesAsync(cancellationToken);
+        var recorded = 0;
+
+        foreach (var device in devices)
+        {
+            if (!results.TryGetValue(device.Id, out var result))
+            {
+                continue;
+            }
+
+            if (result.IsReachable)
+            {
+                await _recorder.RecordOnlineAsync(
+                    device, now, result.ResponseTimeMs, reachedBy: result.ReachedBy, cancellationToken: cancellationToken);
+            }
+            else
+            {
+                _recorder.RecordUnreachable(device, now);
+            }
+
+            recorded++;
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return recorded;
     }
 
     private async Task<(Device Device, ReachabilityResult Result)[]> ProbeAllAsync(

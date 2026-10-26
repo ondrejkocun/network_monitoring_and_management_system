@@ -106,7 +106,12 @@ public sealed class DeviceService : IDeviceService
             await _activity.GetConnectionsAsync(id, cancellationToken));
     }
 
-    public async Task<bool> RemoveDeviceAsync(Guid id, CancellationToken cancellationToken = default)
+    public Task<bool> RemoveDeviceAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return ConcurrencyRetry.RunAsync(_unitOfWork, () => RemoveOnceAsync(id, cancellationToken));
+    }
+
+    private async Task<bool> RemoveOnceAsync(Guid id, CancellationToken cancellationToken)
     {
         var device = await _deviceRepository.GetByIdAsync(id, cancellationToken);
 
@@ -129,11 +134,19 @@ public sealed class DeviceService : IDeviceService
         return true;
     }
 
-    public async Task<DeviceDto?> SetDeviceEnabledAsync(
+    public Task<DeviceDto?> SetDeviceEnabledAsync(
         Guid id,
         bool isEnabled,
         Guid? userId = null,
         CancellationToken cancellationToken = default)
+    {
+        // The device may report or be checked at the same moment; the change then starts again from its new state.
+        return ConcurrencyRetry.RunAsync(
+            _unitOfWork,
+            () => SetEnabledOnceAsync(id, isEnabled, userId, cancellationToken));
+    }
+
+    private async Task<DeviceDto?> SetEnabledOnceAsync(Guid id, bool isEnabled, Guid? userId, CancellationToken cancellationToken)
     {
         var device = await _deviceRepository.GetByIdAsync(id, cancellationToken);
 

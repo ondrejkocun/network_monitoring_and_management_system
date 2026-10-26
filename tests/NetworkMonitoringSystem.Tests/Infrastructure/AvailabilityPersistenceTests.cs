@@ -1,6 +1,7 @@
 namespace NetworkMonitoringSystem.Tests.Infrastructure;
 
 using Microsoft.EntityFrameworkCore;
+using NetworkMonitoringSystem.Application.Common;
 using NetworkMonitoringSystem.Application.Monitoring;
 using NetworkMonitoringSystem.Domain.Devices;
 using NetworkMonitoringSystem.Domain.Monitoring;
@@ -93,6 +94,91 @@ public class AvailabilityPersistenceTests : IClassFixture<DatabaseFixture>
 
         Assert.Equal(DeviceStatus.Online, device.Status);
         Assert.False(await readContext.Outages.AnyAsync(outage => outage.DeviceId == deviceId));
+    }
+
+    [Fact]
+    public async Task UpdateFromAnOlderCopyOfTheDevice_IsRefused_AndOverwritesNothing()
+    {
+        var time = new MutableTimeProvider(Start);
+        var deviceId = await AddOnlineAgentDeviceAsync(time);
+
+        await using var staleContext = _database.CreateDbContext();
+        var staleCopy = await staleContext.Devices.SingleAsync(device => device.Id == deviceId);
+
+        time.Advance(TimeSpan.FromMinutes(1));
+        await RecordReportAsync(deviceId, time.GetUtcNow());
+
+        staleCopy.MarkOffline();
+
+        await Assert.ThrowsAsync<ConcurrencyConflictException>(() => new EfUnitOfWork(staleContext).SaveChangesAsync());
+
+        await using var readContext = _database.CreateDbContext();
+        var stored = await readContext.Devices.SingleAsync(device => device.Id == deviceId);
+        Assert.Equal(DeviceStatus.Online, stored.Status);
+        Assert.Equal(Start.AddMinutes(1), stored.LastSeenAt);
+    }
+
+    [Fact]
+    public async Task ReportArrivingWhileDeviceIsBeingMarkedOffline_LeavesItOnline_WithoutOutage()
+    {
+        var time = new MutableTimeProvider(Start);
+        var deviceId = await AddOnlineAgentDeviceAsync(time);
+        time.Advance(TimeSpan.FromMinutes(5));
+
+        await using (var dbContext = _database.CreateDbContext())
+        {
+            // The check has already loaded the silent device and decided it is offline; just before it saves,
+            // the agent's report is stored.
+            var unitOfWork = new InterleavingUnitOfWork(
+                new EfUnitOfWork(dbContext),
+                () => RecordReportAsync(deviceId, time.GetUtcNow()));
+
+            // Devices of other tests in the same database may go offline as well, so only this device is checked.
+            await new DeviceAvailabilityMonitor(
+                new EfDeviceRepository(dbContext),
+                new EfMonitoringSettingsRepository(dbContext),
+                new AvailabilityRecorder(new EfMonitoringHistoryRepository(dbContext)),
+                unitOfWork,
+                time).EvaluateAsync();
+        }
+
+        await using var readContext = _database.CreateDbContext();
+        var device = await readContext.Devices.SingleAsync(device => device.Id == deviceId);
+
+        Assert.Equal(DeviceStatus.Online, device.Status);
+        Assert.Equal(Start.AddMinutes(5), device.LastSeenAt);
+        Assert.False(await readContext.Outages.AnyAsync(outage => outage.DeviceId == deviceId));
+        Assert.False(await readContext.Events.AnyAsync(monitoringEvent =>
+            monitoringEvent.DeviceId == deviceId && monitoringEvent.Type == MonitoringEventType.DeviceWentOffline));
+    }
+
+    /// <summary>Stores a report of the device's agent through a separate connection, as a concurrent request would.</summary>
+    private async Task RecordReportAsync(Guid deviceId, DateTimeOffset seenAt)
+    {
+        await using var dbContext = _database.CreateDbContext();
+        var device = await new EfDeviceRepository(dbContext).GetByIdAsync(deviceId);
+
+        await new AvailabilityRecorder(new EfMonitoringHistoryRepository(dbContext)).RecordOnlineAsync(device!, seenAt);
+        await dbContext.SaveChangesAsync();
+    }
+
+    /// <summary>Runs another operation once, right before the first save, to make two updates overlap.</summary>
+    private sealed class InterleavingUnitOfWork(IUnitOfWork inner, Func<Task> beforeFirstSave) : IUnitOfWork
+    {
+        private Func<Task>? _beforeFirstSave = beforeFirstSave;
+
+        public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            if (_beforeFirstSave is { } operation)
+            {
+                _beforeFirstSave = null;
+                await operation();
+            }
+
+            await inner.SaveChangesAsync(cancellationToken);
+        }
+
+        public void DiscardChanges() => inner.DiscardChanges();
     }
 
     private async Task<Guid> AddOnlineAgentDeviceAsync(TimeProvider time)

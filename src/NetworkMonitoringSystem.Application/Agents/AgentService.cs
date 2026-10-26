@@ -38,10 +38,15 @@ public sealed class AgentService : IAgentService
         _timeProvider = timeProvider;
     }
 
-    public async Task<AgentRegistration> RegisterAsync(RegisterAgentRequest request, CancellationToken cancellationToken = default)
+    public Task<AgentRegistration> RegisterAsync(RegisterAgentRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        return ConcurrencyRetry.RunAsync(_unitOfWork, () => RegisterOnceAsync(request, cancellationToken));
+    }
+
+    private async Task<AgentRegistration> RegisterOnceAsync(RegisterAgentRequest request, CancellationToken cancellationToken)
+    {
         var expectedToken = _enrollmentOptions.Value.EnrollmentToken;
 
         if (string.IsNullOrEmpty(expectedToken)
@@ -99,7 +104,7 @@ public sealed class AgentService : IAgentService
         return new AgentRegistration(new AgentCredentials(device.Id, agentKey), settings.SyncIntervalSeconds);
     }
 
-    public async Task<AgentHeartbeatResult> ReportHeartbeatAsync(
+    public Task<AgentHeartbeatResult> ReportHeartbeatAsync(
         AgentCredentials credentials,
         SystemMetricsReport? metrics = null,
         SystemActivityReport? activity = null,
@@ -107,6 +112,19 @@ public sealed class AgentService : IAgentService
     {
         ArgumentNullException.ThrowIfNull(credentials);
 
+        // The availability check may mark the same device offline at the same moment; the report then starts again
+        // from the device as the check left it, so the device ends up online.
+        return ConcurrencyRetry.RunAsync(
+            _unitOfWork,
+            () => RecordHeartbeatAsync(credentials, metrics, activity, cancellationToken));
+    }
+
+    private async Task<AgentHeartbeatResult> RecordHeartbeatAsync(
+        AgentCredentials credentials,
+        SystemMetricsReport? metrics,
+        SystemActivityReport? activity,
+        CancellationToken cancellationToken)
+    {
         var device = await _deviceRepository.GetByIdAsync(credentials.DeviceId, cancellationToken);
 
         if (device is null || !AgentKey.IsValidFor(device, credentials))

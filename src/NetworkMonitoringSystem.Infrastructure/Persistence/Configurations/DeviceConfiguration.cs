@@ -24,6 +24,10 @@ internal sealed class DeviceConfiguration : IEntityTypeConfiguration<Device>
         builder.Property(device => device.OperatingSystem).HasMaxLength(200);
         builder.Property(device => device.TcpPort);
 
+        // PostgreSQL's system column xmin changes with every update of the row. An update made from an older copy
+        // of the device therefore fails instead of silently overwriting a newer state.
+        builder.Property<uint>("xmin").IsRowVersion();
+
         builder.HasIndex(device => device.Name);
         builder.HasIndex(device => device.HostName);
     }

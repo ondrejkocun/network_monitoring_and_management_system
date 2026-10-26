@@ -48,7 +48,14 @@ public sealed class DeviceAvailabilityMonitor : IDeviceAvailabilityMonitor
         _timeProvider = timeProvider;
     }
 
-    public async Task<int> EvaluateAsync(CancellationToken cancellationToken = default)
+    public Task<int> EvaluateAsync(CancellationToken cancellationToken = default)
+    {
+        // A device may report while it is being marked offline. The evaluation then starts again and finds
+        // that the device was seen recently, so it is left online.
+        return ConcurrencyRetry.RunAsync(_unitOfWork, () => EvaluateOnceAsync(cancellationToken));
+    }
+
+    private async Task<int> EvaluateOnceAsync(CancellationToken cancellationToken)
     {
         var now = _timeProvider.GetUtcNow();
         var threshold = await GetOfflineThresholdAsync(cancellationToken);

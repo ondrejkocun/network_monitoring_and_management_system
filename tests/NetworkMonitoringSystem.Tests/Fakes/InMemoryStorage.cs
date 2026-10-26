@@ -202,12 +202,26 @@ public sealed class CountingUnitOfWork : IUnitOfWork
 {
     public int SaveCount { get; private set; }
 
+    public int DiscardCount { get; private set; }
+
+    /// <summary>How many of the next saves fail as if someone else had changed the same record.</summary>
+    public int ConflictsToSimulate { get; set; }
+
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        if (ConflictsToSimulate > 0)
+        {
+            ConflictsToSimulate--;
+
+            throw new ConcurrencyConflictException("Simulated conflict.");
+        }
+
         SaveCount++;
 
         return Task.CompletedTask;
     }
+
+    public void DiscardChanges() => DiscardCount++;
 }
 
 public sealed class FixedSettingsRepository(MonitoringSettings settings) : IMonitoringSettingsRepository

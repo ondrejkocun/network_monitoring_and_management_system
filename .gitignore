@@ -18,6 +18,7 @@ coverage/
 # Local working notes, not part of the published project
 TODO.md
 PROJECT_STATUS.md
+SPRIEVODCA_PROJEKTOM.md
 
 .env
 appsettings.Local.json

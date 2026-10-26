@@ -243,6 +243,12 @@ namespace NetworkMonitoringSystem.Infrastructure.Persistence.Migrations
                     b.Property<int?>("TcpPort")
                         .HasColumnType("integer");
 
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id");
 
                     b.HasIndex("HostName");

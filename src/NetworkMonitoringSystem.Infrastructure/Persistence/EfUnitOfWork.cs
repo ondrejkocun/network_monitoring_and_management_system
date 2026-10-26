@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using NetworkMonitoringSystem.Application.Common;
 
 namespace NetworkMonitoringSystem.Infrastructure.Persistence;
@@ -13,8 +14,20 @@ public sealed class EfUnitOfWork : IUnitOfWork
         _dbContext = dbContext;
     }
 
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        return _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            throw new ConcurrencyConflictException("A record was changed by someone else while it was being updated.", exception);
+        }
+    }
+
+    public void DiscardChanges()
+    {
+        _dbContext.ChangeTracker.Clear();
     }
 }
