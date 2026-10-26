@@ -120,6 +120,41 @@ public class AgentlessDeviceCheckerTests
     }
 
     [Fact]
+    public async Task DisabledDevice_IsNotChecked_AndNeverGoesOffline()
+    {
+        var router = AddAgentlessDevice("Router", RouterAddress);
+        _probe.Answer(RouterAddress, responseTimeMs: 5);
+        await CreateChecker().CheckAllAsync();
+        router.Disable();
+        _probe.ProbedAddresses.Clear();
+
+        _time.Advance(TimeSpan.FromHours(1));
+        await CreateChecker().CheckAllAsync();
+        await CreateMonitor().EvaluateAsync();
+
+        Assert.Empty(_probe.ProbedAddresses);
+        Assert.Equal(DeviceStatus.Unknown, router.Status);
+        Assert.Empty(_history.Outages);
+    }
+
+    [Fact]
+    public async Task EnabledAgain_DeviceThatDoesNotAnswer_IsOfflineFromThatCheck_NotFromItsLastContact()
+    {
+        var router = AddAgentlessDevice("Router", RouterAddress);
+        _probe.Answer(RouterAddress, responseTimeMs: 5);
+        await CreateChecker().CheckAllAsync();
+        router.Disable();
+
+        _time.Advance(TimeSpan.FromDays(2));
+        router.Enable();
+        _probe.StopAnswering(RouterAddress);
+        await CreateChecker().CheckAllAsync();
+
+        Assert.Equal(DeviceStatus.Offline, router.Status);
+        Assert.Equal(_time.GetUtcNow(), Assert.Single(_history.Outages).StartedAt);
+    }
+
+    [Fact]
     public async Task CheckAllAsync_RecordsEachDeviceSeparately()
     {
         var switchAddress = IPAddress.Parse("192.168.50.2");

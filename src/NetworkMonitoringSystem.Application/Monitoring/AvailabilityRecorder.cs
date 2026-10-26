@@ -79,8 +79,9 @@ public sealed class AvailabilityRecorder
     {
         ArgumentNullException.ThrowIfNull(device);
 
-        // The outage is counted from the last moment the device was known to be reachable.
-        var lastSeenAt = device.LastSeenAt ?? detectedAt;
+        // The outage is counted from the last moment the device was known to be reachable. A device with an unknown
+        // status has not been seen since monitoring started or resumed, so an older contact says nothing about it.
+        var lastSeenAt = device.Status == DeviceStatus.Unknown ? detectedAt : device.LastSeenAt ?? detectedAt;
 
         if (!device.MarkOffline())
         {

@@ -139,6 +139,19 @@ public class DeviceServiceTests
     }
 
     [Fact]
+    public async Task SetDeviceEnabledAsync_EndsOngoingOutage_WhenDeviceIsDisabled()
+    {
+        var registered = await _service.RegisterDeviceAsync(
+            new RegisterDeviceRequest("Router", MonitoringMode.Agentless, IpAddress: "192.168.50.1"));
+        var outage = new Outage(registered.Id, Now.AddHours(-1));
+        _history.AddOutage(outage);
+
+        await _service.SetDeviceEnabledAsync(registered.Id, isEnabled: false);
+
+        Assert.Equal(Now, outage.EndedAt);
+    }
+
+    [Fact]
     public async Task SetDeviceEnabledAsync_EnablesDisabledDevice_AndWritesEvent()
     {
         var registered = await _service.RegisterDeviceAsync(

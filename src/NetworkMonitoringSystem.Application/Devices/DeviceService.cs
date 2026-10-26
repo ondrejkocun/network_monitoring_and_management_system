@@ -141,6 +141,12 @@ public sealed class DeviceService : IDeviceService
 
         var now = _timeProvider.GetUtcNow();
 
+        // Nothing is observed while the device is disabled, so its outage cannot go on.
+        if (!isEnabled && await _history.GetOngoingOutageAsync(device.Id, cancellationToken) is { } outage)
+        {
+            outage.End(now);
+        }
+
         _history.AddEvent(new MonitoringEvent(
             now,
             isEnabled ? MonitoringEventType.DeviceEnabled : MonitoringEventType.DeviceDisabled,

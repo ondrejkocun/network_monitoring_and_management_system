@@ -51,7 +51,7 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
 
     /// <summary>
     /// Every test plays an agent on this machine starting from scratch. The server refuses to register a device
-    /// it sees as online, so devices left by earlier tests are put offline first.
+    /// it sees as online or disabled, so devices left by earlier tests are enabled and put offline first.
     /// </summary>
     public async Task InitializeAsync()
     {
@@ -59,6 +59,7 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
 
         foreach (var device in await dbContext.Devices.ToListAsync())
         {
+            device.Enable();
             device.MarkOffline();
         }
 
@@ -205,6 +206,39 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
         Assert.NotNull(renewed);
         Assert.Equal(original.DeviceId, renewed.DeviceId);
         Assert.NotEqual(original.AgentKey, renewed.AgentKey);
+    }
+
+    [Fact]
+    public async Task DisabledDevice_StaysDisabled_WhileItsAgentKeepsReporting_AndTheAgentReturnsOnceEnabled()
+    {
+        var reporter = CreateReporter(Token);
+        await reporter.ReportOnceAsync(CancellationToken.None);
+        var original = _identityStore.Load()!;
+        var admin = new AdminContracts.AdminApi.AdminApiClient(await Server.TestAdministrator.SignInAsync(_channel));
+
+        await admin.SetDeviceEnabledAsync(new AdminContracts.SetDeviceEnabledRequest { Id = original.DeviceId, IsEnabled = false });
+
+        // The heartbeat is refused, the agent drops its identity and its registration is refused too.
+        Assert.Equal(TimeSpan.FromSeconds(7), await reporter.ReportOnceAsync(CancellationToken.None));
+        Assert.Null(_identityStore.Load());
+        Assert.Equal(TimeSpan.FromSeconds(7), await reporter.ReportOnceAsync(CancellationToken.None));
+        Assert.Null(_identityStore.Load());
+
+        var disabled = await LoadDeviceAsync(original.DeviceId);
+        Assert.False(disabled.IsEnabled);
+        Assert.Equal(DeviceStatus.Unknown, disabled.Status);
+        await using (var dbContext = _database.CreateDbContext())
+        {
+            Assert.Single(await dbContext.Devices.Where(device => device.HostName == Environment.MachineName).ToListAsync());
+        }
+
+        await admin.SetDeviceEnabledAsync(new AdminContracts.SetDeviceEnabledRequest { Id = original.DeviceId, IsEnabled = true });
+
+        await reporter.ReportOnceAsync(CancellationToken.None);
+        var renewed = _identityStore.Load();
+        Assert.NotNull(renewed);
+        Assert.Equal(original.DeviceId, renewed.DeviceId);
+        Assert.Equal(DeviceStatus.Online, (await LoadDeviceAsync(original.DeviceId)).Status);
     }
 
     [Fact]
