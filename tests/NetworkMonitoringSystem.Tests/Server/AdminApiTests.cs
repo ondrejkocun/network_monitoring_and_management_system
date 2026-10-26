@@ -115,6 +115,42 @@ public sealed class AdminApiTests : IClassFixture<DatabaseFixture>, IAsyncLifeti
     }
 
     [Fact]
+    public async Task DisabledDevice_StaysInList_UntilEnabled_AndBothChangesAreLoggedWithTheirAuthor()
+    {
+        var name = "Printer-" + Guid.NewGuid().ToString("N");
+        await _client.AddAgentlessDeviceAsync(name, "192.0.2.70");
+        var device = Assert.Single(await _client.GetDevicesAsync(), device => device.Name == name);
+
+        var disabled = await _client.SetDeviceEnabledAsync(device.Id, isEnabled: false);
+
+        Assert.False(disabled.IsEnabled);
+        Assert.Equal(DeviceStatus.Unknown, disabled.Status);
+        Assert.False(Assert.Single(await _client.GetDevicesAsync(), listed => listed.Id == device.Id).IsEnabled);
+
+        Assert.True((await _client.SetDeviceEnabledAsync(device.Id, isEnabled: true)).IsEnabled);
+
+        await using var dbContext = _database.CreateDbContext();
+        var deviceId = Guid.Parse(device.Id);
+        var events = await dbContext.Events
+            .Where(monitoringEvent => monitoringEvent.DeviceId == deviceId)
+            .OrderBy(monitoringEvent => monitoringEvent.Id)
+            .ToListAsync();
+
+        Assert.Equal([MonitoringEventType.DeviceDisabled, MonitoringEventType.DeviceEnabled], events.Select(monitoringEvent => monitoringEvent.Type));
+        Assert.All(events, monitoringEvent => Assert.NotNull(monitoringEvent.UserId));
+    }
+
+    [Theory]
+    [InlineData("3f2b0c1e-0000-4000-8000-000000000000")]
+    [InlineData("not-an-id")]
+    public async Task SetDeviceEnabled_ForDeviceThatDoesNotExist_IsReportedAsNotFound(string id)
+    {
+        var exception = await Assert.ThrowsAsync<ServerClientException>(() => _client.SetDeviceEnabledAsync(id, isEnabled: false));
+
+        Assert.Equal(ServerErrorKind.NotFound, exception.Kind);
+    }
+
+    [Fact]
     public async Task DeviceHistory_ReturnsAvailabilityOutagesEventsAndResources_OfThePeriod()
     {
         // Whole seconds, so the database's precision does not change the lengths.

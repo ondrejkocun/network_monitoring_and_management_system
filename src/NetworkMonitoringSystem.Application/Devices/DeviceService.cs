@@ -119,6 +119,41 @@ public sealed class DeviceService : IDeviceService
         return true;
     }
 
+    public async Task<DeviceDto?> SetDeviceEnabledAsync(
+        Guid id,
+        bool isEnabled,
+        Guid? userId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var device = await _deviceRepository.GetByIdAsync(id, cancellationToken);
+
+        if (device is null)
+        {
+            return null;
+        }
+
+        var changed = isEnabled ? device.Enable() : device.Disable();
+
+        if (!changed)
+        {
+            return DeviceDto.FromDevice(device);
+        }
+
+        var now = _timeProvider.GetUtcNow();
+
+        _history.AddEvent(new MonitoringEvent(
+            now,
+            isEnabled ? MonitoringEventType.DeviceEnabled : MonitoringEventType.DeviceDisabled,
+            EventSeverity.Info,
+            isEnabled ? $"Device '{device.Name}' was enabled." : $"Device '{device.Name}' was disabled.",
+            device.Id,
+            userId));
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return DeviceDto.FromDevice(device);
+    }
+
     private static IPAddress? ParseIpAddress(string? ipAddress)
     {
         if (string.IsNullOrWhiteSpace(ipAddress))

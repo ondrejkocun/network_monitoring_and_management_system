@@ -156,6 +156,7 @@ public sealed class AccessControlTests : IClassFixture<DatabaseFixture>, IDispos
             () => client.GetDeviceActivityAsync(other.Id.ToString()),
             () => client.GetDeviceHistoryAsync(other.Id.ToString(), now.AddHours(-1), now),
             () => client.RemoveDeviceAsync(other.Id.ToString()),
+            () => client.SetDeviceEnabledAsync(other.Id.ToString(), isEnabled: false),
             // A device that does not exist is refused the same way, so the answer does not reveal which devices exist.
             () => client.GetDeviceResourcesAsync(Guid.NewGuid().ToString()),
             // Adding a device concerns no single device, so a rule for one is not enough.
@@ -167,6 +168,7 @@ public sealed class AccessControlTests : IClassFixture<DatabaseFixture>, IDispos
             Assert.Equal(ServerErrorKind.AccessDenied, (await Assert.ThrowsAsync<ServerClientException>(call)).Kind);
         }
 
+        Assert.False((await client.SetDeviceEnabledAsync(allowed.Id.ToString(), isEnabled: false)).IsEnabled);
         await client.RemoveDeviceAsync(allowed.Id.ToString());
 
         await using var dbContext = _database.CreateDbContext();

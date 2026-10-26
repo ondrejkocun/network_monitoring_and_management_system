@@ -38,6 +38,9 @@ service AdminApi {
   // Removes a device together with its recorded snapshots and outages.
   rpc RemoveDevice (RemoveDeviceRequest) returns (RemoveDeviceReply);
 
+  // Disables or enables a device. A disabled device is not checked, is never reported offline and its agent is refused.
+  rpc SetDeviceEnabled (SetDeviceEnabledRequest) returns (DeviceInfo);
+
   // Returns the most recent system resources reported by the device's agent.
   rpc GetDeviceResources (GetDeviceResourcesRequest) returns (DeviceResourcesReply);
 
@@ -213,6 +216,11 @@ message RemoveDeviceRequest {
 }
 
 message RemoveDeviceReply {
+}
+
+message SetDeviceEnabledRequest {
+  string id = 1;
+  bool is_enabled = 2;
 }
 
 message GetDeviceResourcesRequest {

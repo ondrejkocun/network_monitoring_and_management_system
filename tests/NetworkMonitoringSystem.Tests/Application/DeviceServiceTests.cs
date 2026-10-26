@@ -119,6 +119,61 @@ public class DeviceServiceTests
     }
 
     [Fact]
+    public async Task SetDeviceEnabledAsync_DisablesDevice_AndWritesEventWithItsAuthor()
+    {
+        var registered = await _service.RegisterDeviceAsync(
+            new RegisterDeviceRequest("Router", MonitoringMode.Agentless, IpAddress: "192.168.50.1"));
+        var userId = Guid.NewGuid();
+
+        var disabled = await _service.SetDeviceEnabledAsync(registered.Id, isEnabled: false, userId);
+
+        Assert.NotNull(disabled);
+        Assert.False(disabled.IsEnabled);
+        Assert.False((await _service.GetDeviceAsync(registered.Id))!.IsEnabled);
+        Assert.Equal(2, _unitOfWork.SaveCount);
+
+        var disabledEvent = Assert.Single(_history.Events);
+        Assert.Equal(MonitoringEventType.DeviceDisabled, disabledEvent.Type);
+        Assert.Equal(registered.Id, disabledEvent.DeviceId);
+        Assert.Equal(userId, disabledEvent.UserId);
+    }
+
+    [Fact]
+    public async Task SetDeviceEnabledAsync_EnablesDisabledDevice_AndWritesEvent()
+    {
+        var registered = await _service.RegisterDeviceAsync(
+            new RegisterDeviceRequest("Router", MonitoringMode.Agentless, IpAddress: "192.168.50.1"));
+        await _service.SetDeviceEnabledAsync(registered.Id, isEnabled: false);
+
+        var enabled = await _service.SetDeviceEnabledAsync(registered.Id, isEnabled: true);
+
+        Assert.True(enabled!.IsEnabled);
+        Assert.Equal(
+            [MonitoringEventType.DeviceDisabled, MonitoringEventType.DeviceEnabled],
+            _history.Events.Select(monitoringEvent => monitoringEvent.Type));
+    }
+
+    [Fact]
+    public async Task SetDeviceEnabledAsync_ChangesNothing_WhenDeviceIsAlreadyInThatState()
+    {
+        var registered = await _service.RegisterDeviceAsync(
+            new RegisterDeviceRequest("Router", MonitoringMode.Agentless, IpAddress: "192.168.50.1"));
+
+        var enabled = await _service.SetDeviceEnabledAsync(registered.Id, isEnabled: true);
+
+        Assert.True(enabled!.IsEnabled);
+        Assert.Empty(_history.Events);
+        Assert.Equal(1, _unitOfWork.SaveCount);
+    }
+
+    [Fact]
+    public async Task SetDeviceEnabledAsync_ReturnsNull_WhenDeviceDoesNotExist()
+    {
+        Assert.Null(await _service.SetDeviceEnabledAsync(Guid.NewGuid(), isEnabled: false));
+        Assert.Equal(0, _unitOfWork.SaveCount);
+    }
+
+    [Fact]
     public async Task GetDevicesAsync_ReturnsAllRegisteredDevicesOrderedByName()
     {
         await _service.RegisterDeviceAsync(new RegisterDeviceRequest("Switch", MonitoringMode.Agent, "switch.local"));

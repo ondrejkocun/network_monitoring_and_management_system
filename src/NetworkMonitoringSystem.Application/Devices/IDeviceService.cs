@@ -17,4 +17,11 @@ public interface IDeviceService
     /// <summary>Removes the device together with its recorded snapshots and outages.</summary>
     /// <returns>False when no such device exists.</returns>
     Task<bool> RemoveDeviceAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Disables or enables the device. A disabled device is not checked, cannot go offline and its agent is refused.
+    /// </summary>
+    /// <param name="userId">The user who made the change, recorded in the event.</param>
+    /// <returns>The device after the change, or null when no such device exists.</returns>
+    Task<DeviceDto?> SetDeviceEnabledAsync(Guid id, bool isEnabled, Guid? userId = null, CancellationToken cancellationToken = default);
 }

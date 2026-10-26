@@ -183,6 +183,13 @@ public sealed class GrpcServerClient : IServerClient
         await CallAsync(() => _client.RemoveDeviceAsync(new RemoveDeviceRequest { Id = id }, Headers(), cancellationToken: cancellationToken));
     }
 
+    public Task<DeviceInfo> SetDeviceEnabledAsync(string id, bool isEnabled, CancellationToken cancellationToken = default)
+    {
+        return CallAsync(() => _client.SetDeviceEnabledAsync(
+            new SetDeviceEnabledRequest { Id = id, IsEnabled = isEnabled },
+            Headers(), cancellationToken: cancellationToken));
+    }
+
     public Task<MonitoringSettingsInfo> GetSettingsAsync(CancellationToken cancellationToken = default)
     {
         return CallAsync(() => _client.GetMonitoringSettingsAsync(new GetMonitoringSettingsRequest(), Headers(), cancellationToken: cancellationToken));

@@ -219,6 +219,20 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         return new RemoveDeviceReply();
     }
 
+    public override async Task<DeviceInfo> SetDeviceEnabled(SetDeviceEnabledRequest request, ServerCallContext context)
+    {
+        var id = await AuthorizeForDeviceAsync(context, Permission.ManageDevices, request.Id);
+        var user = AdminAuthenticationInterceptor.GetUser(context);
+
+        var device = id is null
+            ? null
+            : await _deviceService.SetDeviceEnabledAsync(id.Value, request.IsEnabled, user.Id, context.CancellationToken);
+
+        return device is null
+            ? throw new RpcException(new Status(StatusCode.NotFound, "The device does not exist."))
+            : ToDeviceInfo(device);
+    }
+
     public override async Task<DeviceResourcesReply> GetDeviceResources(GetDeviceResourcesRequest request, ServerCallContext context)
     {
         var resources = await AuthorizeForDeviceAsync(context, Permission.ViewDevices, request.Id) is { } id

@@ -914,6 +914,16 @@ public class MainWindowViewModelTests
             return Task.CompletedTask;
         }
 
+        public Task<DeviceInfo> SetDeviceEnabledAsync(string id, bool isEnabled, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            var device = Devices.Single(device => device.Id == id);
+            device.IsEnabled = isEnabled;
+
+            return Task.FromResult(device);
+        }
+
         public Task<MonitoringSettingsInfo> GetSettingsAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfFailing();

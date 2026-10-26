@@ -74,6 +74,10 @@ public interface IServerClient
     /// <exception cref="ServerClientException">The server could not be reached or the device does not exist.</exception>
     Task RemoveDeviceAsync(string id, CancellationToken cancellationToken = default);
 
+    /// <summary>Disables or enables the device and returns it after the change.</summary>
+    /// <exception cref="ServerClientException">The server could not be reached, refused the call or the device does not exist.</exception>
+    Task<DeviceInfo> SetDeviceEnabledAsync(string id, bool isEnabled, CancellationToken cancellationToken = default);
+
     /// <exception cref="ServerClientException">The server could not be reached or refused the call.</exception>
     Task<MonitoringSettingsInfo> GetSettingsAsync(CancellationToken cancellationToken = default);
 

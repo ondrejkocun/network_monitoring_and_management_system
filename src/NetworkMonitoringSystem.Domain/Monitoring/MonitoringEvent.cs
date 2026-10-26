@@ -13,6 +13,8 @@ public enum MonitoringEventType
     AccessDenied = 8,
     AccessChanged = 9,
     RemoteCommand = 10,
+    DeviceDisabled = 11,
+    DeviceEnabled = 12,
 }
 
 public enum EventSeverity

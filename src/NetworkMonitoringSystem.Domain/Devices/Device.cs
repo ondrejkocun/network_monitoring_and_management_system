@@ -87,6 +87,37 @@ public sealed class Device
         OperatingSystem = string.IsNullOrWhiteSpace(operatingSystem) ? null : operatingSystem.Trim();
     }
 
+    /// <summary>
+    /// Stops monitoring the device. Its status becomes unknown, because nothing is observed while it is disabled.
+    /// </summary>
+    /// <returns>True when the device was enabled until now.</returns>
+    public bool Disable()
+    {
+        if (!IsEnabled)
+        {
+            return false;
+        }
+
+        IsEnabled = false;
+        Status = DeviceStatus.Unknown;
+
+        return true;
+    }
+
+    /// <summary>Resumes monitoring of the device.</summary>
+    /// <returns>True when the device was disabled until now.</returns>
+    public bool Enable()
+    {
+        if (IsEnabled)
+        {
+            return false;
+        }
+
+        IsEnabled = true;
+
+        return true;
+    }
+
     /// <summary>Records that the device was reachable at the given time.</summary>
     /// <returns>True when this changed the status to online.</returns>
     public bool RecordContact(DateTimeOffset seenAt)
