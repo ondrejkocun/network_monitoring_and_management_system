@@ -14,6 +14,7 @@ public sealed class DeviceRowViewModel
         Address = string.IsNullOrEmpty(device.IpAddress) ? device.HostName : device.IpAddress;
         Status = device.Status;
         HasAgent = device.MonitoringMode == MonitoringMode.Agent;
+        IsEnabled = device.IsEnabled;
         OperatingSystem = device.OperatingSystem;
         LastSeenAt = device.LastSeenAt?.ToDateTimeOffset().ToLocalTime();
 
@@ -24,7 +25,7 @@ public sealed class DeviceRowViewModel
             _ => string.Empty,
         };
 
-        StatusText = device.Status switch
+        StatusText = !device.IsEnabled ? "Zakázané" : device.Status switch
         {
             DeviceStatus.Online => "Online",
             DeviceStatus.Offline => "Offline",
@@ -45,6 +46,9 @@ public sealed class DeviceRowViewModel
 
     /// <summary>True when an agent runs on the device, so it can be sent commands.</summary>
     public bool HasAgent { get; }
+
+    /// <summary>False when the device is disabled: it is not monitored and its agent is refused.</summary>
+    public bool IsEnabled { get; }
 
     public string StatusText { get; }
 

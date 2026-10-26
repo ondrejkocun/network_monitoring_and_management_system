@@ -35,6 +35,7 @@ public class MainWindowViewModelTests
             MonitoringMode = MonitoringMode.Agent,
             HostName = "pc-01",
             Status = DeviceStatus.Online,
+            IsEnabled = true,
             LastSeenAt = Timestamp.FromDateTimeOffset(lastSeen),
             OperatingSystem = "Windows 11",
         });
@@ -45,6 +46,7 @@ public class MainWindowViewModelTests
             MonitoringMode = MonitoringMode.Agentless,
             IpAddress = "192.168.50.1",
             Status = DeviceStatus.Offline,
+            IsEnabled = true,
         });
         var viewModel = new MainWindowViewModel(_server, _confirmation);
 
@@ -219,6 +221,71 @@ public class MainWindowViewModelTests
 
         Assert.Equal("Server nie je dostupný.", viewModel.StatusMessage);
         Assert.Single(viewModel.Devices);
+    }
+
+    [Fact]
+    public async Task ToggleDeviceEnabledCommand_AfterConfirmation_DisablesDevice_AndOffersToEnableIt()
+    {
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "Router", IsEnabled = true, Status = DeviceStatus.Online });
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+        Assert.False(viewModel.ToggleDeviceEnabledCommand.CanExecute(null));
+        viewModel.SelectedDevice = viewModel.Devices[0];
+        Assert.Equal("Zakázať vybrané", viewModel.ToggleDeviceEnabledText);
+
+        await viewModel.ToggleDeviceEnabledCommand.ExecuteAsync();
+
+        Assert.Contains("Router", Assert.Single(_confirmation.Questions));
+        var row = Assert.Single(viewModel.Devices);
+        Assert.False(row.IsEnabled);
+        Assert.Equal("Zakázané", row.StatusText);
+        Assert.Same(row, viewModel.SelectedDevice);
+        Assert.Equal("Povoliť vybrané", viewModel.ToggleDeviceEnabledText);
+        Assert.Contains("bolo zakázané", viewModel.StatusMessage);
+    }
+
+    [Fact]
+    public async Task ToggleDeviceEnabledCommand_EnablesDisabledDevice_WithoutAsking()
+    {
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "Router", IsEnabled = false });
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+        viewModel.SelectedDevice = viewModel.Devices[0];
+
+        await viewModel.ToggleDeviceEnabledCommand.ExecuteAsync();
+
+        Assert.Empty(_confirmation.Questions);
+        Assert.True(Assert.Single(viewModel.Devices).IsEnabled);
+        Assert.Contains("bolo povolené", viewModel.StatusMessage);
+    }
+
+    [Fact]
+    public async Task ToggleDeviceEnabledCommand_DoesNothing_WhenUserDeclines()
+    {
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "Router", IsEnabled = true });
+        _confirmation.Answer = false;
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+        viewModel.SelectedDevice = viewModel.Devices[0];
+
+        await viewModel.ToggleDeviceEnabledCommand.ExecuteAsync();
+
+        Assert.True(_server.Devices[0].IsEnabled);
+    }
+
+    [Fact]
+    public async Task ToggleDeviceEnabledCommand_WhenRefused_ShowsMessage_AndKeepsDeviceEnabled()
+    {
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "Router", IsEnabled = true });
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+        viewModel.SelectedDevice = viewModel.Devices[0];
+        _server.Failure = new ServerClientException(ServerErrorKind.Unavailable, "connection refused");
+
+        await viewModel.ToggleDeviceEnabledCommand.ExecuteAsync();
+
+        Assert.Equal("Server nie je dostupný.", viewModel.StatusMessage);
+        Assert.True(viewModel.Devices[0].IsEnabled);
     }
 
     [Fact]

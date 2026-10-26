@@ -190,6 +190,8 @@ public sealed class EventRowViewModel
             "SettingsChanged" => "Zmena nastavení",
             "DeviceRemoved" => "Odstránenie zariadenia",
             "PortOpened" => "Nový otvorený port",
+            "DeviceDisabled" => "Zakázanie zariadenia",
+            "DeviceEnabled" => "Povolenie zariadenia",
             _ => monitoringEvent.Type,
         };
 

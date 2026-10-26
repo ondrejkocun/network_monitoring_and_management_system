@@ -59,6 +59,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             AddDeviceAsync,
             () => !string.IsNullOrWhiteSpace(NewDeviceName) && !string.IsNullOrWhiteSpace(NewDeviceIpAddress));
         RemoveDeviceCommand = new AsyncRelayCommand(RemoveSelectedDeviceAsync, () => SelectedDevice is not null);
+        ToggleDeviceEnabledCommand = new AsyncRelayCommand(ToggleSelectedDeviceEnabledAsync, () => SelectedDevice is not null);
         SaveSyncIntervalCommand = new AsyncRelayCommand(
             SaveSyncIntervalAsync,
             () => int.TryParse(SyncIntervalText, NumberStyles.None, CultureInfo.InvariantCulture, out _));
@@ -294,6 +295,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public AsyncRelayCommand RemoveDeviceCommand { get; }
 
+    /// <summary>Disables the selected device, or enables it when it is disabled.</summary>
+    public AsyncRelayCommand ToggleDeviceEnabledCommand { get; }
+
+    public string ToggleDeviceEnabledText => SelectedDevice is { IsEnabled: false } ? "Povoliť vybrané" : "Zakázať vybrané";
+
     public AsyncRelayCommand SaveSyncIntervalCommand { get; }
 
     /// <summary>The device selected in the list, or null when none is.</summary>
@@ -316,6 +322,8 @@ public sealed class MainWindowViewModel : ViewModelBase
             }
 
             RemoveDeviceCommand.RaiseCanExecuteChanged();
+            ToggleDeviceEnabledCommand.RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(ToggleDeviceEnabledText));
 
             // Resources of another device must not stay on screen; those of the same device are simply reloaded.
             if (value?.Id != previousId)
@@ -641,6 +649,42 @@ public sealed class MainWindowViewModel : ViewModelBase
         await RefreshAsync();
 
         StatusMessage = $"Zariadenie „{device.Name}“ bolo odstránené. {StatusMessage}";
+    }
+
+    private async Task ToggleSelectedDeviceEnabledAsync()
+    {
+        var device = SelectedDevice;
+
+        if (device is null)
+        {
+            return;
+        }
+
+        var enable = !device.IsEnabled;
+
+        if (!enable && !_confirmation.Confirm(
+                "Zakázať zariadenie",
+                $"Naozaj chcete zakázať zariadenie „{device.Name}“? Prestane sa sledovať a jeho agent bude odmietnutý, kým ho znova nepovolíte."))
+        {
+            return;
+        }
+
+        try
+        {
+            await _server.SetDeviceEnabledAsync(device.Id, enable);
+        }
+        catch (ServerClientException exception)
+        {
+            StatusMessage = Describe(exception);
+
+            return;
+        }
+
+        await RefreshAsync();
+
+        StatusMessage = enable
+            ? $"Zariadenie „{device.Name}“ bolo povolené. {StatusMessage}"
+            : $"Zariadenie „{device.Name}“ bolo zakázané. {StatusMessage}";
     }
 
     private async Task SaveSyncIntervalAsync()

@@ -23,7 +23,7 @@ The project is under development. This is what works today and what is still to 
 | Managing users, roles and rules from the desktop application; changing one's own password | Done |
 | Remote commands with audit: server queue, execution by the agent, a permission for each command | Done |
 | Sending remote commands from the desktop application and viewing their results | Done |
-| Desktop application: device list, adding and removing devices, changing the interval | Done |
+| Desktop application: device list, adding, removing and disabling devices, changing the interval | Done |
 | Desktop application: outages, availability, event log and resource charts for a chosen period | Done |
 
 ## Architecture
@@ -44,7 +44,7 @@ flowchart LR
 
 - The **agent** runs on each monitored Windows device. It registers with the server once, receives its own key, and then reports at an interval the server dictates. Each report carries the processor load, memory use, local disks and network interfaces, and the complete list of running processes, listening ports and connections.
 - The **server** authenticates agents and stores what they report. Devices that cannot run an agent, such as routers and switches, it checks itself with ping once per interval. When a device has not been seen for several intervals, the server marks it offline, opens an outage and writes an event; the outage is closed when the device is seen again. It keeps processes and open ports as periods (started and ended, opened and closed) by comparing each report with the previous one, and writes an event when a device opens a new port. Once an hour it deletes history older than the retention period (30 days by default).
-- The **desktop application** is the administrator's console. It shows the devices and their status and, for the selected device, its latest system resources, processes, open ports and connections. For a chosen period (the last hour up to the last 30 days) it shows the device's outages with their start, end and duration, its availability in percent, its event log and charts of processor and memory use. A device with an agent can be sent a remote command (for example a ping from the device, restarting a service or restarting the device), and the list of commands shows who sent each one and how it ended. It adds devices without an agent, removes devices and changes the global synchronization interval.
+- The **desktop application** is the administrator's console. It shows the devices and their status and, for the selected device, its latest system resources, processes, open ports and connections. For a chosen period (the last hour up to the last 30 days) it shows the device's outages with their start, end and duration, its availability in percent, its event log and charts of processor and memory use. A device with an agent can be sent a remote command (for example a ping from the device, restarting a service or restarting the device), and the list of commands shows who sent each one and how it ended. It adds devices without an agent, removes devices, disables and enables them, and changes the global synchronization interval. A disabled device stays in the list greyed out; it is not checked, never reported offline and its agent is refused, so removing a device whose agent still runs is not the only option.
 
 The planned data model is described in [docs/datovy-model.md](docs/datovy-model.md) (in Slovak).
 

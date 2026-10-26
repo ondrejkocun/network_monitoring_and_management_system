@@ -30,6 +30,8 @@
             <Button DockPanel.Dock="Right" Content="Obnoviť" Padding="12,4" Command="{Binding RefreshCommand}" />
             <Button DockPanel.Dock="Right" Content="Odstrániť vybrané" Padding="12,4" Margin="0,0,8,0"
                     Command="{Binding RemoveDeviceCommand}" />
+            <Button DockPanel.Dock="Right" Content="{Binding ToggleDeviceEnabledText}" Padding="12,4" Margin="0,0,8,0"
+                    Command="{Binding ToggleDeviceEnabledCommand}" />
             <TextBlock Text="Zariadenia" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
         </DockPanel>
 
@@ -41,6 +43,16 @@
                   HeadersVisibility="Column"
                   GridLinesVisibility="Horizontal"
                   SelectionMode="Single">
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                            <Setter Property="Foreground" Value="Gray" />
+                            <Setter Property="FontStyle" Value="Italic" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Názov" Binding="{Binding Name}" Width="2*" />
                 <DataGridTextColumn Header="Adresa" Binding="{Binding Address}" Width="2*" />
