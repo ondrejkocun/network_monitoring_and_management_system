@@ -3,13 +3,14 @@ using Grpc.Core;
 using Microsoft.Extensions.Options;
 using NetworkMonitoringSystem.Agent.Identity;
 using NetworkMonitoringSystem.Agent.Metrics;
+using NetworkMonitoringSystem.Agent.Traffic;
 using NetworkMonitoringSystem.Contracts.Agents;
 
 namespace NetworkMonitoringSystem.Agent;
 
 /// <summary>
 /// Performs one round of communication with the server: registers the device if needed and reports
-/// that it is alive together with its measured system resources.
+/// that it is alive together with its measured system resources and, when asked for, a summary of its traffic.
 /// </summary>
 public sealed class AgentReporter
 {
@@ -17,6 +18,7 @@ public sealed class AgentReporter
     private readonly IAgentIdentityStore _identityStore;
     private readonly ISystemMetricsCollector _metricsCollector;
     private readonly ISystemActivityCollector _activityCollector;
+    private readonly ITrafficCapture _trafficCapture;
     private readonly AgentOptions _options;
     private readonly ILogger<AgentReporter> _logger;
 
@@ -25,6 +27,7 @@ public sealed class AgentReporter
         IAgentIdentityStore identityStore,
         ISystemMetricsCollector metricsCollector,
         ISystemActivityCollector activityCollector,
+        ITrafficCapture trafficCapture,
         IOptions<AgentOptions> options,
         ILogger<AgentReporter> logger)
     {
@@ -32,6 +35,7 @@ public sealed class AgentReporter
         _identityStore = identityStore;
         _metricsCollector = metricsCollector;
         _activityCollector = activityCollector;
+        _trafficCapture = trafficCapture;
         _options = options.Value;
         _logger = logger;
     }
@@ -54,8 +58,13 @@ public sealed class AgentReporter
                     Credentials = new AgentCredentials { DeviceId = identity.DeviceId, AgentKey = identity.AgentKey },
                     Metrics = CollectMetrics(),
                     Activity = CollectActivity(),
+                    // Traffic counted while a report fails is lost with it; capture goes on for the next one.
+                    Traffic = _trafficCapture.IsEnabled ? _trafficCapture.TakeSummary() : null,
                 },
                 cancellationToken: cancellationToken);
+
+            // The administrator switches capture on and off in the desktop app; the server passes it on here.
+            _trafficCapture.SetEnabled(reply.CaptureTraffic);
 
             return TimeSpan.FromSeconds(reply.SyncIntervalSeconds);
         }
@@ -64,6 +73,9 @@ public sealed class AgentReporter
             // The server no longer accepts the stored identity, so the next round registers again.
             _logger.LogWarning("Server rejected the stored agent identity; the agent will register again.");
             _identityStore.Clear();
+
+            // Nothing captured could be delivered now; the server asks again once the agent is accepted.
+            _trafficCapture.SetEnabled(false);
         }
         catch (RpcException exception) when (exception.StatusCode == StatusCode.PermissionDenied)
         {

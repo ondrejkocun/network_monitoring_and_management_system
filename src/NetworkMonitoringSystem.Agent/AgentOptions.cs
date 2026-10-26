@@ -31,4 +31,13 @@ public sealed class AgentOptions
 
     /// <summary>How long to wait before the next attempt when the server cannot be reached or refuses the agent.</summary>
     public int RetryIntervalSeconds { get; set; } = 15;
+
+    /// <summary>TShark used to capture traffic. Defaults to where Wireshark installs it.</summary>
+    public string? TsharkPath { get; set; }
+
+    /// <summary>
+    /// Npcap interfaces to capture on, as TShark names them (tshark -D). When empty, every active network adapter
+    /// of this computer is used.
+    /// </summary>
+    public string[]? CaptureInterfaces { get; set; }
 }

@@ -12,6 +12,7 @@ using NetworkMonitoringSystem.Agent;
 using NetworkMonitoringSystem.Agent.Commands;
 using NetworkMonitoringSystem.Agent.Identity;
 using NetworkMonitoringSystem.Agent.Metrics;
+using NetworkMonitoringSystem.Agent.Traffic;
 using AdminContracts = NetworkMonitoringSystem.Contracts.Admin;
 using NetworkMonitoringSystem.Contracts.Agents;
 using NetworkMonitoringSystem.Application.Access;
@@ -32,6 +33,7 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
     private readonly WebApplicationFactory<Program> _server;
     private readonly GrpcChannel _channel;
     private readonly InMemoryIdentityStore _identityStore = new();
+    private readonly FakeTrafficCapture _trafficCapture = new();
 
     public AgentServerCommunicationTests(DatabaseFixture database)
     {
@@ -60,6 +62,7 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
         foreach (var device in await dbContext.Devices.ToListAsync())
         {
             device.Enable();
+            device.SetTrafficCapture(false);
             device.MarkOffline();
         }
 
@@ -173,6 +176,33 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
         var again = await admin.GetDeviceActivityAsync(new AdminContracts.GetDeviceActivityRequest { Id = identity.DeviceId });
         Assert.Single(again.Processes, process => process.Pid == (uint)Environment.ProcessId);
         Assert.Equal(thisProcess.StartedAt, again.Processes.Single(process => process.Pid == (uint)Environment.ProcessId).StartedAt);
+    }
+
+    [Fact]
+    public async Task CaptureSwitchedOnForDevice_StartsCaptureInAgent_AndItsSummaryIsStored_UntilSwitchedOff()
+    {
+        var reporter = CreateReporter(Token);
+        await reporter.ReportOnceAsync(CancellationToken.None);
+        var deviceId = Guid.Parse(_identityStore.Load()!.DeviceId);
+
+        await reporter.ReportOnceAsync(CancellationToken.None);
+        Assert.False(_trafficCapture.IsEnabled);
+
+        await SetTrafficCaptureAsync(deviceId, true);
+        await reporter.ReportOnceAsync(CancellationToken.None);
+        Assert.True(_trafficCapture.IsEnabled);
+
+        await reporter.ReportOnceAsync(CancellationToken.None);
+
+        await using (var dbContext = _database.CreateDbContext())
+        {
+            var record = await dbContext.TrafficRecords.SingleAsync(record => record.DeviceId == deviceId);
+            Assert.Equal(("DNS", "192.0.2.53", 53, 850L), (record.Protocol, record.RemoteAddress, record.ServicePort, record.BytesSent + record.BytesReceived));
+        }
+
+        await SetTrafficCaptureAsync(deviceId, false);
+        await reporter.ReportOnceAsync(CancellationToken.None);
+        Assert.False(_trafficCapture.IsEnabled);
     }
 
     [Fact]
@@ -431,8 +461,18 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
             _identityStore,
             new WindowsSystemMetricsCollector(),
             new WindowsSystemActivityCollector(),
+            _trafficCapture,
             Options.Create(new AgentOptions { EnrollmentToken = enrollmentToken, RetryIntervalSeconds = 7 }),
             NullLogger<AgentReporter>.Instance);
+    }
+
+    private async Task SetTrafficCaptureAsync(Guid deviceId, bool capture)
+    {
+        await using var dbContext = _database.CreateDbContext();
+        var device = await dbContext.Devices.SingleAsync(device => device.Id == deviceId);
+
+        device.SetTrafficCapture(capture);
+        await dbContext.SaveChangesAsync();
     }
 
     private async Task MarkDeviceOfflineAsync(string deviceId)
@@ -449,6 +489,41 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
         await using var dbContext = _database.CreateDbContext();
 
         return await dbContext.Devices.AsNoTracking().SingleAsync(device => device.Id == Guid.Parse(deviceId));
+    }
+
+    /// <summary>Stands in for TShark: remembers whether the server asked for capture and reports one DNS conversation.</summary>
+    private sealed class FakeTrafficCapture : ITrafficCapture
+    {
+        public bool IsEnabled { get; private set; }
+
+        public void SetEnabled(bool enabled) => IsEnabled = enabled;
+
+        public TrafficSummary TakeSummary()
+        {
+            var now = DateTimeOffset.UtcNow;
+            var summary = new TrafficSummary
+            {
+                PeriodStart = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(now.AddSeconds(-60)),
+                PeriodEnd = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(now),
+            };
+            summary.Conversations.Add(new TrafficConversation
+            {
+                Transport = NetworkMonitoringSystem.Contracts.Agents.TrafficTransport.Udp,
+                Protocol = "DNS",
+                RemoteAddress = "192.0.2.53",
+                ServicePort = 53,
+                PacketsSent = 3,
+                PacketsReceived = 3,
+                BytesSent = 210,
+                BytesReceived = 640,
+            });
+
+            return summary;
+        }
+
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class InMemoryIdentityStore : IAgentIdentityStore

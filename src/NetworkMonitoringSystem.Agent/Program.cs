@@ -4,6 +4,7 @@ using NetworkMonitoringSystem.Agent;
 using NetworkMonitoringSystem.Agent.Commands;
 using NetworkMonitoringSystem.Agent.Identity;
 using NetworkMonitoringSystem.Agent.Metrics;
+using NetworkMonitoringSystem.Agent.Traffic;
 using NetworkMonitoringSystem.Contracts.Agents;
 using NetworkMonitoringSystem.Contracts.Security;
 
@@ -46,6 +47,7 @@ builder.Services
 builder.Services.AddSingleton<IAgentIdentityStore, ProtectedFileIdentityStore>();
 builder.Services.AddSingleton<ISystemMetricsCollector, WindowsSystemMetricsCollector>();
 builder.Services.AddSingleton<ISystemActivityCollector, WindowsSystemActivityCollector>();
+builder.Services.AddSingleton<ITrafficCapture, TsharkTrafficCapture>();
 builder.Services.AddSingleton<AgentReporter>();
 builder.Services.AddSingleton<SynchronizationSignal>();
 builder.Services.AddSingleton<ISystemProgramRunner, SystemProgramRunner>();
