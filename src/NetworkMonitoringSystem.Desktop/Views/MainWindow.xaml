@@ -379,19 +379,30 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Procesor" FontWeight="SemiBold" />
-                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Pamäť" FontWeight="SemiBold" />
+                        <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
+                            <TextBlock Text="Sieťová prevádzka" FontWeight="SemiBold" Margin="0,0,12,0" />
+                            <TextBlock Text="■ odoslané" Foreground="#1565C0" Margin="0,0,8,0" />
+                            <TextBlock Text="■ prijaté" Foreground="#2E7D32" />
+                        </StackPanel>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Odozva na ping zo servera" FontWeight="SemiBold" />
 
-                        <controls:LineChart Grid.Row="1" Grid.Column="0" Stroke="#1565C0"
-                                            Points="{Binding SelectedDeviceHistory.CpuPoints}" />
-                        <controls:LineChart Grid.Row="1" Grid.Column="2" Stroke="#2E7D32"
-                                            Points="{Binding SelectedDeviceHistory.MemoryPoints}" />
+                        <controls:LineChart Grid.Row="1" Grid.Column="0" Stroke="#1565C0" SecondStroke="#2E7D32"
+                                            Points="{Binding SelectedDeviceHistory.SentPoints}"
+                                            SecondPoints="{Binding SelectedDeviceHistory.ReceivedPoints}"
+                                            GridLabels="{Binding SelectedDeviceHistory.TrafficLabels}" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding SelectedDeviceHistory.TrafficChartMessage}"
+                                   Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" />
+                        <controls:LineChart Grid.Row="1" Grid.Column="2" Stroke="#6A1B9A"
+                                            Points="{Binding SelectedDeviceHistory.ResponsePoints}"
+                                            GridLabels="{Binding SelectedDeviceHistory.ResponseLabels}" />
+                        <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding SelectedDeviceHistory.ResponseChartMessage}"
+                                   Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" />
 
-                        <DockPanel Grid.Row="2" Grid.Column="0" Margin="44,0,4,0">
+                        <DockPanel Grid.Row="2" Grid.Column="0" Margin="64,0,4,0">
                             <TextBlock DockPanel.Dock="Right" Foreground="Gray" FontSize="11" Text="{Binding SelectedDeviceHistory.PeriodEndText}" />
                             <TextBlock Foreground="Gray" FontSize="11" Text="{Binding SelectedDeviceHistory.PeriodStartText}" />
                         </DockPanel>
-                        <DockPanel Grid.Row="2" Grid.Column="2" Margin="44,0,4,0">
+                        <DockPanel Grid.Row="2" Grid.Column="2" Margin="64,0,4,0">
                             <TextBlock DockPanel.Dock="Right" Foreground="Gray" FontSize="11" Text="{Binding SelectedDeviceHistory.PeriodEndText}" />
                             <TextBlock Foreground="Gray" FontSize="11" Text="{Binding SelectedDeviceHistory.PeriodStartText}" />
                         </DockPanel>

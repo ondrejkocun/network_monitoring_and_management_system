@@ -11,7 +11,7 @@ namespace NetworkMonitoringSystem.Application.Monitoring;
 /// <param name="Outages">Outages that overlap the period, the most recent first.</param>
 /// <param name="Events">Events of the device in the period, the most recent first.</param>
 /// <param name="EventsTruncated">True when the period has more events than were returned.</param>
-/// <param name="ResourcePoints">Processor and memory use over the period, the oldest first.</param>
+/// <param name="NetworkPoints">Network traffic and response time over the period, the oldest first.</param>
 public sealed record DeviceHistoryDto(
     DateTimeOffset From,
     DateTimeOffset To,
@@ -20,14 +20,24 @@ public sealed record DeviceHistoryDto(
     IReadOnlyList<OutageDto> Outages,
     IReadOnlyList<EventDto> Events,
     bool EventsTruncated,
-    IReadOnlyList<ResourcePoint> ResourcePoints);
+    IReadOnlyList<NetworkPoint> NetworkPoints);
 
 public sealed record OutageDto(DateTimeOffset StartedAt, DateTimeOffset? EndedAt);
 
 public sealed record EventDto(DateTimeOffset OccurredAt, MonitoringEventType Type, EventSeverity Severity, string Message);
 
-/// <summary>Processor and memory use of a device at one moment.</summary>
-public sealed record ResourcePoint(DateTimeOffset RecordedAt, double? CpuUsagePercent, long MemoryUsedBytes, long MemoryTotalBytes);
+/// <summary>The traffic counters of one network interface as an agent reported them; they count from the start of Windows.</summary>
+public sealed record InterfaceCounter(string Name, long BytesSent, long BytesReceived);
+
+/// <summary>What one snapshot says about the network: the response time the server measured, the counters an agent reported.</summary>
+public sealed record NetworkSample(DateTimeOffset RecordedAt, int? ResponseTimeMs, IReadOnlyList<InterfaceCounter> Interfaces);
+
+/// <summary>
+/// The traffic of a device in bytes per second since the previous snapshot, and the response time the server measured.
+/// A value is null where it is not known: traffic for a device without an agent, the response time for one with an agent
+/// or while the device did not answer.
+/// </summary>
+public sealed record NetworkPoint(DateTimeOffset RecordedAt, double? BytesSentPerSecond, double? BytesReceivedPerSecond, double? ResponseTimeMs);
 
 public interface IDeviceHistoryService
 {
@@ -41,7 +51,7 @@ public sealed class DeviceHistoryService : IDeviceHistoryService
     public const int MaxEvents = 200;
 
     /// <summary>A chart does not show more detail than this, so longer histories are averaged down to it.</summary>
-    public const int MaxResourcePoints = 120;
+    public const int MaxNetworkPoints = 120;
 
     public static readonly TimeSpan MaxPeriod = TimeSpan.FromDays(366);
 
@@ -90,7 +100,7 @@ public sealed class DeviceHistoryService : IDeviceHistoryService
 
         // One more than the limit is asked for, to learn whether there are more.
         var events = await _history.GetEventsAsync(deviceId, from, to, MaxEvents + 1, cancellationToken);
-        var points = await _history.GetResourcePointsAsync(deviceId, from, to, cancellationToken);
+        var samples = await _history.GetNetworkSamplesAsync(deviceId, from, to, cancellationToken);
 
         // The device is judged only for the time it existed, and not for the future.
         var observedFrom = from > device.CreatedAt ? from : device.CreatedAt;
@@ -135,15 +145,58 @@ public sealed class DeviceHistoryService : IDeviceHistoryService
                     monitoringEvent.Message))
                 .ToList(),
             events.Count > MaxEvents,
-            Downsample(points, from, to, MaxResourcePoints));
+            Downsample(ToNetworkPoints(samples), from, to, MaxNetworkPoints));
+    }
+
+    /// <summary>
+    /// Turns the counters of consecutive snapshots into traffic per second. Each interface is compared with itself, so an
+    /// adapter that appears or disappears does not distort the sum; a counter that went down (Windows was restarted)
+    /// is left out of that step.
+    /// </summary>
+    public static IReadOnlyList<NetworkPoint> ToNetworkPoints(IReadOnlyList<NetworkSample> samples)
+    {
+        ArgumentNullException.ThrowIfNull(samples);
+
+        var points = new List<NetworkPoint>(samples.Count);
+
+        for (var index = 0; index < samples.Count; index++)
+        {
+            var sample = samples[index];
+            double? sentPerSecond = null;
+            double? receivedPerSecond = null;
+
+            if (index > 0)
+            {
+                var previous = samples[index - 1];
+                var seconds = (sample.RecordedAt - previous.RecordedAt).TotalSeconds;
+                var before = previous.Interfaces
+                    .GroupBy(counter => counter.Name, StringComparer.Ordinal)
+                    .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+                var compared = sample.Interfaces
+                    .Where(counter => before.TryGetValue(counter.Name, out var earlier)
+                        && counter.BytesSent >= earlier.BytesSent
+                        && counter.BytesReceived >= earlier.BytesReceived)
+                    .ToList();
+
+                if (seconds > 0 && compared.Count > 0)
+                {
+                    sentPerSecond = compared.Sum(counter => counter.BytesSent - before[counter.Name].BytesSent) / seconds;
+                    receivedPerSecond = compared.Sum(counter => counter.BytesReceived - before[counter.Name].BytesReceived) / seconds;
+                }
+            }
+
+            points.Add(new NetworkPoint(sample.RecordedAt, sentPerSecond, receivedPerSecond, sample.ResponseTimeMs));
+        }
+
+        return points;
     }
 
     /// <summary>
     /// Reduces the points to at most <paramref name="maxPoints"/> by splitting the period into equal parts
-    /// and averaging the points of each part.
+    /// and averaging the known values of each part.
     /// </summary>
-    public static IReadOnlyList<ResourcePoint> Downsample(
-        IReadOnlyList<ResourcePoint> points,
+    public static IReadOnlyList<NetworkPoint> Downsample(
+        IReadOnlyList<NetworkPoint> points,
         DateTimeOffset from,
         DateTimeOffset to,
         int maxPoints)
@@ -163,15 +216,14 @@ public sealed class DeviceHistoryService : IDeviceHistoryService
             .OrderBy(part => part.Key)
             .Select(part =>
             {
-                var measuredCpu = part.Where(point => point.CpuUsagePercent is not null).ToList();
                 var first = part.First().RecordedAt;
 
-                return new ResourcePoint(
+                return new NetworkPoint(
                     // Averaged as distances from the first point, which stay small enough to be exact.
                     first + TimeSpan.FromTicks((long)part.Average(point => (point.RecordedAt - first).Ticks)),
-                    measuredCpu.Count == 0 ? null : measuredCpu.Average(point => point.CpuUsagePercent!.Value),
-                    (long)part.Average(point => point.MemoryUsedBytes),
-                    part.Max(point => point.MemoryTotalBytes));
+                    part.Average(point => point.BytesSentPerSecond),
+                    part.Average(point => point.BytesReceivedPerSecond),
+                    part.Average(point => point.ResponseTimeMs));
             })
             .ToList();
     }

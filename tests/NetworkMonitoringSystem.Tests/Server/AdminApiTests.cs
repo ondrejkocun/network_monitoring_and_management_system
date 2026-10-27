@@ -331,8 +331,11 @@ public sealed class AdminApiTests : IClassFixture<DatabaseFixture>, IAsyncLifeti
             dbContext.Events.Add(new MonitoringEvent(
                 now.AddDays(-2), MonitoringEventType.PortOpened, DomainEventSeverity.Info, "before the period", deviceId));
 
+            var earlierReport = new DeviceSnapshot(deviceId, now.AddSeconds(-15), DomainDeviceStatus.Online);
+            earlierReport.SetResources(new ResourceUsage(42.5, 1000, 250, [], [new NetworkInterfaceUsage("Ethernet", null, null, true, 1_000, 2_000)]));
+            dbContext.DeviceSnapshots.Add(earlierReport);
             var measured = new DeviceSnapshot(deviceId, now.AddSeconds(-5), DomainDeviceStatus.Online);
-            measured.SetResources(new ResourceUsage(42.5, 1000, 250, [], []));
+            measured.SetResources(new ResourceUsage(42.5, 1000, 250, [], [new NetworkInterfaceUsage("Ethernet", null, null, true, 6_000, 32_000)]));
             dbContext.DeviceSnapshots.Add(measured);
             dbContext.DeviceSnapshots.Add(new DeviceSnapshot(deviceId, outageStart, DomainDeviceStatus.Offline));
 
@@ -352,8 +355,9 @@ public sealed class AdminApiTests : IClassFixture<DatabaseFixture>, IAsyncLifeti
         Assert.Equal(ContractEventSeverity.Warning, history.Events[1].Severity);
         Assert.False(history.EventsTruncated);
 
-        var point = Assert.Single(history.ResourcePoints);
-        Assert.Equal((42.5, 250UL, 1000UL), (point.CpuUsagePercent, point.MemoryUsedBytes, point.MemoryTotalBytes));
+        // 5000 bytes sent and 30 000 received in the 10 seconds between the two reports.
+        var traffic = Assert.Single(history.NetworkPoints, point => point.HasBytesSentPerSecond);
+        Assert.Equal((500, 3000), (traffic.BytesSentPerSecond, traffic.BytesReceivedPerSecond));
     }
 
     [Fact]

@@ -123,57 +123,61 @@ public class DeviceHistoryServiceTests
     }
 
     [Fact]
-    public async Task ResourcePoints_ComeFromSnapshotsWithResources_OldestFirst()
+    public async Task NetworkPoints_GiveTrafficPerSecondBetweenReports_AndTheResponseTimeTheServerMeasured()
     {
         var device = AddDevice(createdAt: Now.AddDays(-30));
-        AddSnapshot(device, Now.AddMinutes(-1), cpu: 30, memoryUsed: 600);
-        AddSnapshot(device, Now.AddMinutes(-2), cpu: 20, memoryUsed: 500);
-        // A snapshot of an offline device carries no resources.
-        _history.AddSnapshot(new DeviceSnapshot(device.Id, Now.AddMinutes(-3), DeviceStatus.Offline));
+        AddSnapshot(device, Now.AddMinutes(-2), ("Ethernet", 1_000, 10_000));
+        AddSnapshot(device, Now.AddMinutes(-1), ("Ethernet", 7_000, 70_000));
+        _history.AddSnapshot(new DeviceSnapshot(device.Id, Now.AddMinutes(-3), DeviceStatus.Online, responseTimeMs: 12));
 
         var history = await _service.GetHistoryAsync(device.Id, Now.AddHours(-1), Now);
 
         Assert.Equal(
-            [new ResourcePoint(Now.AddMinutes(-2), 20, 500, 1000), new ResourcePoint(Now.AddMinutes(-1), 30, 600, 1000)],
-            history!.ResourcePoints);
+            [
+                new NetworkPoint(Now.AddMinutes(-3), null, null, 12),
+                new NetworkPoint(Now.AddMinutes(-2), null, null, null),
+                // 6000 bytes sent and 60 000 received in a minute.
+                new NetworkPoint(Now.AddMinutes(-1), 100, 1000, null),
+            ],
+            history!.NetworkPoints);
     }
 
     [Fact]
-    public void Downsample_AveragesPointsOfEachPartOfThePeriod()
+    public void Traffic_ComparesEachInterfaceWithItself_AndSkipsCountersThatStartedAgain()
+    {
+        var start = Now.AddMinutes(-3);
+        IReadOnlyList<NetworkSample> samples =
+        [
+            new(start, null, [new("Ethernet", 1_000, 1_000), new("Wi-Fi", 500_000, 500_000)]),
+            // Wi-Fi disappeared and a VPN adapter appeared with its own large counters: neither counts.
+            new(start.AddSeconds(10), null, [new("Ethernet", 2_000, 3_000), new("VPN", 900_000, 900_000)]),
+            // Windows was restarted: the counters started from zero again.
+            new(start.AddSeconds(20), null, [new("Ethernet", 10, 10)]),
+        ];
+
+        var points = DeviceHistoryService.ToNetworkPoints(samples);
+
+        Assert.Equal((100.0, 200.0), (points[1].BytesSentPerSecond!.Value, points[1].BytesReceivedPerSecond!.Value));
+        Assert.Null(points[2].BytesSentPerSecond);
+    }
+
+    [Fact]
+    public void Downsample_AveragesTheKnownValuesOfEachPartOfThePeriod_AndKeepsShortHistoriesAsTheyAre()
     {
         var from = Now.AddHours(-1);
         var points = Enumerable.Range(0, 60)
-            .Select(minute => new ResourcePoint(from.AddMinutes(minute), minute, 100 * minute, 10_000))
+            .Select(minute => new NetworkPoint(from.AddMinutes(minute), minute, 10 * minute, minute < 30 ? null : minute))
             .ToList();
+
+        Assert.Same(points, DeviceHistoryService.Downsample(points, from, Now, maxPoints: 60));
 
         var reduced = DeviceHistoryService.Downsample(points, from, Now, maxPoints: 6);
 
         Assert.Equal(6, reduced.Count);
 
-        // The first part holds minutes 0 to 9.
-        Assert.Equal(new ResourcePoint(from.AddMinutes(4.5), 4.5, 450, 10_000), reduced[0]);
-        Assert.Equal(54.5, reduced[5].CpuUsagePercent);
-    }
-
-    [Fact]
-    public void Downsample_LeavesProcessorUnknown_WherePartHasNoMeasurement_AndKeepsShortHistoriesAsTheyAre()
-    {
-        var from = Now.AddHours(-1);
-        IReadOnlyList<ResourcePoint> points =
-        [
-            new(from.AddMinutes(1), null, 100, 1000),
-            new(from.AddMinutes(2), null, 300, 1000),
-            new(from.AddMinutes(40), 50, 500, 1000),
-        ];
-
-        Assert.Same(points, DeviceHistoryService.Downsample(points, from, Now, maxPoints: 3));
-
-        var reduced = DeviceHistoryService.Downsample(points, from, Now, maxPoints: 2);
-
-        Assert.Equal(2, reduced.Count);
-        Assert.Null(reduced[0].CpuUsagePercent);
-        Assert.Equal(200, reduced[0].MemoryUsedBytes);
-        Assert.Equal(50, reduced[1].CpuUsagePercent);
+        // The first part holds minutes 0 to 9, in which the response time was not known.
+        Assert.Equal(new NetworkPoint(from.AddMinutes(4.5), 4.5, 45, null), reduced[0]);
+        Assert.Equal(54.5, reduced[5].ResponseTimeMs);
     }
 
     [Fact]
@@ -217,10 +221,15 @@ public class DeviceHistoryServiceTests
         _history.AddEvent(new MonitoringEvent(occurredAt, MonitoringEventType.PortOpened, EventSeverity.Info, message, deviceId));
     }
 
-    private void AddSnapshot(Device device, DateTimeOffset recordedAt, double cpu, long memoryUsed)
+    private void AddSnapshot(Device device, DateTimeOffset recordedAt, (string Name, long Sent, long Received) networkInterface)
     {
         var snapshot = new DeviceSnapshot(device.Id, recordedAt, DeviceStatus.Online);
-        snapshot.SetResources(new ResourceUsage(cpu, 1000, memoryUsed, [], []));
+        snapshot.SetResources(new ResourceUsage(
+            10,
+            1000,
+            500,
+            [],
+            [new NetworkInterfaceUsage(networkInterface.Name, null, null, isUp: true, networkInterface.Sent, networkInterface.Received)]));
         _history.AddSnapshot(snapshot);
     }
 }

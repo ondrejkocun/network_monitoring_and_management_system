@@ -565,18 +565,23 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
             Severity = ToSeverity(monitoringEvent.Severity),
             Message = monitoringEvent.Message,
         }));
-        reply.ResourcePoints.AddRange(history.ResourcePoints.Select(point =>
+        reply.NetworkPoints.AddRange(history.NetworkPoints.Select(point =>
         {
-            var info = new ResourcePointInfo
-            {
-                RecordedAt = Timestamp.FromDateTimeOffset(point.RecordedAt),
-                MemoryUsedBytes = (ulong)point.MemoryUsedBytes,
-                MemoryTotalBytes = (ulong)point.MemoryTotalBytes,
-            };
+            var info = new NetworkPointInfo { RecordedAt = Timestamp.FromDateTimeOffset(point.RecordedAt) };
 
-            if (point.CpuUsagePercent is { } cpuUsagePercent)
+            if (point.BytesSentPerSecond is { } sent)
             {
-                info.CpuUsagePercent = cpuUsagePercent;
+                info.BytesSentPerSecond = sent;
+            }
+
+            if (point.BytesReceivedPerSecond is { } received)
+            {
+                info.BytesReceivedPerSecond = received;
+            }
+
+            if (point.ResponseTimeMs is { } responseTime)
+            {
+                info.ResponseTimeMs = responseTime;
             }
 
             return info;

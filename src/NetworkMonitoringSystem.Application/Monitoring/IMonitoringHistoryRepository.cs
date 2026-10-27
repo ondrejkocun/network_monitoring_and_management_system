@@ -44,8 +44,8 @@ public interface IMonitoringHistoryRepository
         int limit,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Returns processor and memory use from the device's snapshots in the period, the oldest first.</summary>
-    Task<IReadOnlyList<ResourcePoint>> GetResourcePointsAsync(
+    /// <summary>Returns the response times and interface counters of the device.s snapshots in the period, the oldest first.</summary>
+    Task<IReadOnlyList<NetworkSample>> GetNetworkSamplesAsync(
         Guid deviceId,
         DateTimeOffset from,
         DateTimeOffset to,

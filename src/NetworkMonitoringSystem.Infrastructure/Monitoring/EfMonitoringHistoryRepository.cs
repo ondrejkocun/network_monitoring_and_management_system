@@ -130,25 +130,35 @@ public sealed class EfMonitoringHistoryRepository : IMonitoringHistoryRepository
             .ToList();
     }
 
-    public async Task<IReadOnlyList<ResourcePoint>> GetResourcePointsAsync(
+    public async Task<IReadOnlyList<NetworkSample>> GetNetworkSamplesAsync(
         Guid deviceId,
         DateTimeOffset from,
         DateTimeOffset to,
         CancellationToken cancellationToken = default)
     {
-        return await _dbContext.DeviceSnapshots
+        var rows = await _dbContext.DeviceSnapshots
             .AsNoTracking()
             .Where(snapshot => snapshot.DeviceId == deviceId
-                && snapshot.HasResources
                 && snapshot.RecordedAt >= from
                 && snapshot.RecordedAt <= to)
             .OrderBy(snapshot => snapshot.RecordedAt)
-            .Select(snapshot => new ResourcePoint(
+            .Select(snapshot => new
+            {
                 snapshot.RecordedAt,
-                snapshot.CpuUsagePercent,
-                snapshot.MemoryUsedBytes ?? 0,
-                snapshot.MemoryTotalBytes ?? 0))
+                snapshot.ResponseTimeMs,
+                Interfaces = snapshot.NetworkInterfaces
+                    .Select(networkInterface => new { networkInterface.Name, networkInterface.BytesSent, networkInterface.BytesReceived })
+                    .ToList(),
+            })
+            .AsSplitQuery()
             .ToListAsync(cancellationToken);
+
+        return rows
+            .Select(row => new NetworkSample(
+                row.RecordedAt,
+                row.ResponseTimeMs,
+                row.Interfaces.Select(counter => new InterfaceCounter(counter.Name, counter.BytesSent, counter.BytesReceived)).ToList()))
+            .ToList();
     }
 
     public Task<Outage?> GetOngoingOutageAsync(Guid deviceId, CancellationToken cancellationToken = default)

@@ -425,8 +425,11 @@ message DeviceHistoryReply {
   repeated EventInfo events = 4;
   // True when the period has more events than were returned.
   bool events_truncated = 5;
+  // Processor and memory points of earlier versions; the charts show the network now.
+  reserved 6;
+  reserved "resource_points";
   // The oldest first; long periods are averaged down to a limited number of points.
-  repeated ResourcePointInfo resource_points = 6;
+  repeated NetworkPointInfo network_points = 7;
 }
 
 message OutageInfo {
@@ -473,11 +476,14 @@ message EventLogEntry {
   string user_name = 6;
 }
 
-message ResourcePointInfo {
+// Traffic of a device per second since the previous point, and the response time the server measured.
+// A value is not set where it is not known: traffic of a device without an agent, the response time of one with an
+// agent or while the device did not answer.
+message NetworkPointInfo {
   google.protobuf.Timestamp recorded_at = 1;
-  optional double cpu_usage_percent = 2;
-  uint64 memory_used_bytes = 3;
-  uint64 memory_total_bytes = 4;
+  optional double bytes_sent_per_second = 2;
+  optional double bytes_received_per_second = 3;
+  optional double response_time_ms = 4;
 }
 
 message SendFileRequest {

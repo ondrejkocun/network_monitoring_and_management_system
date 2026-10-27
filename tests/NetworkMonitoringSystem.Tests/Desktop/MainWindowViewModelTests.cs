@@ -895,44 +895,69 @@ public class MainWindowViewModelTests
         var to = from.AddHours(1);
         var reply = new DeviceHistoryReply
         {
-            ResourcePoints =
+            NetworkPoints =
             {
-                Point(0, cpu: 10),
-                Point(1, cpu: 20),
-                Point(2, cpu: 30),
+                Point(0, sent: 100),
+                Point(1, sent: 200),
+                Point(2, sent: 300),
                 // Half an hour without reports.
-                Point(30, cpu: 40),
-                Point(31, cpu: null),
+                Point(30, sent: 400),
+                Point(31, sent: null),
             },
         };
 
         var history = new DeviceHistoryViewModel(reply, from, to);
 
-        Assert.Equal(5, history.CpuPoints.Count);
-        Assert.Equal(new ChartPoint(0, 10), history.CpuPoints[0]);
-        Assert.Null(history.CpuPoints[3]);
-        Assert.Equal(new ChartPoint(0.5, 40), history.CpuPoints[4]);
+        // The largest value, 400 B/s, is under the scale of 500 B/s.
+        Assert.Equal(["0", "250 B/s", "500 B/s"], history.TrafficLabels);
+        Assert.Equal(5, history.SentPoints.Count);
+        Assert.Equal(new ChartPoint(0, 20), history.SentPoints[0]);
+        Assert.Null(history.SentPoints[3]);
+        Assert.Equal(new ChartPoint(0.5, 80), history.SentPoints[4]);
 
-        // Memory was measured in every report: 4 of 16 units is a quarter.
-        Assert.Equal(6, history.MemoryPoints.Count);
-        Assert.All(history.MemoryPoints.Where(point => point is not null), point => Assert.Equal(25, point!.Value.Y));
+        // Received data were reported in every report.
+        Assert.Equal(6, history.ReceivedPoints.Count);
+        Assert.Equal(string.Empty, history.TrafficChartMessage);
 
-        ResourcePointInfo Point(int minute, double? cpu)
+        // A device with an agent has no response time measured by the server.
+        Assert.Empty(history.ResponsePoints);
+        Assert.NotEmpty(history.ResponseChartMessage);
+
+        NetworkPointInfo Point(int minute, double? sent)
         {
-            var point = new ResourcePointInfo
+            var point = new NetworkPointInfo
             {
                 RecordedAt = Timestamp.FromDateTimeOffset(from.AddMinutes(minute)),
-                MemoryUsedBytes = 4,
-                MemoryTotalBytes = 16,
+                BytesReceivedPerSecond = 50,
             };
 
-            if (cpu is not null)
+            if (sent is not null)
             {
-                point.CpuUsagePercent = cpu.Value;
+                point.BytesSentPerSecond = sent.Value;
             }
 
             return point;
         }
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 1)]
+    [InlineData(130, 200)]
+    [InlineData(2_000_001, 5_000_000)]
+    [InlineData(9_000, 10_000)]
+    public void ChartScale_IsTheNextRoundValue(double largest, double scale)
+    {
+        Assert.Equal(scale, DeviceHistoryViewModel.NiceCeiling(largest));
+    }
+
+    [Theory]
+    [InlineData(512, "512 B/s")]
+    [InlineData(1_500, "1,5 kB/s")]
+    [InlineData(2_500_000, "2,5 MB/s")]
+    public void Traffic_IsShownInReadableUnits(double bytesPerSecond, string text)
+    {
+        Assert.Equal(text, DeviceHistoryViewModel.FormatRate(bytesPerSecond));
     }
 
     [Theory]

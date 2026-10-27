@@ -140,23 +140,24 @@ public sealed class InMemoryMonitoringHistoryRepository : IMonitoringHistoryRepo
         return Task.FromResult(events);
     }
 
-    public Task<IReadOnlyList<ResourcePoint>> GetResourcePointsAsync(
+    public Task<IReadOnlyList<NetworkSample>> GetNetworkSamplesAsync(
         Guid deviceId,
         DateTimeOffset from,
         DateTimeOffset to,
         CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<ResourcePoint> points = Snapshots
-            .Where(snapshot => snapshot.DeviceId == deviceId && snapshot.HasResources && snapshot.RecordedAt >= from && snapshot.RecordedAt <= to)
+        IReadOnlyList<NetworkSample> samples = Snapshots
+            .Where(snapshot => snapshot.DeviceId == deviceId && snapshot.RecordedAt >= from && snapshot.RecordedAt <= to)
             .OrderBy(snapshot => snapshot.RecordedAt)
-            .Select(snapshot => new ResourcePoint(
+            .Select(snapshot => new NetworkSample(
                 snapshot.RecordedAt,
-                snapshot.CpuUsagePercent,
-                snapshot.MemoryUsedBytes ?? 0,
-                snapshot.MemoryTotalBytes ?? 0))
+                snapshot.ResponseTimeMs,
+                snapshot.NetworkInterfaces
+                    .Select(networkInterface => new InterfaceCounter(networkInterface.Name, networkInterface.BytesSent, networkInterface.BytesReceived))
+                    .ToList()))
             .ToList();
 
-        return Task.FromResult(points);
+        return Task.FromResult(samples);
     }
 
     public Task<Outage?> GetOngoingOutageAsync(Guid deviceId, CancellationToken cancellationToken = default)

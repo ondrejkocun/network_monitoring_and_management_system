@@ -52,16 +52,22 @@ public sealed class DeviceHistoryViewModel
 
         EventsHeader = history.EventsTruncated ? $"Udalosti ({Events.Count}+)" : $"Udalosti ({Events.Count})";
 
-        CpuPoints = BuildChart(
-            history.ResourcePoints.Where(point => point.HasCpuUsagePercent).ToList(),
-            point => point.CpuUsagePercent,
-            from,
-            to);
-        MemoryPoints = BuildChart(
-            history.ResourcePoints.Where(point => point.MemoryTotalBytes > 0).ToList(),
-            point => 100.0 * point.MemoryUsedBytes / point.MemoryTotalBytes,
-            from,
-            to);
+        var sent = history.NetworkPoints.Where(point => point.HasBytesSentPerSecond).ToList();
+        var received = history.NetworkPoints.Where(point => point.HasBytesReceivedPerSecond).ToList();
+        var trafficScale = NiceCeiling(sent.Select(point => point.BytesSentPerSecond)
+            .Concat(received.Select(point => point.BytesReceivedPerSecond))
+            .DefaultIfEmpty(0)
+            .Max());
+
+        SentPoints = BuildChart(sent, point => 100 * point.BytesSentPerSecond / trafficScale, from, to);
+        ReceivedPoints = BuildChart(received, point => 100 * point.BytesReceivedPerSecond / trafficScale, from, to);
+        TrafficLabels = ["0", FormatRate(trafficScale / 2), FormatRate(trafficScale)];
+
+        var responses = history.NetworkPoints.Where(point => point.HasResponseTimeMs).ToList();
+        var responseScale = NiceCeiling(responses.Select(point => point.ResponseTimeMs).DefaultIfEmpty(0).Max());
+
+        ResponsePoints = BuildChart(responses, point => 100 * point.ResponseTimeMs / responseScale, from, to);
+        ResponseLabels = ["0 ms", FormatMilliseconds(responseScale / 2), FormatMilliseconds(responseScale)];
     }
 
     /// <summary>The message this view model was built from.</summary>
@@ -83,11 +89,67 @@ public sealed class DeviceHistoryViewModel
 
     public string EventsHeader { get; }
 
-    /// <summary>Processor use over the period; a null separates stretches without measurements.</summary>
-    public IReadOnlyList<ChartPoint?> CpuPoints { get; }
+    /// <summary>Data sent per second, in percent of the traffic scale; a null separates stretches without measurements.</summary>
+    public IReadOnlyList<ChartPoint?> SentPoints { get; }
 
-    /// <summary>Share of memory in use over the period; a null separates stretches without measurements.</summary>
-    public IReadOnlyList<ChartPoint?> MemoryPoints { get; }
+    /// <summary>Data received per second, in percent of the traffic scale.</summary>
+    public IReadOnlyList<ChartPoint?> ReceivedPoints { get; }
+
+    /// <summary>Labels of the traffic chart at 0, half and the whole scale.</summary>
+    public IReadOnlyList<string> TrafficLabels { get; }
+
+    /// <summary>Response time to the server's checks, in percent of its scale; breaks where the device did not answer.</summary>
+    public IReadOnlyList<ChartPoint?> ResponsePoints { get; }
+
+    public IReadOnlyList<string> ResponseLabels { get; }
+
+    /// <summary>Why the traffic chart is empty, or empty when it has data.</summary>
+    public string TrafficChartMessage => SentPoints.Count > 0 || ReceivedPoints.Count > 0
+        ? string.Empty
+        : "Prevádzku hlási agent; v tomto období nie sú údaje.";
+
+    /// <summary>Why the response chart is empty, or empty when it has data.</summary>
+    public string ResponseChartMessage => ResponsePoints.Count > 0
+        ? string.Empty
+        : "Odozvu meria server pingom len pri zariadeniach bez agenta.";
+
+    /// <summary>Formats data per second, for example "1,5 MB/s".</summary>
+    public static string FormatRate(double bytesPerSecond)
+    {
+        string[] units = ["B/s", "kB/s", "MB/s", "GB/s"];
+        var unit = 0;
+
+        while (bytesPerSecond >= 1000 && unit < units.Length - 1)
+        {
+            bytesPerSecond /= 1000;
+            unit++;
+        }
+
+        return string.Create(Culture, $"{bytesPerSecond:0.#} {units[unit]}");
+    }
+
+    private static string FormatMilliseconds(double milliseconds) => string.Create(Culture, $"{milliseconds:0.#} ms");
+
+    /// <summary>The smallest of 1, 2 and 5 times a power of ten that is not below the value, so the axis reads well.</summary>
+    public static double NiceCeiling(double value)
+    {
+        if (value <= 0 || double.IsNaN(value))
+        {
+            return 1;
+        }
+
+        var power = Math.Pow(10, Math.Floor(Math.Log10(value)));
+
+        foreach (var step in new[] { 1, 2, 5, 10 })
+        {
+            if (step * power >= value)
+            {
+                return step * power;
+            }
+        }
+
+        return 10 * power;
+    }
 
     internal static string FormatTime(DateTimeOffset time) => time.ToLocalTime().ToString(TimeFormat);
 
@@ -115,8 +177,8 @@ public sealed class DeviceHistoryViewModel
     }
 
     private static IReadOnlyList<ChartPoint?> BuildChart(
-        IReadOnlyList<ResourcePointInfo> points,
-        Func<ResourcePointInfo, double> value,
+        IReadOnlyList<NetworkPointInfo> points,
+        Func<NetworkPointInfo, double> value,
         DateTimeOffset from,
         DateTimeOffset to)
     {
