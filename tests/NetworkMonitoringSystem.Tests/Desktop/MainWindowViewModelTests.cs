@@ -112,6 +112,38 @@ public class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task DeviceThatGoesOffline_RaisesAnAlert_UntilItIsBackOrDismissed()
+    {
+        var now = new DateTimeOffset(2026, 10, 27, 14, 32, 5, TimeSpan.Zero);
+        var router = new DeviceInfo { Id = "router", Name = "Router", Status = DeviceStatus.Online, IsEnabled = true };
+        var pc = new DeviceInfo { Id = "pc", Name = "PC", Status = DeviceStatus.Offline, IsEnabled = true };
+        _server.Devices.AddRange([router, pc]);
+        var viewModel = new MainWindowViewModel(_server, _confirmation, new MutableTimeProvider(now));
+        var raised = new List<IReadOnlyList<string>>();
+        viewModel.DevicesWentOffline += (_, names) => raised.Add(names);
+
+        // What is offline at the start is not news.
+        await viewModel.RefreshAsync();
+        Assert.False(viewModel.HasAlert);
+
+        router.Status = DeviceStatus.Offline;
+        await viewModel.RefreshAsync();
+        await viewModel.RefreshAsync();
+
+        Assert.Equal(["Router"], Assert.Single(raised));
+        Assert.Equal($"Zariadenie je nedostupné: Router (od {now.ToLocalTime():HH:mm:ss})", viewModel.AlertText);
+
+        router.Status = DeviceStatus.Online;
+        await viewModel.RefreshAsync();
+        Assert.False(viewModel.HasAlert);
+
+        router.Status = DeviceStatus.Offline;
+        await viewModel.RefreshAsync();
+        await viewModel.DismissAlertsCommand.ExecuteAsync();
+        Assert.Equal(string.Empty, viewModel.AlertText);
+    }
+
+    [Fact]
     public async Task PeriodicRefresh_KeepsWhatTheLastActionSaid_AndShowsWhenItLoaded()
     {
         var now = new DateTimeOffset(2026, 10, 27, 14, 32, 5, TimeSpan.Zero);

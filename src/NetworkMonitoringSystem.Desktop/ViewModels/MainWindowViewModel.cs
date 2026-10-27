@@ -44,6 +44,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _resourcesMessage = NoDeviceSelectedMessage;
     private bool _isRebuildingList;
     private bool _sessionEnded;
+    private readonly Dictionary<string, (string Name, DateTimeOffset Since)> _alerts = [];
     private DateTimeOffset? _lastRefreshedAt;
     private bool _isServerUnavailable;
     private string _addDeviceMessage = string.Empty;
@@ -94,6 +95,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             SaveSettingsAsync,
             () => IsWholeNumber(SyncIntervalText) && IsWholeNumber(OfflineThresholdText) && IsWholeNumber(RetentionDaysText));
         LogoutCommand = new AsyncRelayCommand(LogoutAsync);
+        DismissAlertsCommand = new AsyncRelayCommand(DismissAlertsAsync);
         SendCommandCommand = new AsyncRelayCommand(
             SendCommandAsync,
             () => CanSendCommands && (!SelectedCommand.NeedsParameter || !string.IsNullOrWhiteSpace(CommandParameter)));
@@ -911,6 +913,12 @@ public sealed class MainWindowViewModel : ViewModelBase
 
             // The list is rebuilt, so the selection is carried over to the row of the same device.
             var selectedId = SelectedDevice?.Id;
+            var before = new Dictionary<string, DeviceRowViewModel>();
+
+            foreach (var device in Devices)
+            {
+                before.TryAdd(device.Id, device);
+            }
 
             _isRebuildingList = true;
 
@@ -937,6 +945,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             }
 
             OnPropertyChanged(nameof(DevicesSummaryText));
+            UpdateAlerts(before);
 
             // A periodic refresh does not overwrite what the last action said, only a lost connection it outlived.
             if (LastRefreshedAt is null || IsServerUnavailable)
@@ -956,6 +965,64 @@ public sealed class MainWindowViewModel : ViewModelBase
             StatusMessage = Describe(exception);
             IsServerUnavailable = exception.Kind == ServerErrorKind.Unavailable;
         }
+    }
+
+    /// <summary>Raised when devices that were online have gone offline, so the window can draw attention to it.</summary>
+    public event EventHandler<IReadOnlyList<string>>? DevicesWentOffline;
+
+    /// <summary>The devices that went offline while the application was watching, until the user dismisses them.</summary>
+    public string AlertText => _alerts.Count == 0
+        ? string.Empty
+        : (_alerts.Count == 1 ? "Zariadenie je nedostupné: " : "Zariadenia sú nedostupné: ")
+            + string.Join(", ", _alerts.Values.OrderBy(alert => alert.Since).Select(alert => $"{alert.Name} (od {alert.Since:HH:mm:ss})"));
+
+    public bool HasAlert => _alerts.Count > 0;
+
+    public AsyncRelayCommand DismissAlertsCommand { get; }
+
+    /// <summary>
+    /// Notes enabled devices that went from online to offline since the previous refresh. A device that comes back
+    /// online, is disabled or removed drops out of the alert by itself. The first load only learns the states.
+    /// </summary>
+    private void UpdateAlerts(Dictionary<string, DeviceRowViewModel> before)
+    {
+        var now = _timeProvider.GetLocalNow();
+        var wentOffline = new List<string>();
+
+        foreach (var device in Devices)
+        {
+            if (device.IsEnabled && device.Status == DeviceStatus.Offline
+                && before.TryGetValue(device.Id, out var earlier) && earlier.IsEnabled && earlier.Status == DeviceStatus.Online)
+            {
+                _alerts[device.Id] = (device.Name, now);
+                wentOffline.Add(device.Name);
+            }
+        }
+
+        foreach (var id in _alerts.Keys.ToList())
+        {
+            if (Devices.FirstOrDefault(device => device.Id == id) is not { IsEnabled: true, Status: DeviceStatus.Offline })
+            {
+                _alerts.Remove(id);
+            }
+        }
+
+        OnPropertyChanged(nameof(AlertText));
+        OnPropertyChanged(nameof(HasAlert));
+
+        if (wentOffline.Count > 0)
+        {
+            DevicesWentOffline?.Invoke(this, wentOffline);
+        }
+    }
+
+    private Task DismissAlertsAsync()
+    {
+        _alerts.Clear();
+        OnPropertyChanged(nameof(AlertText));
+        OnPropertyChanged(nameof(HasAlert));
+
+        return Task.CompletedTask;
     }
 
     /// <summary>When the device list was last loaded successfully; null before the first time.</summary>

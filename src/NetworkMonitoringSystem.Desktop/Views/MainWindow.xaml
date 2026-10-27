@@ -68,6 +68,15 @@
             <TextBlock Text="{Binding ConnectionWarningText}" Foreground="White" FontWeight="SemiBold" TextWrapping="Wrap" />
         </Border>
 
+        <Border DockPanel.Dock="Top" Background="#FFF3E0" BorderBrush="#E65100" BorderThickness="0,0,0,1" Padding="12,6"
+                Visibility="{Binding HasAlert, Converter={StaticResource VisibleWhenTrue}}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Beriem na vedomie" Margin="12,0,0,0" Command="{Binding DismissAlertsCommand}" />
+                <TextBlock Text="⚠" Foreground="#E65100" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Text="{Binding AlertText}" Foreground="#BF360C" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
+
         <Grid Margin="12,10,12,8">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -90,6 +99,13 @@
                 <DataGrid.RowStyle>
                     <Style TargetType="DataGridRow">
                         <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding StatusText}" Value="Offline" />
+                                    <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}" Value="False" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Background" Value="#FDECEA" />
+                            </MultiDataTrigger>
                             <DataTrigger Binding="{Binding IsEnabled}" Value="False">
                                 <Setter Property="Foreground" Value="Gray" />
                                 <Setter Property="FontStyle" Value="Italic" />

@@ -32,6 +32,9 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) => _refreshTimer.Stop();
 
+        // Someone watching the network has to learn about an outage even with the window in the background.
+        _viewModel.DevicesWentOffline += (_, _) => TaskbarAttention.Request(this);
+
         // Signing out, a changed password and an expired session all end in the sign-in window, which the application shows next.
         _viewModel.SessionEnded += (_, _) =>
         {
