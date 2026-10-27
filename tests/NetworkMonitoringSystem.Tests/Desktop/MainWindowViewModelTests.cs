@@ -112,6 +112,38 @@ public class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task DeviceList_CanBeSearchedAndFilteredByState_KeepingTheSelectionWhileItIsShown()
+    {
+        _server.Devices.AddRange(
+        [
+            new DeviceInfo { Id = "1", Name = "Router izba", IpAddress = "192.168.1.1", Status = DeviceStatus.Online, IsEnabled = true },
+            new DeviceInfo { Id = "2", Name = "ONDREJPC", IpAddress = "158.193.96.60", Status = DeviceStatus.Online, IsEnabled = true },
+            new DeviceInfo { Id = "3", Name = "Tlačiareň", IpAddress = "192.168.1.9", Status = DeviceStatus.Offline, IsEnabled = true },
+            new DeviceInfo { Id = "4", Name = "Starý server", IpAddress = "192.168.1.20", Status = DeviceStatus.Offline, IsEnabled = false },
+        ]);
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+        viewModel.SelectedDevice = viewModel.Devices[0];
+
+        viewModel.DeviceFilterText = "192.168.1";
+        Assert.Equal(["Router izba", "Tlačiareň", "Starý server"], viewModel.Devices.Select(device => device.Name));
+        Assert.Equal("Router izba", viewModel.SelectedDevice?.Name);
+        Assert.StartsWith("4 zariadenia (zobrazené 3)", viewModel.DevicesSummaryText);
+
+        viewModel.DeviceStatusFilter = "Offline";
+        Assert.Equal(["Tlačiareň"], viewModel.Devices.Select(device => device.Name));
+        Assert.Null(viewModel.SelectedDevice);
+
+        // A refresh keeps the filter.
+        await viewModel.RefreshAsync();
+        Assert.Single(viewModel.Devices);
+
+        viewModel.DeviceFilterText = string.Empty;
+        viewModel.DeviceStatusFilter = "Zakázané";
+        Assert.Equal(["Starý server"], viewModel.Devices.Select(device => device.Name));
+    }
+
+    [Fact]
     public async Task DeviceThatGoesOffline_RaisesAnAlert_UntilItIsBackOrDismissed()
     {
         var now = new DateTimeOffset(2026, 10, 27, 14, 32, 5, TimeSpan.Zero);

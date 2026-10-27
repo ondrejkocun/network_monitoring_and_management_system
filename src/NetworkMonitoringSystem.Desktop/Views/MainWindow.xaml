@@ -91,6 +91,12 @@
                 <Button DockPanel.Dock="Right" Content="+ Pridať zariadenie…" Margin="0,0,8,0" Click="OnAddDeviceClick"
                         ToolTip="Pridá zariadenie bez agenta, napríklad router alebo switch."
                         Visibility="{Binding CanAddDevices, Converter={StaticResource VisibleWhenTrue}}" />
+                <ComboBox DockPanel.Dock="Right" Width="100" Margin="0,0,16,0" ItemsSource="{Binding DeviceStatusFilters}"
+                          SelectedItem="{Binding DeviceStatusFilter}" AutomationProperties.Name="Stav zariadení" ToolTip="Zobraziť len zariadenia v tomto stave." />
+                <TextBox x:Name="DeviceSearchBox" DockPanel.Dock="Right" Width="200" Margin="0,0,8,0" VerticalContentAlignment="Center"
+                         AutomationProperties.Name="Hľadať zariadenie" ToolTip="Názov, adresa alebo operačný systém."
+                         Text="{Binding DeviceFilterText, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock DockPanel.Dock="Right" Text="Hľadať:" Style="{StaticResource Hint}" Margin="0,0,6,0" />
                 <TextBlock Text="Zariadenia" Style="{StaticResource SectionTitle}" />
                 <TextBlock Text="{Binding DevicesSummaryText}" Style="{StaticResource Hint}" Margin="12,2,0,0" />
             </DockPanel>

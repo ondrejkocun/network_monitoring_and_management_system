@@ -45,6 +45,9 @@ public sealed class MainWindowViewModel : ViewModelBase
     private bool _isRebuildingList;
     private bool _sessionEnded;
     private readonly Dictionary<string, (string Name, DateTimeOffset Since)> _alerts = [];
+    private List<DeviceRowViewModel> _allDevices = [];
+    private string _deviceFilterText = string.Empty;
+    private string _deviceStatusFilter = AllStatuses;
     private DateTimeOffset? _lastRefreshedAt;
     private bool _isServerUnavailable;
     private string _addDeviceMessage = string.Empty;
@@ -391,15 +394,95 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public ObservableCollection<DeviceRowViewModel> Devices { get; } = [];
 
+    public const string AllStatuses = "Všetky";
+
+    public IReadOnlyList<string> DeviceStatusFilters { get; } = [AllStatuses, "Online", "Offline", "Zakázané"];
+
+    /// <summary>Shows only devices whose name, address or operating system contains the text.</summary>
+    public string DeviceFilterText
+    {
+        get => _deviceFilterText;
+        set
+        {
+            if (SetProperty(ref _deviceFilterText, value ?? string.Empty))
+            {
+                ShowFilteredDevices(SelectedDevice?.Id);
+            }
+        }
+    }
+
+    /// <summary>Shows only devices in this state; "Zakázané" are the disabled ones, which the other states leave out.</summary>
+    public string DeviceStatusFilter
+    {
+        get => _deviceStatusFilter;
+        set
+        {
+            if (value is not null && SetProperty(ref _deviceStatusFilter, value))
+            {
+                ShowFilteredDevices(SelectedDevice?.Id);
+            }
+        }
+    }
+
+    public bool IsDeviceListFiltered => DeviceFilterText.Trim().Length > 0 || DeviceStatusFilter != AllStatuses;
+
+    /// <summary>Puts the devices that pass the filter into the list and keeps the selection when it is still there.</summary>
+    private void ShowFilteredDevices(string? selectedId)
+    {
+        var text = DeviceFilterText.Trim();
+
+        _isRebuildingList = true;
+
+        try
+        {
+            Devices.Clear();
+
+            foreach (var device in _allDevices.Where(device => PassesFilter(device, text)))
+            {
+                Devices.Add(device);
+            }
+        }
+        finally
+        {
+            _isRebuildingList = false;
+        }
+
+        SelectedDevice = selectedId is null ? null : Devices.FirstOrDefault(device => device.Id == selectedId);
+        OnPropertyChanged(nameof(IsDeviceListFiltered));
+        OnPropertyChanged(nameof(DevicesSummaryText));
+    }
+
+    private bool PassesFilter(DeviceRowViewModel device, string text)
+    {
+        var statusMatches = DeviceStatusFilter switch
+        {
+            "Online" => device.IsEnabled && device.Status == DeviceStatus.Online,
+            "Offline" => device.IsEnabled && device.Status == DeviceStatus.Offline,
+            "Zakázané" => !device.IsEnabled,
+            _ => true,
+        };
+
+        return statusMatches
+            && (text.Length == 0
+                || device.Name.Contains(text, StringComparison.CurrentCultureIgnoreCase)
+                || device.Address.Contains(text, StringComparison.OrdinalIgnoreCase)
+                || device.OperatingSystem.Contains(text, StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>How many devices there are and in what state, for example "3 zariadenia · 2 online · 1 offline".</summary>
     public string DevicesSummaryText
     {
         get
         {
-            var parts = new List<string> { CountDevices(Devices.Count) };
-            var online = Devices.Count(device => device.IsEnabled && device.Status == DeviceStatus.Online);
-            var offline = Devices.Count(device => device.IsEnabled && device.Status == DeviceStatus.Offline);
-            var disabled = Devices.Count(device => !device.IsEnabled);
+            var parts = new List<string> { CountDevices(_allDevices.Count) };
+
+            if (IsDeviceListFiltered)
+            {
+                parts[0] += $" (zobrazené {Devices.Count})";
+            }
+            var online = _allDevices.Count(device => device.IsEnabled && device.Status == DeviceStatus.Online);
+            var offline = _allDevices.Count(device => device.IsEnabled && device.Status == DeviceStatus.Offline);
+            var disabled = _allDevices.Count(device => !device.IsEnabled);
 
             parts.Add($"{online} online");
 
@@ -915,28 +998,13 @@ public sealed class MainWindowViewModel : ViewModelBase
             var selectedId = SelectedDevice?.Id;
             var before = new Dictionary<string, DeviceRowViewModel>();
 
-            foreach (var device in Devices)
+            foreach (var device in _allDevices)
             {
                 before.TryAdd(device.Id, device);
             }
 
-            _isRebuildingList = true;
-
-            try
-            {
-                Devices.Clear();
-
-                foreach (var device in devices)
-                {
-                    Devices.Add(new DeviceRowViewModel(device));
-                }
-            }
-            finally
-            {
-                _isRebuildingList = false;
-            }
-
-            SelectedDevice = selectedId is null ? null : Devices.FirstOrDefault(device => device.Id == selectedId);
+            _allDevices = devices.Select(device => new DeviceRowViewModel(device)).ToList();
+            ShowFilteredDevices(selectedId);
 
             // The interval is loaded only once, so a periodic refresh does not overwrite what the user is typing.
             if (!_settingsLoaded)
@@ -989,7 +1057,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         var now = _timeProvider.GetLocalNow();
         var wentOffline = new List<string>();
 
-        foreach (var device in Devices)
+        foreach (var device in _allDevices)
         {
             if (device.IsEnabled && device.Status == DeviceStatus.Offline
                 && before.TryGetValue(device.Id, out var earlier) && earlier.IsEnabled && earlier.Status == DeviceStatus.Online)
@@ -1001,7 +1069,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         foreach (var id in _alerts.Keys.ToList())
         {
-            if (Devices.FirstOrDefault(device => device.Id == id) is not { IsEnabled: true, Status: DeviceStatus.Offline })
+            if (_allDevices.FirstOrDefault(device => device.Id == id) is not { IsEnabled: true, Status: DeviceStatus.Offline })
             {
                 _alerts.Remove(id);
             }
