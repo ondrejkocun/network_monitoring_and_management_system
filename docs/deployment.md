@@ -104,6 +104,45 @@ Running `Install-Agent.ps1` again from a newer package replaces the program and 
 .\Uninstall-Agent.ps1 -RemoveIdentity  # also forgets the identity; remove the device on the server too
 ```
 
+### Network traffic capture
+
+Capturing the traffic of a device is optional and off until an administrator switches it on for that device in the desktop application (Traffic tab). The agent learns about it in the reply to its next report and starts capturing; the first summary arrives with the report after that. With the default interval of 60 seconds the first rows therefore appear after one to two minutes.
+
+**Install Wireshark** on every computer whose traffic should be captured, from [wireshark.org](https://www.wireshark.org/download.html), with the Npcap packet driver it offers during installation. The default options are enough. The agent looks for TShark, the command line part of Wireshark, in `C:\Program Files\Wireshark\tshark.exe`; a different place is set in the agent's settings:
+
+```json
+{
+  "Agent": {
+    "TsharkPath": "D:\\Tools\\Wireshark\\tshark.exe"
+  }
+}
+```
+
+Without TShark the agent keeps reporting everything else, and the desktop application shows why traffic cannot be captured.
+
+**What the agent runs.** It captures on every active network adapter of the computer (those that are up, have an address and are neither loopback nor a tunnel), or on the Npcap interfaces listed in `Agent:CaptureInterfaces` as `tshark -D` names them. The command has fixed arguments; nothing received from the server is passed to it:
+
+```text
+tshark -i <adapter> ... -p -n -l -M 100000 -T fields -E separator=/t -E occurrence=f
+       -e frame.len -e ip.src -e ip.dst -e ipv6.src -e ipv6.dst -e ip.proto -e ipv6.nxt
+       -e tcp.srcport -e tcp.dstport -e udp.srcport -e udp.dstport -e _ws.col.protocol
+```
+
+- `-p` turns promiscuous mode off, so only traffic of this computer is seen, not that of others on the same network.
+- Only the listed header fields are printed: size, addresses, ports and the name of the highest protocol TShark recognised. The contents of packets are never read by the agent.
+- `-M 100000` makes TShark forget what it learned about earlier packets every 100,000 packets, so it does not keep growing in memory.
+
+**What is stored.** For each report the agent sums packets per conversation: transport (TCP, UDP, ICMP or other), remote address and service port (the lower of the two ports, so repeated connections from changing local ports to one service form one row), with packets and bytes sent and received, and the protocol that carried most of the data. Broadcasts and multicasts that other devices send to everyone, such as SSDP or mDNS announcements, are counted per group address, not per sender. The server stores at most 200 conversations per report, first those in which the device itself sent something, each group from the largest, and deletes them with the rest of the history after the retention period.
+
+**Limits.**
+
+- Only IP traffic is counted; ARP and other non-IP frames are left out. Traffic to the computer itself over the loopback interface is not captured.
+- The protocol name is what TShark recognises from the packets it sees. Encrypted traffic shows as TLS or QUIC; a connection that started before capture began may show as plain TCP or UDP.
+- A summary covers the whole interval between two reports, so it cannot be split into shorter periods afterwards. Traffic counted while a report fails (for example when the server cannot be reached) is lost with that report.
+- Between two reports the agent keeps at most 5,000 conversations; packets of further ones are only counted as dropped. Of those, the server keeps 200, so on a busy computer the smallest conversations in which the device only received data are not stored.
+- Capturing needs the Npcap driver. The agent installed as a service runs under the local system account, which Npcap allows even when it is installed for administrators only. An agent started by an ordinary user can capture only if Npcap allows that user.
+- TShark parses every packet, which costs processor time on a busy computer. Capture should therefore be switched on only where it is needed.
+
 ## 3. Desktop application on another computer
 
 Set the address and the pin in `appsettings.json` next to the application, or in an `appsettings.Local.json` beside it, which is read as well and is not committed to the repository:
@@ -125,3 +164,6 @@ Set the address and the pin in `appsettings.json` next to the application, or in
 | `The remote certificate is invalid because of errors in the certificate chain: UntrustedRoot` | No pin is set and Windows does not trust the server's certificate. Set the pin. |
 | `Server is not reachable (Unavailable)` | The address or port is wrong, the server is not running, or the firewall blocks the port. |
 | `Server refused the registration` | The enrollment token is wrong, the device is disabled, or the server still sees a device of this name as online. In the last case wait until it is marked offline (three synchronization intervals) and install again. |
+| `TShark was not found at '…'` | Wireshark is not installed, or not in the default folder. Install it, or set `Agent:TsharkPath`. |
+| `No active network interface can be captured on` | Npcap is missing, or TShark cannot see any active adapter. Run `tshark -D` on the computer to see which interfaces it offers. |
+| `TShark stopped unexpectedly: …` | TShark ended on its own; its last messages follow. The agent starts it again with the next report. |

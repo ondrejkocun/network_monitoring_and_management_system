@@ -42,13 +42,17 @@ erDiagram
         string OperatingSystem
         bool IsEnabled
         datetime CreatedAt
+        int TcpPort "len pre Agentless, nepovinný"
+        bool CaptureTraffic "len pre Agent"
+        string TrafficCaptureProblem
     }
     DeviceSnapshot {
         bigint Id PK
         uuid DeviceId FK
         datetime RecordedAt
         enum Status
-        int ResponseTimeMs "ping, pre Agentless"
+        int ResponseTimeMs "ping alebo TCP, pre Agentless"
+        enum ReachedBy "Ping | TcpPort, pre Agentless"
         float CpuUsagePercent
         bigint MemoryTotalBytes
         bigint MemoryUsedBytes
@@ -111,13 +115,14 @@ erDiagram
         uuid DeviceId FK
         datetime PeriodStart
         datetime PeriodEnd
+        string Transport
         string Protocol
-        string SourceAddress
-        int SourcePort
-        string DestinationAddress
-        int DestinationPort
-        bigint PacketCount
-        bigint ByteCount
+        string RemoteAddress
+        int ServicePort
+        bigint PacketsSent
+        bigint PacketsReceived
+        bigint BytesSent
+        bigint BytesReceived
     }
     Outage {
         bigint Id PK
@@ -179,7 +184,7 @@ erDiagram
 
 ### Stavy a systémové prostriedky
 
-`DeviceSnapshot` je jeden zápis stavu zariadenia v jednom okamihu; vzniká raz za globálny interval. Pri zariadení bez agenta obsahuje len `Status` a `ResponseTimeMs`, pri zariadení s agentom aj CPU a pamäť a naň naviazané riadky `DiskSnapshot` a `NetworkInterfaceSnapshot` (disky a sieťové rozhrania).
+`DeviceSnapshot` je jeden zápis stavu zariadenia v jednom okamihu; vzniká raz za globálny interval. Pri zariadení bez agenta obsahuje len `Status`, `ResponseTimeMs` a `ReachedBy` (či odpovedal ping alebo TCP port), pri zariadení s agentom aj CPU a pamäť a naň naviazané riadky `DiskSnapshot` a `NetworkInterfaceSnapshot` (disky a sieťové rozhrania).
 
 ### Procesy, porty a spojenia
 
@@ -200,6 +205,8 @@ Dve spresnenia, ktoré vyplynuli z implementácie:
 ### Sieťová komunikácia
 
 `TrafficRecord` neukladá jednotlivé pakety, ale súhrn za časové okno: kto s kým, akým protokolom, koľko paketov a bajtov. Surové pakety by databázu rýchlo zaplnili a obsahovali by citlivý obsah komunikácie.
+
+Súhrn je z pohľadu sledovaného zariadenia: namiesto zdroja a cieľa obsahuje vzdialenú adresu a počty paketov a bajtov zvlášť odoslaných a prijatých. Jeden riadok je jedna konverzácia za jedno hlásenie agenta, určená transportom (TCP, UDP, ICMP, iný), aplikačným protokolom, ako ho rozpoznal TShark (napr. TLS, DNS), vzdialenou adresou a portom služby. Port služby je nižší z dvoch portov, takže opakované spojenia z meniacich sa lokálnych portov na jednu službu tvoria jeden riadok; pri prevádzke bez portov (ICMP) je prázdny. Zariadenie má navyše príznak `CaptureTraffic`, ktorým správca zachytávanie zapína, a `TrafficCaptureProblem` s dôvodom, prečo agent zachytávať nemôže.
 
 ### Výpadky a udalosti
 
