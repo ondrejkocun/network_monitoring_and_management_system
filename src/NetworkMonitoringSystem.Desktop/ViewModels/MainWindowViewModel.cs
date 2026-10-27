@@ -46,6 +46,8 @@ public sealed class MainWindowViewModel : ViewModelBase
     private bool _sessionEnded;
     private readonly Dictionary<string, (string Name, DateTimeOffset Since)> _alerts = [];
     private List<DeviceRowViewModel> _allDevices = [];
+    private NetworkOverviewViewModel? _networkOverview;
+    private EventLogReply? _overviewWarnings;
     private string _deviceFilterText = string.Empty;
     private string _deviceStatusFilter = AllStatuses;
     private DateTimeOffset? _lastRefreshedAt;
@@ -503,7 +505,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     /// <summary>Name, state and address of the selected device, shown above its details.</summary>
     public string SelectedDeviceHeaderText => SelectedDevice is { } device
         ? string.Join(" · ", new[] { device.Name, device.StatusText, device.Address }.Where(part => !string.IsNullOrEmpty(part)))
-        : "Vyberte zariadenie v zozname.";
+        : "Prehľad siete";
 
     private static string CountDevices(int count) => count switch
     {
@@ -554,6 +556,12 @@ public sealed class MainWindowViewModel : ViewModelBase
             OnPropertyChanged(nameof(ToggleTrafficCaptureText));
             OnPropertyChanged(nameof(TrafficCaptureStatusText));
             OnPropertyChanged(nameof(SelectedDeviceHeaderText));
+            OnPropertyChanged(nameof(HasSelectedDevice));
+
+            if (value is null && !_isRebuildingList)
+            {
+                ShowOverview();
+            }
             UpdateCommandOptions();
 
             // Resources of another device must not stay on screen; those of the same device are simply reloaded.
@@ -1014,6 +1022,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
             OnPropertyChanged(nameof(DevicesSummaryText));
             UpdateAlerts(before);
+            await UpdateOverviewAsync();
 
             // A periodic refresh does not overwrite what the last action said, only a lost connection it outlived.
             if (LastRefreshedAt is null || IsServerUnavailable)
@@ -1033,6 +1042,48 @@ public sealed class MainWindowViewModel : ViewModelBase
             StatusMessage = Describe(exception);
             IsServerUnavailable = exception.Kind == ServerErrorKind.Unavailable;
         }
+    }
+
+    /// <summary>The whole network at a glance; shown while no device is selected.</summary>
+    public NetworkOverviewViewModel? NetworkOverview
+    {
+        get => _networkOverview;
+        private set => SetProperty(ref _networkOverview, value);
+    }
+
+    public bool HasSelectedDevice => SelectedDevice is not null;
+
+    /// <summary>
+    /// Rebuilds the overview while it is on screen. The warnings come from the event log, which only some users
+    /// may read; they are reloaded with the list, and kept as they were when the log cannot be read just now.
+    /// </summary>
+    private async Task UpdateOverviewAsync()
+    {
+        if (SelectedDevice is not null)
+        {
+            return;
+        }
+
+        if (CanViewEventLog)
+        {
+            var now = _timeProvider.GetUtcNow();
+
+            try
+            {
+                _overviewWarnings = await _server.GetEventLogAsync(now - NetworkOverviewViewModel.WarningsPeriod, now);
+            }
+            catch (ServerClientException exception) when (exception.Kind != ServerErrorKind.NotSignedIn)
+            {
+                // The warnings are an extra; the overview still shows the devices.
+            }
+        }
+
+        ShowOverview();
+    }
+
+    private void ShowOverview()
+    {
+        NetworkOverview = new NetworkOverviewViewModel(_allDevices, CanViewEventLog ? _overviewWarnings ?? new EventLogReply() : null, _timeProvider.GetUtcNow());
     }
 
     /// <summary>Raised when devices that were online have gone offline, so the window can draw attention to it.</summary>

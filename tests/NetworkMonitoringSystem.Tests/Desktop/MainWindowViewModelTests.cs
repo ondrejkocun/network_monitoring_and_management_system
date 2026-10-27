@@ -144,6 +144,50 @@ public class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task WithoutSelectedDevice_TheOverviewSumsUpTheNetwork_AndListsWarningsForThoseWhoMayReadTheLog()
+    {
+        var now = new DateTimeOffset(2026, 10, 27, 14, 0, 0, TimeSpan.Zero);
+        _server.Devices.AddRange(
+        [
+            new DeviceInfo { Id = "1", Name = "PC", MonitoringMode = MonitoringMode.Agent, Status = DeviceStatus.Online, IsEnabled = true, CaptureTraffic = true, TrafficCaptureProblem = "TShark was not found." },
+            new DeviceInfo { Id = "2", Name = "Router", MonitoringMode = MonitoringMode.Agentless, Status = DeviceStatus.Offline, IsEnabled = true, LastSeenAt = Timestamp.FromDateTimeOffset(now.AddMinutes(-90)) },
+            new DeviceInfo { Id = "3", Name = "Starý", MonitoringMode = MonitoringMode.Agentless, Status = DeviceStatus.Offline, IsEnabled = false },
+        ]);
+        _server.EventLog.Events.Add(new EventLogEntry { OccurredAt = Timestamp.FromDateTimeOffset(now.AddMinutes(-90)), Severity = EventSeverity.Warning, Type = "DeviceWentOffline", DeviceName = "Router", Message = "Device 'Router' is offline." });
+        _server.EventLog.Events.Add(new EventLogEntry { OccurredAt = Timestamp.FromDateTimeOffset(now.AddMinutes(-5)), Severity = EventSeverity.Info, Message = "User 'admin' signed in." });
+        var viewModel = new MainWindowViewModel(_server, _confirmation, new MutableTimeProvider(now));
+        viewModel.ApplySession(new LoginReply { UserName = "admin", Permissions = { "ViewEventLog" } });
+
+        await viewModel.RefreshAsync();
+
+        var overview = viewModel.NetworkOverview!;
+        Assert.Equal((1, 1, 1, 1, 2), (overview.OnlineCount, overview.OfflineCount, overview.DisabledCount, overview.AgentCount, overview.AgentlessCount));
+        var offline = Assert.Single(overview.OfflineDevices);
+        Assert.Equal(("Router", "1 h 30 min"), (offline.Name, offline.OfflineForText));
+        Assert.Equal("TShark was not found.", Assert.Single(overview.CaptureProblems).Problem);
+        Assert.Equal("Zariadenie „Router“ je offline.", Assert.Single(overview.Warnings).Message);
+        Assert.Equal((now.AddHours(-24), now), Assert.Single(_server.EventLogRequests));
+        Assert.Equal("Prehľad siete", viewModel.SelectedDeviceHeaderText);
+
+        // With a device selected the overview is not reloaded.
+        viewModel.SelectedDevice = viewModel.Devices[0];
+        await viewModel.RefreshAsync();
+        Assert.Single(_server.EventLogRequests);
+    }
+
+    [Fact]
+    public async Task Overview_WithoutPermissionToReadTheLog_SaysWhyThereAreNoWarnings()
+    {
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+
+        await viewModel.RefreshAsync();
+
+        Assert.False(viewModel.NetworkOverview!.CanShowWarnings);
+        Assert.Contains("oprávnením", viewModel.NetworkOverview.WarningsHeader);
+        Assert.Empty(_server.EventLogRequests);
+    }
+
+    [Fact]
     public async Task DeviceThatGoesOffline_RaisesAnAlert_UntilItIsBackOrDismissed()
     {
         var now = new DateTimeOffset(2026, 10, 27, 14, 32, 5, TimeSpan.Zero);

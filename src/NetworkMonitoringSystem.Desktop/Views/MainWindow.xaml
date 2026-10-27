@@ -185,7 +185,7 @@
             <!-- The selected device -->
             <DockPanel Grid.Row="3">
                 <DockPanel DockPanel.Dock="Top" Margin="0,4,0,6">
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Visibility="{Binding HasSelectedDevice, Converter={StaticResource VisibleWhenTrue}}">
                         <Label Content="_Obdobie:" Target="{Binding ElementName=PeriodBox}" Padding="0,0,6,0" VerticalAlignment="Center"
                                ToolTip="Obdobie pre históriu aktivity, komunikáciu, grafy, výpadky a udalosti." />
                         <ComboBox x:Name="PeriodBox" Width="150" Margin="0,0,16,0" ItemsSource="{Binding HistoryPeriods}"
@@ -197,7 +197,8 @@
                     <TextBlock Text="{Binding SelectedDeviceHeaderText}" Style="{StaticResource SectionTitle}" TextTrimming="CharacterEllipsis" />
                 </DockPanel>
 
-                <TabControl>
+                <Grid>
+                <TabControl Visibility="{Binding HasSelectedDevice, Converter={StaticResource VisibleWhenTrue}}">
                     <TabItem Header="Prehľad">
                         <StackPanel Margin="8">
                             <TextBlock Text="{Binding ResourcesMessage}">
@@ -538,6 +539,112 @@
                         </DockPanel>
                     </TabItem>
                 </TabControl>
+
+                <!-- Without a selected device: the whole network at a glance. -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" DataContext="{Binding NetworkOverview}">
+                    <ScrollViewer.Style>
+                        <Style TargetType="ScrollViewer">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DataContext.HasSelectedDevice, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ScrollViewer.Style>
+                    <StackPanel Margin="0,4,0,0">
+                        <TextBlock Text="Vyberte zariadenie v zozname a zobrazí sa jeho detail." Style="{StaticResource Hint}" Margin="0,0,0,10" />
+
+                        <UniformGrid Rows="1" Margin="0,0,0,14">
+                            <UniformGrid.Resources>
+                                <Style TargetType="Border">
+                                    <Setter Property="BorderBrush" Value="#D9DEE5" />
+                                    <Setter Property="BorderThickness" Value="1" />
+                                    <Setter Property="CornerRadius" Value="4" />
+                                    <Setter Property="Padding" Value="12,8" />
+                                    <Setter Property="Margin" Value="0,0,10,0" />
+                                </Style>
+                            </UniformGrid.Resources>
+                            <Border Background="#E8F5E9">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding OnlineCount}" FontSize="26" FontWeight="SemiBold" Foreground="#1B7F3B" />
+                                    <TextBlock Text="online" Foreground="Gray" />
+                                </StackPanel>
+                            </Border>
+                            <Border Background="#FDECEA">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding OfflineCount}" FontSize="26" FontWeight="SemiBold" Foreground="#C62828" />
+                                    <TextBlock Text="offline" Foreground="Gray" />
+                                </StackPanel>
+                            </Border>
+                            <Border Background="#F5F5F5">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding DisabledCount}" FontSize="26" FontWeight="SemiBold" Foreground="Gray" />
+                                    <TextBlock Text="zakázané" Foreground="Gray" />
+                                </StackPanel>
+                            </Border>
+                            <Border Background="#E3F2FD">
+                                <StackPanel>
+                                    <TextBlock FontSize="26" FontWeight="SemiBold" Foreground="#1565C0">
+                                        <Run Text="{Binding AgentCount, Mode=OneWay}" /><Run Text=" / " Foreground="Gray" /><Run Text="{Binding AgentlessCount, Mode=OneWay}" />
+                                    </TextBlock>
+                                    <TextBlock Text="s agentom / bez agenta" Foreground="Gray" />
+                                </StackPanel>
+                            </Border>
+                        </UniformGrid>
+
+                        <TextBlock Text="{Binding OfflineHeader}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <DataGrid ItemsSource="{Binding OfflineDevices}" MaxHeight="200" Margin="0,0,0,14">
+                            <DataGrid.Style>
+                                <Style TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding OfflineDevices.Count}" Value="0">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.Style>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Zariadenie" Binding="{Binding Name}" Width="2*" />
+                                <DataGridTextColumn Header="Adresa" Binding="{Binding Address}" Width="2*" />
+                                <DataGridTextColumn Header="Naposledy videné" Binding="{Binding LastSeenText}" Width="2*" />
+                                <DataGridTextColumn Header="Nedostupné" Binding="{Binding OfflineForText}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <StackPanel Visibility="{Binding HasCaptureProblems, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,0,14">
+                            <TextBlock Text="Problémy so zachytávaním komunikácie" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <ItemsControl ItemsSource="{Binding CaptureProblems}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,2">
+                                            <Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=": " /><Run Text="{Binding Problem, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding WarningsHeader}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <DataGrid ItemsSource="{Binding Warnings}" MaxHeight="260">
+                            <DataGrid.Style>
+                                <Style TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Warnings.Count}" Value="0">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.Style>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Čas" Binding="{Binding OccurredText}" Width="Auto" />
+                                <DataGridTextColumn Header="Závažnosť" Binding="{Binding SeverityText}" Width="Auto" />
+                                <DataGridTextColumn Header="Zariadenie" Binding="{Binding DeviceName}" Width="Auto" />
+                                <DataGridTextColumn Header="Správa" Binding="{Binding Message}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </ScrollViewer>
+                </Grid>
             </DockPanel>
         </Grid>
     </DockPanel>
