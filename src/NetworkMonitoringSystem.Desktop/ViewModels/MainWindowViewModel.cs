@@ -15,6 +15,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private readonly IConfirmationDialog _confirmation;
     private readonly TimeProvider _timeProvider;
     private readonly IFilePicker? _filePicker;
+    private readonly ITextInputDialog? _textInput;
 
     // Reading a long history is much more work for the server than the current state, and it changes slowly.
     private static readonly TimeSpan HistoryReloadInterval = TimeSpan.FromSeconds(30);
@@ -54,11 +55,13 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     /// <param name="timeProvider">The clock history periods are counted from; the system clock when not given.</param>
     /// <param name="filePicker">Lets the user choose a file to send to a device; without it files cannot be sent.</param>
+    /// <param name="textInput">Asks the user for a new name of a device; without it devices cannot be renamed.</param>
     public MainWindowViewModel(
         IServerClient server,
         IConfirmationDialog confirmation,
         TimeProvider? timeProvider = null,
-        IFilePicker? filePicker = null)
+        IFilePicker? filePicker = null,
+        ITextInputDialog? textInput = null)
     {
         ArgumentNullException.ThrowIfNull(server);
         ArgumentNullException.ThrowIfNull(confirmation);
@@ -67,6 +70,8 @@ public sealed class MainWindowViewModel : ViewModelBase
         _confirmation = confirmation;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _filePicker = filePicker;
+        _textInput = textInput;
+        RenameDeviceCommand = new AsyncRelayCommand(RenameSelectedDeviceAsync, () => SelectedDevice is not null && _textInput is not null);
         SendFileCommand = new AsyncRelayCommand(SendFileAsync, () => CanSendCommands && _filePicker is not null);
         _selectedHistoryPeriod = HistoryPeriods[1];
 
@@ -411,6 +416,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             RemoveDeviceCommand.RaiseCanExecuteChanged();
             ToggleDeviceEnabledCommand.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(ToggleDeviceEnabledText));
+            RenameDeviceCommand.RaiseCanExecuteChanged();
             ToggleTrafficCaptureCommand.RaiseCanExecuteChanged();
             ResetTrafficCommand.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(ToggleTrafficCaptureText));
@@ -931,6 +937,40 @@ public sealed class MainWindowViewModel : ViewModelBase
         await RefreshAsync();
 
         StatusMessage = $"Zariadenie „{device.Name}“ bolo odstránené. {StatusMessage}";
+    }
+
+    /// <summary>Asks for a new name of the selected device and saves it.</summary>
+    public AsyncRelayCommand RenameDeviceCommand { get; }
+
+    /// <summary>The longest name the server accepts.</summary>
+    public const int MaxDeviceNameLength = 200;
+
+    private async Task RenameSelectedDeviceAsync()
+    {
+        var device = SelectedDevice;
+
+        if (device is null
+            || _textInput?.AskForText("Premenovať zariadenie", $"_Nový názov zariadenia „{device.Name}“:", device.Name, MaxDeviceNameLength) is not { } name
+            || name.Trim().Length == 0
+            || name.Trim() == device.Name)
+        {
+            return;
+        }
+
+        try
+        {
+            await _server.RenameDeviceAsync(device.Id, name.Trim());
+        }
+        catch (ServerClientException exception)
+        {
+            StatusMessage = Describe(exception);
+
+            return;
+        }
+
+        await RefreshAsync();
+
+        StatusMessage = $"Zariadenie „{device.Name}“ bolo premenované na „{name.Trim()}“. {StatusMessage}";
     }
 
     private async Task ToggleSelectedDeviceEnabledAsync()

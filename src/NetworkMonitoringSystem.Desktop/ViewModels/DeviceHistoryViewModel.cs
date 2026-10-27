@@ -204,6 +204,7 @@ public sealed class EventRowViewModel
             "DeviceDisabled" => "Zakázanie zariadenia",
             "DeviceEnabled" => "Povolenie zariadenia",
             "TrafficCaptureChanged" => "Zachytávanie komunikácie",
+            "DeviceRenamed" => "Premenovanie zariadenia",
             _ => type,
         };
     }

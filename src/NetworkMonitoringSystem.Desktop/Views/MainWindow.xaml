@@ -34,6 +34,8 @@
                     Command="{Binding RemoveDeviceCommand}" />
             <Button DockPanel.Dock="Right" Content="{Binding ToggleDeviceEnabledText}" Padding="12,4" Margin="0,0,8,0"
                     Command="{Binding ToggleDeviceEnabledCommand}" />
+            <Button DockPanel.Dock="Right" Content="Premenovať" Padding="12,4" Margin="0,0,8,0"
+                    Command="{Binding RenameDeviceCommand}" />
             <TextBlock Text="Zariadenia" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
         </DockPanel>
 
