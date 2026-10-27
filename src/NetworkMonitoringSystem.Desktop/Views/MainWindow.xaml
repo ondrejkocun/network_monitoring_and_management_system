@@ -26,6 +26,8 @@
             <Button DockPanel.Dock="Right" Content="Zmeniť heslo" Padding="12,4" Margin="8,0,0,0" Click="OnChangePasswordClick" />
             <Button DockPanel.Dock="Right" Content="Používatelia a roly" Padding="12,4" Margin="8,0,0,0" Click="OnAccessClick"
                     Visibility="{Binding CanManageUsers, Converter={StaticResource VisibleWhenTrue}}" />
+            <Button DockPanel.Dock="Right" Content="Záznam udalostí" Padding="12,4" Margin="8,0,0,0" Click="OnEventLogClick"
+                    Visibility="{Binding CanViewEventLog, Converter={StaticResource VisibleWhenTrue}}" />
             <TextBlock DockPanel.Dock="Right" Text="{Binding CurrentUserText}" VerticalAlignment="Center" Margin="16,0,0,0" Foreground="Gray" />
             <Button DockPanel.Dock="Right" Content="Obnoviť" Padding="12,4" Command="{Binding RefreshCommand}" />
             <Button DockPanel.Dock="Right" Content="Odstrániť vybrané" Padding="12,4" Margin="0,0,8,0"

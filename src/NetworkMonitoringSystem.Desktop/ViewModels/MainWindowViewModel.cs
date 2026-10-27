@@ -249,6 +249,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public bool CanManageUsers => _permissions.Contains("ManageUsers");
 
+    public bool CanViewEventLog => _permissions.Contains("ViewEventLog");
+
     /// <summary>Takes over the name and the permissions of the user who has just signed in.</summary>
     public void ApplySession(LoginReply session)
     {
@@ -260,11 +262,14 @@ public sealed class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanAddDevices));
         OnPropertyChanged(nameof(CanManageSettings));
         OnPropertyChanged(nameof(CanManageUsers));
+        OnPropertyChanged(nameof(CanViewEventLog));
     }
 
     public AccessViewModel CreateAccessViewModel() => new(_server, _confirmation);
 
     public ChangePasswordViewModel CreateChangePasswordViewModel() => new(_server);
+
+    public EventLogViewModel CreateEventLogViewModel() => new(_server, _timeProvider);
 
     /// <summary>Changing the password signs the user out everywhere, including here.</summary>
     public void EndSessionAfterPasswordChange()

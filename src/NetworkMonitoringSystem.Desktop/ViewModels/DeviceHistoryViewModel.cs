@@ -181,8 +181,14 @@ public sealed class EventRowViewModel
     {
         OccurredText = DeviceHistoryViewModel.FormatTime(monitoringEvent.OccurredAt.ToDateTimeOffset());
         Message = monitoringEvent.Message;
+        TypeText = DescribeType(monitoringEvent.Type);
+        SeverityText = DescribeSeverity(monitoringEvent.Severity);
+    }
 
-        TypeText = monitoringEvent.Type switch
+    /// <summary>The Slovak name of an event type; a type this version does not know is shown as the server names it.</summary>
+    public static string DescribeType(string type)
+    {
+        return type switch
         {
             "AgentRegistered" => "Registrácia agenta",
             "DeviceWentOnline" => "Zariadenie online",
@@ -190,13 +196,21 @@ public sealed class EventRowViewModel
             "SettingsChanged" => "Zmena nastavení",
             "DeviceRemoved" => "Odstránenie zariadenia",
             "PortOpened" => "Nový otvorený port",
+            "UserLoggedIn" => "Prihlásenie",
+            "LoginFailed" => "Neúspešné prihlásenie",
+            "AccessDenied" => "Zamietnutý prístup",
+            "AccessChanged" => "Zmena prístupových práv",
+            "RemoteCommand" => "Vzdialený príkaz",
             "DeviceDisabled" => "Zakázanie zariadenia",
             "DeviceEnabled" => "Povolenie zariadenia",
             "TrafficCaptureChanged" => "Zachytávanie komunikácie",
-            _ => monitoringEvent.Type,
+            _ => type,
         };
+    }
 
-        SeverityText = monitoringEvent.Severity switch
+    public static string DescribeSeverity(EventSeverity severity)
+    {
+        return severity switch
         {
             EventSeverity.Info => "Informácia",
             EventSeverity.Warning => "Varovanie",

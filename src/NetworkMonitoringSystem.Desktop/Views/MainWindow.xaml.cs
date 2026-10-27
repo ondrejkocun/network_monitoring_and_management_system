@@ -45,6 +45,11 @@ public partial class MainWindow : Window
         new AccessWindow(_viewModel.CreateAccessViewModel()) { Owner = this }.ShowDialog();
     }
 
+    private void OnEventLogClick(object sender, RoutedEventArgs e)
+    {
+        new EventLogWindow(_viewModel.CreateEventLogViewModel()) { Owner = this }.ShowDialog();
+    }
+
     private void OnChangePasswordClick(object sender, RoutedEventArgs e)
     {
         if (new ChangePasswordWindow(_viewModel.CreateChangePasswordViewModel()) { Owner = this }.ShowDialog() == true)
