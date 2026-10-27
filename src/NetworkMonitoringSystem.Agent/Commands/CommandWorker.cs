@@ -14,20 +14,26 @@ public sealed class CommandWorker : BackgroundService
     private static readonly TimeSpan DefaultPollInterval = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan CommandTimeout = TimeSpan.FromSeconds(90);
 
+    /// <summary>A file of up to 100 MB may take longer than a command; the server keeps it for 10 minutes.</summary>
+    private static readonly TimeSpan FileTimeout = TimeSpan.FromMinutes(9);
+
     private readonly AgentApi.AgentApiClient _client;
     private readonly IAgentIdentityStore _identityStore;
     private readonly ICommandExecutor _executor;
+    private readonly IFileReceiver _fileReceiver;
     private readonly ILogger<CommandWorker> _logger;
 
     public CommandWorker(
         AgentApi.AgentApiClient client,
         IAgentIdentityStore identityStore,
         ICommandExecutor executor,
+        IFileReceiver fileReceiver,
         ILogger<CommandWorker> logger)
     {
         _client = client;
         _identityStore = identityStore;
         _executor = executor;
+        _fileReceiver = fileReceiver;
         _logger = logger;
     }
 
@@ -58,7 +64,7 @@ public sealed class CommandWorker : BackgroundService
 
             foreach (var command in reply.Commands)
             {
-                var result = await ExecuteAsync(command, cancellationToken);
+                var result = await ExecuteAsync(command, credentials, cancellationToken);
 
                 await _client.ReportCommandResultAsync(
                     new CommandResultRequest
@@ -82,18 +88,22 @@ public sealed class CommandWorker : BackgroundService
         }
     }
 
-    private async Task<CommandResult> ExecuteAsync(AgentCommand command, CancellationToken cancellationToken)
+    private async Task<CommandResult> ExecuteAsync(AgentCommand command, AgentCredentials credentials, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Carrying out command {Type} {CommandId}.", command.Type, command.Id);
 
+        var isFile = command.Type == CommandType.SendFile;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(CommandTimeout);
+        timeout.CancelAfter(isFile ? FileTimeout : CommandTimeout);
 
         CommandResult result;
 
         try
         {
-            result = await _executor.ExecuteAsync(command, timeout.Token);
+            // A file is downloaded from the server; every other command is carried out on this computer.
+            result = isFile
+                ? await _fileReceiver.ReceiveAsync(command, credentials, timeout.Token)
+                : await _executor.ExecuteAsync(command, timeout.Token);
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {

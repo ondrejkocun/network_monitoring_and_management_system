@@ -35,6 +35,9 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
     private readonly InMemoryIdentityStore _identityStore = new();
     private readonly FakeTrafficCapture _trafficCapture = new();
 
+    /// <summary>Files the tests send arrive here instead of the real inbox; the folder is deleted afterwards.</summary>
+    private readonly string _inbox = Path.Combine(Path.GetTempPath(), "nms-inbox-" + Guid.NewGuid().ToString("N"));
+
     public AgentServerCommunicationTests(DatabaseFixture database)
     {
         _database = database;
@@ -75,6 +78,11 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
     {
         _channel.Dispose();
         _server.Dispose();
+
+        if (Directory.Exists(_inbox))
+        {
+            Directory.Delete(_inbox, recursive: true);
+        }
     }
 
     [Fact]
@@ -256,6 +264,37 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
         var again = agent.DownloadFile(new DownloadFileRequest { Credentials = credentials, CommandId = sent.Id });
         var exception = await Assert.ThrowsAsync<RpcException>(() => again.ResponseStream.MoveNext(CancellationToken.None));
         Assert.Equal(StatusCode.NotFound, exception.StatusCode);
+    }
+
+    [Fact]
+    public async Task Files_SentByAdministrator_AreSavedIntoTheInbox_WithoutOverwriting_AndTheResultSaysWhere()
+    {
+        await CreateReporter(Token).ReportOnceAsync(CancellationToken.None);
+        var identity = _identityStore.Load()!;
+        var admin = new NetworkMonitoringSystem.Desktop.Services.GrpcServerClient(new AdminContracts.AdminApi.AdminApiClient(_channel));
+        await admin.LoginAsync(Server.TestAdministrator.UserName, Server.TestAdministrator.Password);
+        var worker = CreateCommandWorker(new SynchronizationSignal());
+
+        // The tests of this class share one device: commands other tests left waiting are carried out first.
+        await worker.PollOnceAsync(CancellationToken.None);
+
+        var first = new byte[300_000];
+        var second = new byte[1024 * 1024 + 7];
+        Random.Shared.NextBytes(first);
+        Random.Shared.NextBytes(second);
+        var sentFirst = await admin.SendFileAsync(identity.DeviceId, "config.json", new MemoryStream(first));
+        await admin.SendFileAsync(identity.DeviceId, "config.json", new MemoryStream(second));
+
+        await worker.PollOnceAsync(CancellationToken.None);
+
+        Assert.Equal(first, await File.ReadAllBytesAsync(Path.Combine(_inbox, "config.json")));
+        Assert.Equal(second, await File.ReadAllBytesAsync(Path.Combine(_inbox, "config (2).json")));
+        Assert.Equal(2, Directory.GetFiles(_inbox).Length);
+
+        var delivered = Assert.Single(await admin.GetDeviceCommandsAsync(identity.DeviceId), command => command.Id == sentFirst.Id);
+        Assert.Equal("Succeeded", delivered.Status);
+        Assert.Contains(Path.Combine(_inbox, "config.json"), delivered.ResultMessage);
+        Assert.Contains(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(first)), delivered.ResultMessage);
     }
 
     [Fact]
@@ -504,6 +543,10 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
             new AgentApi.AgentApiClient(_channel),
             _identityStore,
             new WindowsCommandExecutor(new SystemProgramRunner(), signal),
+            new InboxFileReceiver(
+                new AgentApi.AgentApiClient(_channel),
+                Options.Create(new AgentOptions { InboxPath = _inbox }),
+                NullLogger<InboxFileReceiver>.Instance),
             NullLogger<CommandWorker>.Instance);
     }
 

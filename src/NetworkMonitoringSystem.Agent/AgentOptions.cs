@@ -40,4 +40,10 @@ public sealed class AgentOptions
     /// of this computer is used.
     /// </summary>
     public string[]? CaptureInterfaces { get; set; }
+
+    /// <summary>
+    /// Folder files sent by the administrator are saved into. Defaults to C:\ProgramData\NetworkMonitoringSystem\Inbox;
+    /// there is only ever this one folder.
+    /// </summary>
+    public string? InboxPath { get; set; }
 }

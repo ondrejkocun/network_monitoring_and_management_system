@@ -52,6 +52,7 @@ builder.Services.AddSingleton<AgentReporter>();
 builder.Services.AddSingleton<SynchronizationSignal>();
 builder.Services.AddSingleton<ISystemProgramRunner, SystemProgramRunner>();
 builder.Services.AddSingleton<ICommandExecutor, WindowsCommandExecutor>();
+builder.Services.AddSingleton<IFileReceiver, InboxFileReceiver>();
 
 if (!registerOnly)
 {
