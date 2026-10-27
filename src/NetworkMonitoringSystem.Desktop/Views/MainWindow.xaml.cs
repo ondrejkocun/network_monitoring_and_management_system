@@ -45,6 +45,16 @@ public partial class MainWindow : Window
         new AccessWindow(_viewModel.CreateAccessViewModel()) { Owner = this }.ShowDialog();
     }
 
+    private void OnAddDeviceClick(object sender, RoutedEventArgs e)
+    {
+        new AddDeviceWindow(_viewModel) { Owner = this }.ShowDialog();
+    }
+
+    private void OnSettingsClick(object sender, RoutedEventArgs e)
+    {
+        new SettingsWindow(_viewModel) { Owner = this }.ShowDialog();
+    }
+
     private void OnEventLogClick(object sender, RoutedEventArgs e)
     {
         new EventLogWindow(_viewModel.CreateEventLogViewModel()) { Owner = this }.ShowDialog();

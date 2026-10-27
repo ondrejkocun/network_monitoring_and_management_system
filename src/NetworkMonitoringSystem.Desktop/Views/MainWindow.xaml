@@ -44,6 +44,8 @@
                 <Button DockPanel.Dock="Right" Content="Zmeniť heslo" Margin="8,0,0,0" Click="OnChangePasswordClick" />
                 <Button DockPanel.Dock="Right" Content="Používatelia a roly" Margin="8,0,0,0" Click="OnAccessClick"
                         Visibility="{Binding CanManageUsers, Converter={StaticResource VisibleWhenTrue}}" />
+                <Button DockPanel.Dock="Right" Content="Nastavenia sledovania…" Margin="8,0,0,0" Click="OnSettingsClick"
+                        Visibility="{Binding CanManageSettings, Converter={StaticResource VisibleWhenTrue}}" />
                 <Button DockPanel.Dock="Right" Content="Záznam udalostí" Margin="8,0,0,0" Click="OnEventLogClick"
                         Visibility="{Binding CanViewEventLog, Converter={StaticResource VisibleWhenTrue}}" />
                 <TextBlock Text="Network Monitoring &amp; Management System" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -60,13 +62,14 @@
                 <RowDefinition Height="*" MinHeight="90" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="2*" MinHeight="260" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <!-- Devices -->
             <DockPanel Grid.Row="0" Margin="0,0,0,6">
                 <Button DockPanel.Dock="Right" Content="Obnoviť" Command="{Binding RefreshCommand}" />
+                <Button DockPanel.Dock="Right" Content="+ Pridať zariadenie…" Margin="0,0,8,0" Click="OnAddDeviceClick"
+                        ToolTip="Pridá zariadenie bez agenta, napríklad router alebo switch."
+                        Visibility="{Binding CanAddDevices, Converter={StaticResource VisibleWhenTrue}}" />
                 <TextBlock Text="Zariadenia" Style="{StaticResource SectionTitle}" />
                 <TextBlock Text="{Binding DevicesSummaryText}" Style="{StaticResource Hint}" Margin="12,2,0,0" />
             </DockPanel>
@@ -441,47 +444,6 @@
                     </TabItem>
                 </TabControl>
             </DockPanel>
-
-            <GroupBox Grid.Row="4" Header="Pridať zariadenie bez agenta" Margin="0,10,0,0" Padding="8"
-                      Visibility="{Binding CanAddDevices, Converter={StaticResource VisibleWhenTrue}}">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Názov:" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <TextBox Width="200" VerticalContentAlignment="Center"
-                             Text="{Binding NewDeviceName, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Text="IP adresa:" VerticalAlignment="Center" Margin="16,0,6,0" />
-                    <TextBox Width="160" VerticalContentAlignment="Center"
-                             Text="{Binding NewDeviceIpAddress, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Text="TCP port:" VerticalAlignment="Center" Margin="16,0,6,0" />
-                    <TextBox Width="70" VerticalContentAlignment="Center"
-                             ToolTip="Nepovinné. Ak zariadenie neodpovedá na ping, server sa skúsi pripojiť na tento port."
-                             Text="{Binding NewDeviceTcpPort, UpdateSourceTrigger=PropertyChanged}" />
-                    <Button Content="Pridať" Margin="16,0,0,0" Command="{Binding AddDeviceCommand}" />
-                </StackPanel>
-            </GroupBox>
-
-            <GroupBox Grid.Row="5" Header="Nastavenia sledovania" Margin="0,10,0,0" Padding="8"
-                      Visibility="{Binding CanManageSettings, Converter={StaticResource VisibleWhenTrue}}">
-                <StackPanel>
-                    <WrapPanel>
-                        <Label Content="_Interval synchronizácie:" Target="{Binding ElementName=SyncIntervalBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
-                        <TextBox x:Name="SyncIntervalBox" Width="70" VerticalContentAlignment="Center"
-                                 Text="{Binding SyncIntervalText, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Text="s" VerticalAlignment="Center" Margin="6,0,16,0" />
-                        <Label Content="Offline _po:" Target="{Binding ElementName=OfflineThresholdBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
-                        <TextBox x:Name="OfflineThresholdBox" Width="50" VerticalContentAlignment="Center"
-                                 ToolTip="Koľko intervalov za sebou môže zariadenie vynechať, kým sa považuje za offline."
-                                 Text="{Binding OfflineThresholdText, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Text="vynechaných intervaloch" VerticalAlignment="Center" Margin="6,0,16,0" />
-                        <Label Content="_Uchovávať históriu:" Target="{Binding ElementName=RetentionDaysBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
-                        <TextBox x:Name="RetentionDaysBox" Width="60" VerticalContentAlignment="Center"
-                                 ToolTip="Staršie záznamy stavov, výpadky, udalosti a komunikáciu server raz za hodinu zmaže."
-                                 Text="{Binding RetentionDaysText, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Text="dní" VerticalAlignment="Center" Margin="6,0,16,0" />
-                        <Button Content="Uložiť" Command="{Binding SaveSettingsCommand}" />
-                    </WrapPanel>
-                    <TextBlock Text="{Binding SettingsHint}" Margin="0,6,0,0" Style="{StaticResource Hint}" />
-                </StackPanel>
-            </GroupBox>
         </Grid>
     </DockPanel>
 </Window>

@@ -138,9 +138,12 @@ public class MainWindowViewModelTests
             NewDeviceName = "  Router ",
             NewDeviceIpAddress = " 192.168.50.1 ",
         };
+        var added = 0;
+        viewModel.DeviceAdded += (_, _) => added++;
 
         await viewModel.AddDeviceCommand.ExecuteAsync();
 
+        Assert.Equal(1, added);
         Assert.Equal(("Router", "192.168.50.1", (int?)null), Assert.Single(_server.AddedDevices));
         Assert.Equal(string.Empty, viewModel.NewDeviceName);
         Assert.Equal(string.Empty, viewModel.NewDeviceIpAddress);
@@ -212,6 +215,8 @@ public class MainWindowViewModelTests
         await viewModel.AddDeviceCommand.ExecuteAsync();
 
         Assert.Contains("'abc' is not a valid IP address.", viewModel.StatusMessage);
+        // The form shows the reason itself: it covers the main window and its status bar.
+        Assert.Equal(viewModel.StatusMessage, viewModel.AddDeviceMessage);
         Assert.Equal("Router", viewModel.NewDeviceName);
         Assert.Equal("abc", viewModel.NewDeviceIpAddress);
     }
@@ -995,8 +1000,12 @@ public class MainWindowViewModelTests
         var viewModel = new MainWindowViewModel(_server, _confirmation);
         await viewModel.RefreshAsync();
 
+        var saved = 0;
+        viewModel.SettingsSaved += (_, _) => saved++;
+
         await viewModel.SaveSettingsCommand.ExecuteAsync();
         Assert.Equal("Nastavenia sa nezmenili.", viewModel.StatusMessage);
+        Assert.Equal(1, saved);
 
         viewModel.SyncIntervalText = "30";
         viewModel.RetentionDaysText = "90";
@@ -1020,8 +1029,27 @@ public class MainWindowViewModelTests
         await viewModel.SaveSettingsCommand.ExecuteAsync();
 
         Assert.Contains("between 5 and 86400", viewModel.StatusMessage);
+        Assert.Equal(viewModel.StatusMessage, viewModel.SettingsMessage);
         Assert.Equal(60, _server.SyncIntervalSeconds);
         Assert.Equal("1", viewModel.SyncIntervalText);
+    }
+
+    [Fact]
+    public async Task Forms_OpenWithoutWhatWasTypedButNotSaved()
+    {
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+        viewModel.SyncIntervalText = "1";
+        viewModel.NewDeviceName = "Router";
+        _server.Failure = new ServerClientException(ServerErrorKind.InvalidInput, "refused");
+        await viewModel.SaveSettingsCommand.ExecuteAsync();
+        _server.Failure = null;
+
+        viewModel.ResetSettingsForm();
+        viewModel.ClearNewDevice();
+
+        Assert.Equal(("60", string.Empty), (viewModel.SyncIntervalText, viewModel.SettingsMessage));
+        Assert.Equal(string.Empty, viewModel.NewDeviceName);
     }
 
     internal sealed class FakeServerClient : IServerClient

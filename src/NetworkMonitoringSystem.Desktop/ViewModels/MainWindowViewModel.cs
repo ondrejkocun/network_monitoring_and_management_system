@@ -44,6 +44,8 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _resourcesMessage = NoDeviceSelectedMessage;
     private bool _isRebuildingList;
     private bool _sessionEnded;
+    private string _addDeviceMessage = string.Empty;
+    private string _settingsMessage = string.Empty;
     private HashSet<string> _permissions = [];
     private string _currentUserName = string.Empty;
     private DeviceHistoryViewModel? _selectedDeviceHistory;
@@ -956,18 +958,37 @@ public sealed class MainWindowViewModel : ViewModelBase
         catch (ServerClientException exception)
         {
             StatusMessage = Describe(exception);
+            AddDeviceMessage = StatusMessage;
 
             return;
         }
 
         var addedName = NewDeviceName.Trim();
-        NewDeviceName = string.Empty;
-        NewDeviceIpAddress = string.Empty;
-        NewDeviceTcpPort = string.Empty;
+        ClearNewDevice();
 
         await RefreshAsync();
 
         StatusMessage = $"Zariadenie „{addedName}“ bolo pridané. {StatusMessage}";
+        DeviceAdded?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Raised when a device has been added, so the form that added it can close.</summary>
+    public event EventHandler? DeviceAdded;
+
+    /// <summary>Why the device could not be added; shown in the form, which hides the main window's status bar.</summary>
+    public string AddDeviceMessage
+    {
+        get => _addDeviceMessage;
+        private set => SetProperty(ref _addDeviceMessage, value);
+    }
+
+    /// <summary>Empties the form for adding a device, so it opens without what was typed before.</summary>
+    public void ClearNewDevice()
+    {
+        NewDeviceName = string.Empty;
+        NewDeviceIpAddress = string.Empty;
+        NewDeviceTcpPort = string.Empty;
+        AddDeviceMessage = string.Empty;
     }
 
     private async Task RemoveSelectedDeviceAsync()
@@ -1151,6 +1172,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             // What the user typed stays, so the wrong value can be corrected; what was saved is remembered.
             _shownSettings = shown;
             StatusMessage = Describe(exception);
+            SettingsMessage = StatusMessage;
 
             return;
         }
@@ -1159,6 +1181,28 @@ public sealed class MainWindowViewModel : ViewModelBase
         StatusMessage = changed
             ? $"Nastavenia sú uložené: interval {seconds} s, offline po {missedSyncs} vynechaných intervaloch, história {days} dní."
             : "Nastavenia sa nezmenili.";
+        SettingsSaved?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Raised when the settings have been saved, so the form can close.</summary>
+    public event EventHandler? SettingsSaved;
+
+    /// <summary>Why the settings could not be saved; shown in the form.</summary>
+    public string SettingsMessage
+    {
+        get => _settingsMessage;
+        private set => SetProperty(ref _settingsMessage, value);
+    }
+
+    /// <summary>Puts the saved settings back into the form, so it opens without changes that were not saved.</summary>
+    public void ResetSettingsForm()
+    {
+        if (_shownSettings is not null)
+        {
+            ShowSettings(_shownSettings);
+        }
+
+        SettingsMessage = string.Empty;
     }
 
     private void ShowSettings(MonitoringSettingsInfo settings)

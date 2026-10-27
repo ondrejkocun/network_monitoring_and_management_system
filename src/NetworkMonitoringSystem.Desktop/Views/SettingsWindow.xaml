@@ -1,0 +1,52 @@
+<Window x:Class="NetworkMonitoringSystem.Desktop.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:viewModels="clr-namespace:NetworkMonitoringSystem.Desktop.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=viewModels:MainWindowViewModel}"
+        Title="Nastavenia sledovania" Width="460" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" FocusManager.FocusedElement="{Binding ElementName=SyncIntervalBox}">
+    <StackPanel Margin="20">
+        <TextBlock Text="Platí pre všetky zariadenia a prejaví sa bez reštartu servera." TextWrapping="Wrap" Foreground="Gray" Margin="0,0,0,12" />
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="80" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Label Grid.Row="0" Content="_Interval synchronizácie:" Target="{Binding ElementName=SyncIntervalBox}" Padding="0,0,12,0" VerticalAlignment="Center" />
+            <TextBox Grid.Row="0" Grid.Column="1" x:Name="SyncIntervalBox" Padding="4"
+                     Text="{Binding SyncIntervalText, UpdateSourceTrigger=PropertyChanged}" />
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="sekúnd" VerticalAlignment="Center" Margin="8,0,0,0" />
+
+            <Label Grid.Row="1" Content="_Offline po:" Target="{Binding ElementName=OfflineThresholdBox}" Padding="0,0,12,0" Margin="0,8,0,0" VerticalAlignment="Center" />
+            <TextBox Grid.Row="1" Grid.Column="1" x:Name="OfflineThresholdBox" Padding="4" Margin="0,8,0,0"
+                     ToolTip="Koľko intervalov za sebou môže zariadenie vynechať, kým sa považuje za offline."
+                     Text="{Binding OfflineThresholdText, UpdateSourceTrigger=PropertyChanged}" />
+            <TextBlock Grid.Row="1" Grid.Column="2" Text="vynechaných intervaloch" VerticalAlignment="Center" Margin="8,8,0,0" />
+
+            <Label Grid.Row="2" Content="_Uchovávať históriu:" Target="{Binding ElementName=RetentionDaysBox}" Padding="0,0,12,0" Margin="0,8,0,0" VerticalAlignment="Center" />
+            <TextBox Grid.Row="2" Grid.Column="1" x:Name="RetentionDaysBox" Padding="4" Margin="0,8,0,0"
+                     ToolTip="Staršie záznamy stavov, výpadky, udalosti a komunikáciu server raz za hodinu zmaže."
+                     Text="{Binding RetentionDaysText, UpdateSourceTrigger=PropertyChanged}" />
+            <TextBlock Grid.Row="2" Grid.Column="2" Text="dní" VerticalAlignment="Center" Margin="8,8,0,0" />
+        </Grid>
+
+        <TextBlock Text="{Binding SettingsHint}" Foreground="Gray" TextWrapping="Wrap" Margin="0,12,0,0" />
+        <TextBlock Text="{Binding SettingsMessage}" Foreground="#C62828" TextWrapping="Wrap" Margin="0,8,0,0" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Zrušiť" IsCancel="True" Padding="16,6" Margin="0,0,8,0" />
+            <Button Content="Uložiť" IsDefault="True" Padding="16,6" Command="{Binding SaveSettingsCommand}" />
+        </StackPanel>
+    </StackPanel>
+</Window>
