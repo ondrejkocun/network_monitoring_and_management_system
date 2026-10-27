@@ -385,6 +385,44 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public ObservableCollection<DeviceRowViewModel> Devices { get; } = [];
 
+    /// <summary>How many devices there are and in what state, for example "3 zariadenia · 2 online · 1 offline".</summary>
+    public string DevicesSummaryText
+    {
+        get
+        {
+            var parts = new List<string> { CountDevices(Devices.Count) };
+            var online = Devices.Count(device => device.IsEnabled && device.Status == DeviceStatus.Online);
+            var offline = Devices.Count(device => device.IsEnabled && device.Status == DeviceStatus.Offline);
+            var disabled = Devices.Count(device => !device.IsEnabled);
+
+            parts.Add($"{online} online");
+
+            if (offline > 0)
+            {
+                parts.Add($"{offline} offline");
+            }
+
+            if (disabled > 0)
+            {
+                parts.Add($"{disabled} zakázané");
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>Name, state and address of the selected device, shown above its details.</summary>
+    public string SelectedDeviceHeaderText => SelectedDevice is { } device
+        ? string.Join(" · ", new[] { device.Name, device.StatusText, device.Address }.Where(part => !string.IsNullOrEmpty(part)))
+        : "Vyberte zariadenie v zozname.";
+
+    private static string CountDevices(int count) => count switch
+    {
+        1 => "1 zariadenie",
+        >= 2 and <= 4 => $"{count} zariadenia",
+        _ => $"{count} zariadení",
+    };
+
     public AsyncRelayCommand RefreshCommand { get; }
 
     public AsyncRelayCommand AddDeviceCommand { get; }
@@ -426,6 +464,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             ResetTrafficCommand.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(ToggleTrafficCaptureText));
             OnPropertyChanged(nameof(TrafficCaptureStatusText));
+            OnPropertyChanged(nameof(SelectedDeviceHeaderText));
             UpdateCommandOptions();
 
             // Resources of another device must not stay on screen; those of the same device are simply reloaded.
@@ -893,8 +932,8 @@ public sealed class MainWindowViewModel : ViewModelBase
                 ShowSettings(await _server.GetSettingsAsync());
             }
 
-            var online = Devices.Count(device => device.Status == DeviceStatus.Online);
-            StatusMessage = $"Pripojené k serveru. Zariadenia: {Devices.Count}, z toho online: {online}.";
+            OnPropertyChanged(nameof(DevicesSummaryText));
+            StatusMessage = "Pripojené k serveru.";
         }
         catch (ServerClientException exception) when (exception.Kind == ServerErrorKind.NotSignedIn)
         {

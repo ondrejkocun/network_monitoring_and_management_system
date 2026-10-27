@@ -68,7 +68,10 @@ public class MainWindowViewModelTests
         Assert.Equal("Offline", router.StatusText);
         Assert.Equal("–", router.LastSeenText);
 
-        Assert.Contains("Zariadenia: 2, z toho online: 1", viewModel.StatusMessage);
+        Assert.Equal("2 zariadenia · 1 online · 1 offline", viewModel.DevicesSummaryText);
+
+        viewModel.SelectedDevice = computer;
+        Assert.Equal("PC-01 · Online · pc-01", viewModel.SelectedDeviceHeaderText);
     }
 
     [Fact]

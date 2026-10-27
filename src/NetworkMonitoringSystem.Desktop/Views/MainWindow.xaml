@@ -7,454 +7,481 @@
         xmlns:controls="clr-namespace:NetworkMonitoringSystem.Desktop.Controls"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=viewModels:MainWindowViewModel}"
-        Title="{Binding Title}" Height="860" Width="1040" MinHeight="620" MinWidth="820">
+        Title="{Binding Title}" Height="860" Width="1100" MinHeight="620" MinWidth="860">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="VisibleWhenTrue" />
+
+        <!-- One look for every list: read-only, row lines only, no frame inside a tab. -->
+        <Style TargetType="DataGrid">
+            <Setter Property="AutoGenerateColumns" Value="False" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="HeadersVisibility" Value="Column" />
+            <Setter Property="GridLinesVisibility" Value="Horizontal" />
+            <Setter Property="HorizontalGridLinesBrush" Value="#E0E0E0" />
+            <Setter Property="BorderBrush" Value="#D0D0D0" />
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="12,4" />
+        </Style>
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="Gray" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
     </Window.Resources>
-    <Grid Margin="12">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" MinHeight="120" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
 
-        <DockPanel Grid.Row="0" Margin="0,0,0,8">
-            <Button DockPanel.Dock="Right" Content="Odhlásiť" Padding="12,4" Margin="8,0,0,0" Command="{Binding LogoutCommand}" />
-            <Button DockPanel.Dock="Right" Content="Zmeniť heslo" Padding="12,4" Margin="8,0,0,0" Click="OnChangePasswordClick" />
-            <Button DockPanel.Dock="Right" Content="Používatelia a roly" Padding="12,4" Margin="8,0,0,0" Click="OnAccessClick"
-                    Visibility="{Binding CanManageUsers, Converter={StaticResource VisibleWhenTrue}}" />
-            <Button DockPanel.Dock="Right" Content="Záznam udalostí" Padding="12,4" Margin="8,0,0,0" Click="OnEventLogClick"
-                    Visibility="{Binding CanViewEventLog, Converter={StaticResource VisibleWhenTrue}}" />
-            <TextBlock DockPanel.Dock="Right" Text="{Binding CurrentUserText}" VerticalAlignment="Center" Margin="16,0,0,0" Foreground="Gray" />
-            <Button DockPanel.Dock="Right" Content="Obnoviť" Padding="12,4" Command="{Binding RefreshCommand}" />
-            <Button DockPanel.Dock="Right" Content="Odstrániť vybrané" Padding="12,4" Margin="0,0,8,0"
-                    Command="{Binding RemoveDeviceCommand}" />
-            <Button DockPanel.Dock="Right" Content="{Binding ToggleDeviceEnabledText}" Padding="12,4" Margin="0,0,8,0"
-                    Command="{Binding ToggleDeviceEnabledCommand}" />
-            <Button DockPanel.Dock="Right" Content="Premenovať" Padding="12,4" Margin="0,0,8,0"
-                    Command="{Binding RenameDeviceCommand}" />
-            <TextBlock Text="Zariadenia" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
-        </DockPanel>
-
-        <DataGrid Grid.Row="1"
-                  ItemsSource="{Binding Devices}"
-                  SelectedItem="{Binding SelectedDevice}"
-                  AutoGenerateColumns="False"
-                  IsReadOnly="True"
-                  HeadersVisibility="Column"
-                  GridLinesVisibility="Horizontal"
-                  SelectionMode="Single">
-            <DataGrid.RowStyle>
-                <Style TargetType="DataGridRow">
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                            <Setter Property="Foreground" Value="Gray" />
-                            <Setter Property="FontStyle" Value="Italic" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </DataGrid.RowStyle>
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="Názov" Binding="{Binding Name}" Width="2*" />
-                <DataGridTextColumn Header="Adresa" Binding="{Binding Address}" Width="2*" />
-                <DataGridTextColumn Header="Sledovanie" Binding="{Binding ModeText}" Width="*" />
-                <DataGridTextColumn Header="Stav" Binding="{Binding StatusText}" Width="*">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="FontWeight" Value="SemiBold" />
-                            <Setter Property="Foreground" Value="Gray" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding StatusText}" Value="Online">
-                                    <Setter Property="Foreground" Value="#1B7F3B" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding StatusText}" Value="Offline">
-                                    <Setter Property="Foreground" Value="#C62828" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
-                <DataGridTextColumn Header="Naposledy videné" Binding="{Binding LastSeenText}" Width="2*" />
-                <DataGridTextColumn Header="Operačný systém" Binding="{Binding OperatingSystem}" Width="3*" />
-            </DataGrid.Columns>
-        </DataGrid>
-
-        <GroupBox Grid.Row="2" Header="Detail vybraného zariadenia" Margin="0,10,0,0" Padding="8">
+    <DockPanel>
+        <!-- The application: who is signed in and what concerns the whole system. -->
+        <Border DockPanel.Dock="Top" Background="#F3F5F8" BorderBrush="#D9DEE5" BorderThickness="0,0,0,1" Padding="12,8">
             <DockPanel>
-            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,6">
-                <TextBlock Text="Obdobie histórie (história aktivity, výpadky, udalosti, komunikácia, grafy):" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <ComboBox Width="170" ItemsSource="{Binding HistoryPeriods}" DisplayMemberPath="Label"
-                          SelectedItem="{Binding SelectedHistoryPeriod}" />
-            </StackPanel>
-            <TabControl Height="230">
-                <TabItem Header="Prostriedky">
-                    <StackPanel Margin="6">
-                        <TextBlock Text="{Binding ResourcesMessage}" Foreground="Gray" TextWrapping="Wrap">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding ResourcesMessage}" Value="">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
+                <Button DockPanel.Dock="Right" Content="Odhlásiť" Margin="8,0,0,0" Command="{Binding LogoutCommand}" />
+                <TextBlock DockPanel.Dock="Right" Text="{Binding CurrentUserText}" Style="{StaticResource Hint}" Margin="16,0,0,0" />
+                <Button DockPanel.Dock="Right" Content="Zmeniť heslo" Margin="8,0,0,0" Click="OnChangePasswordClick" />
+                <Button DockPanel.Dock="Right" Content="Používatelia a roly" Margin="8,0,0,0" Click="OnAccessClick"
+                        Visibility="{Binding CanManageUsers, Converter={StaticResource VisibleWhenTrue}}" />
+                <Button DockPanel.Dock="Right" Content="Záznam udalostí" Margin="8,0,0,0" Click="OnEventLogClick"
+                        Visibility="{Binding CanViewEventLog, Converter={StaticResource VisibleWhenTrue}}" />
+                <TextBlock Text="Network Monitoring &amp; Management System" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
 
-                        <StackPanel DataContext="{Binding SelectedDeviceResources}">
-                            <StackPanel.Style>
-                                <Style TargetType="StackPanel">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding}" Value="{x:Null}">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </StackPanel.Style>
+        <StatusBar DockPanel.Dock="Bottom">
+            <StatusBarItem Content="{Binding StatusMessage}" />
+        </StatusBar>
 
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <TextBlock Text="Procesor: " FontWeight="SemiBold" />
-                                <TextBlock Text="{Binding CpuText}" Margin="0,0,24,0" />
-                                <TextBlock Text="Pamäť: " FontWeight="SemiBold" />
-                                <TextBlock Text="{Binding MemoryText}" Margin="0,0,24,0" />
-                                <TextBlock Text="Namerané: " FontWeight="SemiBold" />
-                                <TextBlock Text="{Binding RecordedAtText}" />
+        <Grid Margin="12,10,12,8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" MinHeight="90" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="2*" MinHeight="260" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Devices -->
+            <DockPanel Grid.Row="0" Margin="0,0,0,6">
+                <Button DockPanel.Dock="Right" Content="Obnoviť" Command="{Binding RefreshCommand}" />
+                <TextBlock Text="Zariadenia" Style="{StaticResource SectionTitle}" />
+                <TextBlock Text="{Binding DevicesSummaryText}" Style="{StaticResource Hint}" Margin="12,2,0,0" />
+            </DockPanel>
+
+            <DataGrid Grid.Row="1" ItemsSource="{Binding Devices}" SelectedItem="{Binding SelectedDevice}" SelectionMode="Single">
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                <Setter Property="Foreground" Value="Gray" />
+                                <Setter Property="FontStyle" Value="Italic" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Názov" Binding="{Binding Name}" Width="2*" />
+                    <DataGridTextColumn Header="Adresa" Binding="{Binding Address}" Width="2*" />
+                    <DataGridTextColumn Header="Sledovanie" Binding="{Binding ModeText}" Width="*" />
+                    <DataGridTextColumn Header="Stav" Binding="{Binding StatusText}" Width="*">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                                <Setter Property="Foreground" Value="Gray" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding StatusText}" Value="Online">
+                                        <Setter Property="Foreground" Value="#1B7F3B" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding StatusText}" Value="Offline">
+                                        <Setter Property="Foreground" Value="#C62828" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn Header="Naposledy videné" Binding="{Binding LastSeenText}" Width="2*" />
+                    <DataGridTextColumn Header="Operačný systém" Binding="{Binding OperatingSystem}" Width="3*" />
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- The user decides how much room the list and the details get. -->
+            <GridSplitter Grid.Row="2" Height="8" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                          Background="Transparent" ResizeBehavior="PreviousAndNext" Cursor="SizeNS"
+                          ToolTip="Potiahnutím zmeníte veľkosť zoznamu a detailu." />
+
+            <!-- The selected device -->
+            <DockPanel Grid.Row="3">
+                <DockPanel DockPanel.Dock="Top" Margin="0,4,0,6">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Label Content="_Obdobie:" Target="{Binding ElementName=PeriodBox}" Padding="0,0,6,0" VerticalAlignment="Center"
+                               ToolTip="Obdobie pre históriu aktivity, komunikáciu, grafy, výpadky a udalosti." />
+                        <ComboBox x:Name="PeriodBox" Width="150" Margin="0,0,16,0" ItemsSource="{Binding HistoryPeriods}"
+                                  DisplayMemberPath="Label" SelectedItem="{Binding SelectedHistoryPeriod}" />
+                        <Button Content="Premenovať" Margin="0,0,8,0" Command="{Binding RenameDeviceCommand}" />
+                        <Button Content="{Binding ToggleDeviceEnabledText}" Margin="0,0,8,0" Command="{Binding ToggleDeviceEnabledCommand}" />
+                        <Button Content="Odstrániť" Command="{Binding RemoveDeviceCommand}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding SelectedDeviceHeaderText}" Style="{StaticResource SectionTitle}" TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+
+                <TabControl>
+                    <TabItem Header="Prehľad">
+                        <StackPanel Margin="8">
+                            <TextBlock Text="{Binding ResourcesMessage}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Hint}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ResourcesMessage}" Value="">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <StackPanel DataContext="{Binding SelectedDeviceResources}">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <TextBlock Text="Procesor: " FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding CpuText}" Margin="0,0,24,0" />
+                                    <TextBlock Text="Pamäť: " FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding MemoryText}" Margin="0,0,24,0" />
+                                    <TextBlock Text="Namerané: " FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding RecordedAtText}" />
+                                </StackPanel>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="2*" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="5*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <DataGrid Grid.Column="0" ItemsSource="{Binding Disks}" MaxHeight="220">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Disk" Binding="{Binding Name}" Width="Auto" />
+                                            <DataGridTextColumn Header="Obsadené" Binding="{Binding UsageText}" Width="*" />
+                                            <DataGridTextColumn Header="Voľné" Binding="{Binding FreeText}" Width="Auto" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+
+                                    <DataGrid Grid.Column="2" ItemsSource="{Binding NetworkInterfaces}" MaxHeight="220">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Sieťové rozhranie" Binding="{Binding Name}" Width="2*" />
+                                            <DataGridTextColumn Header="IP adresa" Binding="{Binding IpAddress}" Width="Auto" />
+                                            <DataGridTextColumn Header="MAC adresa" Binding="{Binding MacAddress}" Width="Auto" />
+                                            <DataGridTextColumn Header="Stav" Binding="{Binding StateText}" Width="Auto" />
+                                            <DataGridTextColumn Header="Odoslané" Binding="{Binding SentText}" Width="Auto" />
+                                            <DataGridTextColumn Header="Prijaté" Binding="{Binding ReceivedText}" Width="Auto" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
                             </StackPanel>
+                        </StackPanel>
+                    </TabItem>
+
+                    <TabItem Header="Aktivita">
+                        <TabControl Margin="6" TabStripPlacement="Top">
+                            <TabItem Header="{Binding SelectedDeviceActivity.ProcessesHeader, FallbackValue=Procesy}">
+                                <DataGrid ItemsSource="{Binding SelectedDeviceActivity.Processes}" BorderThickness="0">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Proces" Binding="{Binding Name}" Width="3*" />
+                                        <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="*" />
+                                        <DataGridTextColumn Header="Procesor" Binding="{Binding CpuText}" Width="*" />
+                                        <DataGridTextColumn Header="Pamäť" Binding="{Binding MemoryText}" Width="*" />
+                                        <DataGridTextColumn Header="Spustený" Binding="{Binding StartedText}" Width="2*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </TabItem>
+
+                            <TabItem Header="{Binding SelectedDeviceActivity.ListeningPortsHeader, FallbackValue=Otvorené porty}">
+                                <DataGrid ItemsSource="{Binding SelectedDeviceActivity.ListeningPorts}" BorderThickness="0">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="*" />
+                                        <DataGridTextColumn Header="Protokol" Binding="{Binding Protocol}" Width="*" />
+                                        <DataGridTextColumn Header="Adresa" Binding="{Binding LocalAddress}" Width="2*" />
+                                        <DataGridTextColumn Header="Proces" Binding="{Binding ProcessText}" Width="3*" />
+                                        <DataGridTextColumn Header="Otvorený od" Binding="{Binding OpenedText}" Width="2*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </TabItem>
+
+                            <TabItem Header="{Binding SelectedDeviceActivity.ConnectionsHeader, FallbackValue=Spojenia}">
+                                <DataGrid ItemsSource="{Binding SelectedDeviceActivity.Connections}" BorderThickness="0">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Proces" Binding="{Binding ProcessText}" Width="3*" />
+                                        <DataGridTextColumn Header="Protokol" Binding="{Binding Protocol}" Width="*" />
+                                        <DataGridTextColumn Header="Miestna adresa" Binding="{Binding LocalEndpoint}" Width="3*" />
+                                        <DataGridTextColumn Header="Vzdialená adresa" Binding="{Binding RemoteEndpoint}" Width="3*" />
+                                        <DataGridTextColumn Header="Stav" Binding="{Binding State}" Width="2*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </TabItem>
+
+                            <TabItem Header="História za obdobie">
+                                <DockPanel Margin="6">
+                                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
+                                        <Label Content="_Filter:" Target="{Binding ElementName=ActivityHistoryFilterBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
+                                        <TextBox x:Name="ActivityHistoryFilterBox" Width="220" VerticalContentAlignment="Center"
+                                                 ToolTip="Názov procesu, presné číslo PID alebo portu, protokol alebo adresa."
+                                                 Text="{Binding SelectedDeviceActivityHistory.FilterText, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <TextBlock DockPanel.Dock="Bottom" Text="{Binding SelectedDeviceActivityHistory.SummaryText}" Style="{StaticResource Hint}" Margin="0,6,0,0" />
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="3*" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="2*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding SelectedDeviceActivityHistory.PortsHeader, FallbackValue=Porty otvorené v období}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                        <DataGrid Grid.Row="1" Grid.Column="0" ItemsSource="{Binding SelectedDeviceActivityHistory.Ports}">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="*" />
+                                                <DataGridTextColumn Header="Protokol" Binding="{Binding Protocol}" Width="*" />
+                                                <DataGridTextColumn Header="Adresa" Binding="{Binding LocalAddress}" Width="2*" />
+                                                <DataGridTextColumn Header="Proces" Binding="{Binding ProcessText}" Width="3*" />
+                                                <DataGridTextColumn Header="Otvorený" Binding="{Binding OpenedText}" Width="2*" />
+                                                <DataGridTextColumn Header="Zatvorený" Binding="{Binding ClosedText}" Width="2*" />
+                                                <DataGridTextColumn Header="Trvanie" Binding="{Binding DurationText}" Width="*" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding SelectedDeviceActivityHistory.ProcessesHeader, FallbackValue=Procesy bežiace v období}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                        <DataGrid Grid.Row="1" Grid.Column="2" ItemsSource="{Binding SelectedDeviceActivityHistory.Processes}">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Proces" Binding="{Binding Name}" Width="3*" />
+                                                <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="*" />
+                                                <DataGridTextColumn Header="Spustený" Binding="{Binding StartedText}" Width="2*" />
+                                                <DataGridTextColumn Header="Skončil" Binding="{Binding EndedText}" Width="2*" />
+                                                <DataGridTextColumn Header="Trvanie" Binding="{Binding DurationText}" Width="*" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Grid>
+                                </DockPanel>
+                            </TabItem>
+                        </TabControl>
+                    </TabItem>
+
+                    <TabItem Header="{Binding SelectedDeviceTraffic.Header, FallbackValue=Komunikácia}">
+                        <DockPanel Margin="8">
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                <Button DockPanel.Dock="Right" Content="{Binding ToggleTrafficCaptureText}"
+                                        Command="{Binding ToggleTrafficCaptureCommand}"
+                                        Visibility="{Binding SelectedDevice.CanManage, Converter={StaticResource VisibleWhenTrue}, FallbackValue=Collapsed}" />
+                                <TextBlock Text="{Binding TrafficCaptureStatusText}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
+                            </DockPanel>
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                <Button DockPanel.Dock="Right" Content="Zobraziť všetko" Margin="8,0,0,0"
+                                        Command="{Binding ShowAllTrafficCommand}"
+                                        ToolTip="Znova zobrazí komunikáciu za celé zvolené obdobie." />
+                                <Button DockPanel.Dock="Right" Content="Vynulovať" Margin="8,0,0,0"
+                                        Command="{Binding ResetTrafficCommand}"
+                                        ToolTip="Vyprázdni tabuľku; potom ukazuje len komunikáciu, ktorá príde po tomto okamihu." />
+                                <StackPanel Orientation="Horizontal">
+                                    <Label Content="_Filter:" Target="{Binding ElementName=TrafficFilterBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
+                                    <TextBox x:Name="TrafficFilterBox" Width="200" VerticalContentAlignment="Center"
+                                             Text="{Binding SelectedDeviceTraffic.FilterText, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Adresa, protokol (napr. TLS, DNS) alebo presné číslo portu." />
+                                    <Label Content="_Transport:" Target="{Binding ElementName=TrafficTransportBox}" Padding="0,0,6,0" Margin="12,0,0,0" VerticalAlignment="Center" />
+                                    <ComboBox x:Name="TrafficTransportBox" Width="90"
+                                              ItemsSource="{Binding SelectedDeviceTraffic.TransportOptions}"
+                                              SelectedItem="{Binding SelectedDeviceTraffic.SelectedTransport}" />
+                                </StackPanel>
+                            </DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="{Binding TrafficSinceText}" Foreground="#1565C0" Margin="0,0,0,6"
+                                       Visibility="{Binding IsTrafficReset, Converter={StaticResource VisibleWhenTrue}}" />
+                            <TextBlock DockPanel.Dock="Bottom" Text="{Binding SelectedDeviceTraffic.TotalText}" Style="{StaticResource Hint}" Margin="0,6,0,0" />
+                            <DataGrid ItemsSource="{Binding SelectedDeviceTraffic.Rows}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Vzdialená adresa" Binding="{Binding RemoteAddress}" Width="3*" />
+                                    <DataGridTextColumn Header="Port" Binding="{Binding PortText}" Width="*" />
+                                    <DataGridTextColumn Header="Protokol" Binding="{Binding Protocol}" Width="2*" />
+                                    <DataGridTextColumn Header="Transport" Binding="{Binding Transport}" Width="*" />
+                                    <DataGridTextColumn Header="Odoslané" Binding="{Binding SentText}" Width="2*" />
+                                    <DataGridTextColumn Header="Prijaté" Binding="{Binding ReceivedText}" Width="2*" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                    </TabItem>
+
+                    <TabItem Header="História">
+                        <Grid Margin="8">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" MinHeight="120" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" MinHeight="100" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
+                                <TextBlock Text="Sieťová prevádzka" FontWeight="SemiBold" Margin="0,0,12,0" />
+                                <TextBlock Text="■ odoslané" Foreground="#1565C0" Margin="0,0,8,0" />
+                                <TextBlock Text="■ prijaté" Foreground="#2E7D32" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="Odozva na ping zo servera" FontWeight="SemiBold" />
+
+                            <controls:LineChart Grid.Row="1" Grid.Column="0" Stroke="#1565C0" SecondStroke="#2E7D32"
+                                                Points="{Binding SelectedDeviceHistory.SentPoints}"
+                                                SecondPoints="{Binding SelectedDeviceHistory.ReceivedPoints}"
+                                                GridLabels="{Binding SelectedDeviceHistory.TrafficLabels}" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding SelectedDeviceHistory.TrafficChartMessage}"
+                                       Style="{StaticResource Hint}" HorizontalAlignment="Center" />
+                            <controls:LineChart Grid.Row="1" Grid.Column="2" Stroke="#6A1B9A"
+                                                Points="{Binding SelectedDeviceHistory.ResponsePoints}"
+                                                GridLabels="{Binding SelectedDeviceHistory.ResponseLabels}" />
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding SelectedDeviceHistory.ResponseChartMessage}"
+                                       Style="{StaticResource Hint}" HorizontalAlignment="Center" />
+
+                            <DockPanel Grid.Row="2" Grid.Column="0" Margin="64,0,4,8">
+                                <TextBlock DockPanel.Dock="Right" Foreground="Gray" FontSize="11" Text="{Binding SelectedDeviceHistory.PeriodEndText}" />
+                                <TextBlock Foreground="Gray" FontSize="11" Text="{Binding SelectedDeviceHistory.PeriodStartText}" />
+                            </DockPanel>
+                            <DockPanel Grid.Row="2" Grid.Column="2" Margin="64,0,4,8">
+                                <TextBlock DockPanel.Dock="Right" Foreground="Gray" FontSize="11" Text="{Binding SelectedDeviceHistory.PeriodEndText}" />
+                                <TextBlock Foreground="Gray" FontSize="11" Text="{Binding SelectedDeviceHistory.PeriodStartText}" />
+                            </DockPanel>
+
+                            <TabControl Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3">
+                                <TabItem Header="{Binding SelectedDeviceHistory.OutagesHeader, FallbackValue=Výpadky}">
+                                    <DockPanel>
+                                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6">
+                                            <TextBlock Text="Dostupnosť za obdobie: " FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding SelectedDeviceHistory.AvailabilityText, FallbackValue=–}" Margin="0,0,24,0" />
+                                            <TextBlock Text="Výpadky spolu: " FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding SelectedDeviceHistory.DowntimeText, FallbackValue=–}" />
+                                        </StackPanel>
+                                        <DataGrid ItemsSource="{Binding SelectedDeviceHistory.Outages}" BorderThickness="0">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Začiatok" Binding="{Binding StartedText}" Width="2*" />
+                                                <DataGridTextColumn Header="Koniec" Binding="{Binding EndedText}" Width="2*" />
+                                                <DataGridTextColumn Header="Trvanie" Binding="{Binding DurationText}" Width="*" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </DockPanel>
+                                </TabItem>
+                                <TabItem Header="{Binding SelectedDeviceHistory.EventsHeader, FallbackValue=Udalosti}">
+                                    <DataGrid ItemsSource="{Binding SelectedDeviceHistory.Events}" BorderThickness="0">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Čas" Binding="{Binding OccurredText}" Width="Auto" />
+                                            <DataGridTextColumn Header="Udalosť" Binding="{Binding TypeText}" Width="Auto" />
+                                            <DataGridTextColumn Header="Závažnosť" Binding="{Binding SeverityText}" Width="Auto" />
+                                            <DataGridTextColumn Header="Správa" Binding="{Binding Message}" Width="*" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </TabItem>
+                            </TabControl>
+                        </Grid>
+                    </TabItem>
+
+                    <TabItem Header="{Binding CommandsHeader}">
+                        <DockPanel Margin="8">
+                            <WrapPanel DockPanel.Dock="Top">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,12,4" IsEnabled="{Binding CanSendCommands}">
+                                    <Label Content="_Príkaz:" Target="{Binding ElementName=CommandBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
+                                    <ComboBox x:Name="CommandBox" Width="210" ItemsSource="{Binding CommandOptions}" DisplayMemberPath="Label"
+                                              SelectedItem="{Binding SelectedCommand}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,12,4" IsEnabled="{Binding CanSendCommands}"
+                                            Visibility="{Binding IsCommandParameterNeeded, Converter={StaticResource VisibleWhenTrue}}">
+                                    <TextBlock Text="{Binding CommandParameterLabel, StringFormat={}{0}:}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBox Width="200" VerticalContentAlignment="Center" MaxLength="253"
+                                             AutomationProperties.Name="{Binding CommandParameterLabel}"
+                                             Text="{Binding CommandParameter, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <Button Content="Odoslať príkaz" Margin="0,0,0,4" Command="{Binding SendCommandCommand}" />
+                                <Button Content="Poslať súbor…" Margin="12,0,0,4" Command="{Binding SendFileCommand}"
+                                        ToolTip="Pošle súbor (najviac 100 MB) do priečinka C:\ProgramData\NetworkMonitoringSystem\Inbox na zariadení. Agent ho nespustí." />
+                            </WrapPanel>
+
+                            <TextBlock DockPanel.Dock="Top" Text="{Binding CommandMessage}" Style="{StaticResource Hint}" Margin="0,2,0,6" />
 
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="3*" />
+                                    <ColumnDefinition Width="8" />
                                     <ColumnDefinition Width="2*" />
-                                    <ColumnDefinition Width="12" />
-                                    <ColumnDefinition Width="5*" />
                                 </Grid.ColumnDefinitions>
 
-                                <DataGrid Grid.Column="0" ItemsSource="{Binding Disks}" AutoGenerateColumns="False" IsReadOnly="True"
-                                          HeadersVisibility="Column" GridLinesVisibility="Horizontal" MaxHeight="130">
+                                <DataGrid Grid.Column="0" ItemsSource="{Binding DeviceCommands}" SelectedItem="{Binding SelectedCommandRow}" SelectionMode="Single">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Disk" Binding="{Binding Name}" Width="Auto" />
-                                        <DataGridTextColumn Header="Obsadené" Binding="{Binding UsageText}" Width="*" />
-                                        <DataGridTextColumn Header="Voľné" Binding="{Binding FreeText}" Width="Auto" />
+                                        <DataGridTextColumn Header="Čas" Binding="{Binding RequestedText}" Width="Auto" />
+                                        <DataGridTextColumn Header="Príkaz" Binding="{Binding CommandText}" Width="Auto" />
+                                        <DataGridTextColumn Header="Parameter" Binding="{Binding Parameter}" Width="Auto" />
+                                        <DataGridTextColumn Header="Odoslal" Binding="{Binding RequestedBy}" Width="Auto" />
+                                        <DataGridTextColumn Header="Stav" Binding="{Binding StatusText}" Width="Auto" />
+                                        <DataGridTextColumn Header="Výsledok" Binding="{Binding ResultSummary}" Width="*" />
                                     </DataGrid.Columns>
                                 </DataGrid>
 
-                                <DataGrid Grid.Column="2" ItemsSource="{Binding NetworkInterfaces}" AutoGenerateColumns="False" IsReadOnly="True"
-                                          HeadersVisibility="Column" GridLinesVisibility="Horizontal" MaxHeight="130">
-                                    <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Sieťové rozhranie" Binding="{Binding Name}" Width="2*" />
-                                        <DataGridTextColumn Header="IP adresa" Binding="{Binding IpAddress}" Width="Auto" />
-                                        <DataGridTextColumn Header="MAC adresa" Binding="{Binding MacAddress}" Width="Auto" />
-                                        <DataGridTextColumn Header="Stav" Binding="{Binding StateText}" Width="Auto" />
-                                        <DataGridTextColumn Header="Odoslané" Binding="{Binding SentText}" Width="Auto" />
-                                        <DataGridTextColumn Header="Prijaté" Binding="{Binding ReceivedText}" Width="Auto" />
-                                    </DataGrid.Columns>
-                                </DataGrid>
+                                <TextBox Grid.Column="2" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                         FontFamily="Consolas" AutomationProperties.Name="Výsledok vybraného príkazu"
+                                         Text="{Binding SelectedCommandRow.ResultMessage, Mode=OneWay, FallbackValue=Vyberte príkaz a zobrazí sa jeho celý výsledok.}" />
                             </Grid>
-                        </StackPanel>
-                    </StackPanel>
-                </TabItem>
-
-                <TabItem Header="{Binding SelectedDeviceActivity.ProcessesHeader, FallbackValue=Procesy}">
-                    <DataGrid ItemsSource="{Binding SelectedDeviceActivity.Processes}" AutoGenerateColumns="False" IsReadOnly="True"
-                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Proces" Binding="{Binding Name}" Width="3*" />
-                            <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="*" />
-                            <DataGridTextColumn Header="Procesor" Binding="{Binding CpuText}" Width="*" />
-                            <DataGridTextColumn Header="Pamäť" Binding="{Binding MemoryText}" Width="*" />
-                            <DataGridTextColumn Header="Spustený" Binding="{Binding StartedText}" Width="2*" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </TabItem>
-
-                <TabItem Header="{Binding SelectedDeviceActivity.ListeningPortsHeader, FallbackValue=Otvorené porty}">
-                    <DataGrid ItemsSource="{Binding SelectedDeviceActivity.ListeningPorts}" AutoGenerateColumns="False" IsReadOnly="True"
-                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="*" />
-                            <DataGridTextColumn Header="Protokol" Binding="{Binding Protocol}" Width="*" />
-                            <DataGridTextColumn Header="Adresa" Binding="{Binding LocalAddress}" Width="2*" />
-                            <DataGridTextColumn Header="Proces" Binding="{Binding ProcessText}" Width="3*" />
-                            <DataGridTextColumn Header="Otvorený od" Binding="{Binding OpenedText}" Width="2*" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </TabItem>
-
-                <TabItem Header="{Binding SelectedDeviceActivity.ConnectionsHeader, FallbackValue=Spojenia}">
-                    <DataGrid ItemsSource="{Binding SelectedDeviceActivity.Connections}" AutoGenerateColumns="False" IsReadOnly="True"
-                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Proces" Binding="{Binding ProcessText}" Width="3*" />
-                            <DataGridTextColumn Header="Protokol" Binding="{Binding Protocol}" Width="*" />
-                            <DataGridTextColumn Header="Miestna adresa" Binding="{Binding LocalEndpoint}" Width="3*" />
-                            <DataGridTextColumn Header="Vzdialená adresa" Binding="{Binding RemoteEndpoint}" Width="3*" />
-                            <DataGridTextColumn Header="Stav" Binding="{Binding State}" Width="2*" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </TabItem>
-
-                <TabItem Header="História aktivity">
-                    <DockPanel Margin="6">
-                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
-                            <Label Content="_Filter:" Target="{Binding ElementName=ActivityHistoryFilterBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
-                            <TextBox x:Name="ActivityHistoryFilterBox" Width="220" VerticalContentAlignment="Center"
-                                     ToolTip="Názov procesu, presné číslo PID alebo portu, protokol alebo adresa."
-                                     Text="{Binding SelectedDeviceActivityHistory.FilterText, UpdateSourceTrigger=PropertyChanged}" />
-                            <TextBlock Text="Obdobie sa volí nad záložkami." Foreground="Gray" VerticalAlignment="Center" Margin="12,0,0,0" />
-                        </StackPanel>
-                        <TextBlock DockPanel.Dock="Bottom" Text="{Binding SelectedDeviceActivityHistory.SummaryText}" Foreground="Gray" Margin="0,6,0,0" TextWrapping="Wrap" />
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="3*" />
-                                <ColumnDefinition Width="12" />
-                                <ColumnDefinition Width="2*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding SelectedDeviceActivityHistory.PortsHeader, FallbackValue=Porty otvorené v období}" FontWeight="SemiBold" Margin="0,0,0,4" />
-                            <DataGrid Grid.Row="1" Grid.Column="0" ItemsSource="{Binding SelectedDeviceActivityHistory.Ports}" AutoGenerateColumns="False" IsReadOnly="True"
-                                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="*" />
-                                    <DataGridTextColumn Header="Protokol" Binding="{Binding Protocol}" Width="*" />
-                                    <DataGridTextColumn Header="Adresa" Binding="{Binding LocalAddress}" Width="2*" />
-                                    <DataGridTextColumn Header="Proces" Binding="{Binding ProcessText}" Width="3*" />
-                                    <DataGridTextColumn Header="Otvorený" Binding="{Binding OpenedText}" Width="2*" />
-                                    <DataGridTextColumn Header="Zatvorený" Binding="{Binding ClosedText}" Width="2*" />
-                                    <DataGridTextColumn Header="Trvanie" Binding="{Binding DurationText}" Width="*" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding SelectedDeviceActivityHistory.ProcessesHeader, FallbackValue=Procesy bežiace v období}" FontWeight="SemiBold" Margin="0,0,0,4" />
-                            <DataGrid Grid.Row="1" Grid.Column="2" ItemsSource="{Binding SelectedDeviceActivityHistory.Processes}" AutoGenerateColumns="False" IsReadOnly="True"
-                                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Proces" Binding="{Binding Name}" Width="3*" />
-                                    <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="*" />
-                                    <DataGridTextColumn Header="Spustený" Binding="{Binding StartedText}" Width="2*" />
-                                    <DataGridTextColumn Header="Skončil" Binding="{Binding EndedText}" Width="2*" />
-                                    <DataGridTextColumn Header="Trvanie" Binding="{Binding DurationText}" Width="*" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </Grid>
-                    </DockPanel>
-                </TabItem>
-
-                <TabItem Header="{Binding CommandsHeader}">
-                    <DockPanel Margin="6">
-                        <WrapPanel DockPanel.Dock="Top">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,12,4" IsEnabled="{Binding CanSendCommands}">
-                                <Label Content="_Príkaz:" Target="{Binding ElementName=CommandBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
-                                <ComboBox x:Name="CommandBox" Width="210" ItemsSource="{Binding CommandOptions}" DisplayMemberPath="Label"
-                                          SelectedItem="{Binding SelectedCommand}" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,12,4" IsEnabled="{Binding CanSendCommands}"
-                                        Visibility="{Binding IsCommandParameterNeeded, Converter={StaticResource VisibleWhenTrue}}">
-                                <TextBlock Text="{Binding CommandParameterLabel, StringFormat={}{0}:}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                <TextBox Width="200" VerticalContentAlignment="Center" MaxLength="253"
-                                         AutomationProperties.Name="{Binding CommandParameterLabel}"
-                                         Text="{Binding CommandParameter, UpdateSourceTrigger=PropertyChanged}" />
-                            </StackPanel>
-                            <Button Content="Odoslať príkaz" Padding="12,4" Margin="0,0,0,4" Command="{Binding SendCommandCommand}" />
-                            <Button Content="Poslať súbor…" Padding="12,4" Margin="12,0,0,4" Command="{Binding SendFileCommand}"
-                                    ToolTip="Pošle súbor (najviac 100 MB) do priečinka C:\ProgramData\NetworkMonitoringSystem\Inbox na zariadení. Agent ho nespustí." />
-                        </WrapPanel>
-
-                        <TextBlock DockPanel.Dock="Top" Text="{Binding CommandMessage}" Foreground="Gray" TextWrapping="Wrap" Margin="0,2,0,6" />
-
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="3*" />
-                                <ColumnDefinition Width="8" />
-                                <ColumnDefinition Width="2*" />
-                            </Grid.ColumnDefinitions>
-
-                            <DataGrid Grid.Column="0" ItemsSource="{Binding DeviceCommands}" SelectedItem="{Binding SelectedCommandRow}"
-                                      AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
-                                      GridLinesVisibility="Horizontal" SelectionMode="Single">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Čas" Binding="{Binding RequestedText}" Width="Auto" />
-                                    <DataGridTextColumn Header="Príkaz" Binding="{Binding CommandText}" Width="Auto" />
-                                    <DataGridTextColumn Header="Parameter" Binding="{Binding Parameter}" Width="Auto" />
-                                    <DataGridTextColumn Header="Odoslal" Binding="{Binding RequestedBy}" Width="Auto" />
-                                    <DataGridTextColumn Header="Stav" Binding="{Binding StatusText}" Width="Auto" />
-                                    <DataGridTextColumn Header="Výsledok" Binding="{Binding ResultSummary}" Width="*" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-
-                            <TextBox Grid.Column="2" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
-                                     FontFamily="Consolas" AutomationProperties.Name="Výsledok vybraného príkazu"
-                                     Text="{Binding SelectedCommandRow.ResultMessage, Mode=OneWay, FallbackValue=Vyberte príkaz a zobrazí sa jeho celý výsledok.}" />
-                        </Grid>
-                    </DockPanel>
-                </TabItem>
-
-                <TabItem Header="{Binding SelectedDeviceHistory.OutagesHeader, FallbackValue=Výpadky}">
-                    <DockPanel>
-                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6">
-                            <TextBlock Text="Dostupnosť za obdobie: " FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding SelectedDeviceHistory.AvailabilityText, FallbackValue=–}" Margin="0,0,24,0" />
-                            <TextBlock Text="Výpadky spolu: " FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding SelectedDeviceHistory.DowntimeText, FallbackValue=–}" />
-                        </StackPanel>
-                        <DataGrid ItemsSource="{Binding SelectedDeviceHistory.Outages}" AutoGenerateColumns="False" IsReadOnly="True"
-                                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Začiatok" Binding="{Binding StartedText}" Width="2*" />
-                                <DataGridTextColumn Header="Koniec" Binding="{Binding EndedText}" Width="2*" />
-                                <DataGridTextColumn Header="Trvanie" Binding="{Binding DurationText}" Width="*" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </DockPanel>
-                </TabItem>
-
-                <TabItem Header="{Binding SelectedDeviceHistory.EventsHeader, FallbackValue=Udalosti}">
-                    <DataGrid ItemsSource="{Binding SelectedDeviceHistory.Events}" AutoGenerateColumns="False" IsReadOnly="True"
-                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Čas" Binding="{Binding OccurredText}" Width="Auto" />
-                            <DataGridTextColumn Header="Udalosť" Binding="{Binding TypeText}" Width="Auto" />
-                            <DataGridTextColumn Header="Závažnosť" Binding="{Binding SeverityText}" Width="Auto" />
-                            <DataGridTextColumn Header="Správa" Binding="{Binding Message}" Width="*" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </TabItem>
-
-                <TabItem Header="{Binding SelectedDeviceTraffic.Header, FallbackValue=Komunikácia}">
-                    <DockPanel Margin="6">
-                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
-                            <Button DockPanel.Dock="Right" Content="{Binding ToggleTrafficCaptureText}" Padding="12,4"
-                                    Command="{Binding ToggleTrafficCaptureCommand}"
-                                    Visibility="{Binding SelectedDevice.CanManage, Converter={StaticResource VisibleWhenTrue}}" />
-                            <TextBlock Text="{Binding TrafficCaptureStatusText}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
                         </DockPanel>
-                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
-                            <Button DockPanel.Dock="Right" Content="Zobraziť všetko" Padding="12,4" Margin="8,0,0,0"
-                                    Command="{Binding ShowAllTrafficCommand}"
-                                    ToolTip="Znova zobrazí komunikáciu za celé zvolené obdobie." />
-                            <Button DockPanel.Dock="Right" Content="Vynulovať" Padding="12,4" Margin="8,0,0,0"
-                                    Command="{Binding ResetTrafficCommand}"
-                                    ToolTip="Vyprázdni tabuľku; potom ukazuje len komunikáciu, ktorá príde po tomto okamihu." />
-                            <StackPanel Orientation="Horizontal">
-                                <Label Content="_Filter:" Target="{Binding ElementName=TrafficFilterBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
-                                <TextBox x:Name="TrafficFilterBox" Width="200" VerticalContentAlignment="Center"
-                                         Text="{Binding SelectedDeviceTraffic.FilterText, UpdateSourceTrigger=PropertyChanged}"
-                                         ToolTip="Adresa, protokol (napr. TLS, DNS) alebo presné číslo portu." />
-                                <Label Content="_Transport:" Target="{Binding ElementName=TrafficTransportBox}" Padding="0,0,6,0" Margin="12,0,0,0" VerticalAlignment="Center" />
-                                <ComboBox x:Name="TrafficTransportBox" Width="90"
-                                          ItemsSource="{Binding SelectedDeviceTraffic.TransportOptions}"
-                                          SelectedItem="{Binding SelectedDeviceTraffic.SelectedTransport}" />
-                            </StackPanel>
-                        </DockPanel>
-                        <TextBlock DockPanel.Dock="Top" Text="{Binding TrafficSinceText}" Foreground="#1565C0" Margin="0,0,0,6"
-                                   Visibility="{Binding IsTrafficReset, Converter={StaticResource VisibleWhenTrue}}" />
-                        <TextBlock DockPanel.Dock="Bottom" Text="{Binding SelectedDeviceTraffic.TotalText}" Foreground="Gray" Margin="0,6,0,0" />
-                        <DataGrid ItemsSource="{Binding SelectedDeviceTraffic.Rows}" AutoGenerateColumns="False" IsReadOnly="True"
-                                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Vzdialená adresa" Binding="{Binding RemoteAddress}" Width="3*" />
-                                <DataGridTextColumn Header="Port" Binding="{Binding PortText}" Width="*" />
-                                <DataGridTextColumn Header="Protokol" Binding="{Binding Protocol}" Width="2*" />
-                                <DataGridTextColumn Header="Transport" Binding="{Binding Transport}" Width="*" />
-                                <DataGridTextColumn Header="Odoslané" Binding="{Binding SentText}" Width="2*" />
-                                <DataGridTextColumn Header="Prijaté" Binding="{Binding ReceivedText}" Width="2*" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </DockPanel>
-                </TabItem>
-
-                <TabItem Header="Grafy">
-                    <Grid Margin="6">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="12" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
-                            <TextBlock Text="Sieťová prevádzka" FontWeight="SemiBold" Margin="0,0,12,0" />
-                            <TextBlock Text="■ odoslané" Foreground="#1565C0" Margin="0,0,8,0" />
-                            <TextBlock Text="■ prijaté" Foreground="#2E7D32" />
-                        </StackPanel>
-                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Odozva na ping zo servera" FontWeight="SemiBold" />
-
-                        <controls:LineChart Grid.Row="1" Grid.Column="0" Stroke="#1565C0" SecondStroke="#2E7D32"
-                                            Points="{Binding SelectedDeviceHistory.SentPoints}"
-                                            SecondPoints="{Binding SelectedDeviceHistory.ReceivedPoints}"
-                                            GridLabels="{Binding SelectedDeviceHistory.TrafficLabels}" />
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding SelectedDeviceHistory.TrafficChartMessage}"
-                                   Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        <controls:LineChart Grid.Row="1" Grid.Column="2" Stroke="#6A1B9A"
-                                            Points="{Binding SelectedDeviceHistory.ResponsePoints}"
-                                            GridLabels="{Binding SelectedDeviceHistory.ResponseLabels}" />
-                        <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding SelectedDeviceHistory.ResponseChartMessage}"
-                                   Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" />
-
-                        <DockPanel Grid.Row="2" Grid.Column="0" Margin="64,0,4,0">
-                            <TextBlock DockPanel.Dock="Right" Foreground="Gray" FontSize="11" Text="{Binding SelectedDeviceHistory.PeriodEndText}" />
-                            <TextBlock Foreground="Gray" FontSize="11" Text="{Binding SelectedDeviceHistory.PeriodStartText}" />
-                        </DockPanel>
-                        <DockPanel Grid.Row="2" Grid.Column="2" Margin="64,0,4,0">
-                            <TextBlock DockPanel.Dock="Right" Foreground="Gray" FontSize="11" Text="{Binding SelectedDeviceHistory.PeriodEndText}" />
-                            <TextBlock Foreground="Gray" FontSize="11" Text="{Binding SelectedDeviceHistory.PeriodStartText}" />
-                        </DockPanel>
-                    </Grid>
-                </TabItem>
-            </TabControl>
+                    </TabItem>
+                </TabControl>
             </DockPanel>
-        </GroupBox>
 
-        <GroupBox Grid.Row="3" Header="Pridať zariadenie bez agenta" Margin="0,10,0,0" Padding="8"
-                  Visibility="{Binding CanAddDevices, Converter={StaticResource VisibleWhenTrue}}">
-            <StackPanel Orientation="Horizontal">
-                <TextBlock Text="Názov:" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <TextBox Width="200" VerticalContentAlignment="Center"
-                         Text="{Binding NewDeviceName, UpdateSourceTrigger=PropertyChanged}" />
-                <TextBlock Text="IP adresa:" VerticalAlignment="Center" Margin="16,0,6,0" />
-                <TextBox Width="160" VerticalContentAlignment="Center"
-                         Text="{Binding NewDeviceIpAddress, UpdateSourceTrigger=PropertyChanged}" />
-                <TextBlock Text="TCP port:" VerticalAlignment="Center" Margin="16,0,6,0" />
-                <TextBox Width="70" VerticalContentAlignment="Center"
-                         ToolTip="Nepovinné. Ak zariadenie neodpovedá na ping, server sa skúsi pripojiť na tento port."
-                         Text="{Binding NewDeviceTcpPort, UpdateSourceTrigger=PropertyChanged}" />
-                <Button Content="Pridať" Padding="12,4" Margin="16,0,0,0" Command="{Binding AddDeviceCommand}" />
-            </StackPanel>
-        </GroupBox>
+            <GroupBox Grid.Row="4" Header="Pridať zariadenie bez agenta" Margin="0,10,0,0" Padding="8"
+                      Visibility="{Binding CanAddDevices, Converter={StaticResource VisibleWhenTrue}}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Názov:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBox Width="200" VerticalContentAlignment="Center"
+                             Text="{Binding NewDeviceName, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Text="IP adresa:" VerticalAlignment="Center" Margin="16,0,6,0" />
+                    <TextBox Width="160" VerticalContentAlignment="Center"
+                             Text="{Binding NewDeviceIpAddress, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Text="TCP port:" VerticalAlignment="Center" Margin="16,0,6,0" />
+                    <TextBox Width="70" VerticalContentAlignment="Center"
+                             ToolTip="Nepovinné. Ak zariadenie neodpovedá na ping, server sa skúsi pripojiť na tento port."
+                             Text="{Binding NewDeviceTcpPort, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button Content="Pridať" Margin="16,0,0,0" Command="{Binding AddDeviceCommand}" />
+                </StackPanel>
+            </GroupBox>
 
-        <GroupBox Grid.Row="4" Header="Nastavenia sledovania" Margin="0,10,0,0" Padding="8"
-                  Visibility="{Binding CanManageSettings, Converter={StaticResource VisibleWhenTrue}}">
-            <StackPanel>
-                <WrapPanel>
-                    <Label Content="_Interval synchronizácie:" Target="{Binding ElementName=SyncIntervalBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
-                    <TextBox x:Name="SyncIntervalBox" Width="70" VerticalContentAlignment="Center"
-                             Text="{Binding SyncIntervalText, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Text="s" VerticalAlignment="Center" Margin="6,0,16,0" />
-                    <Label Content="_Offline po:" Target="{Binding ElementName=OfflineThresholdBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
-                    <TextBox x:Name="OfflineThresholdBox" Width="50" VerticalContentAlignment="Center"
-                             ToolTip="Koľko intervalov za sebou môže zariadenie vynechať, kým sa považuje za offline."
-                             Text="{Binding OfflineThresholdText, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Text="vynechaných intervaloch" VerticalAlignment="Center" Margin="6,0,16,0" />
-                    <Label Content="_Uchovávať históriu:" Target="{Binding ElementName=RetentionDaysBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
-                    <TextBox x:Name="RetentionDaysBox" Width="60" VerticalContentAlignment="Center"
-                             ToolTip="Staršie záznamy stavov, výpadky, udalosti a komunikáciu server raz za hodinu zmaže."
-                             Text="{Binding RetentionDaysText, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Text="dní" VerticalAlignment="Center" Margin="6,0,16,0" />
-                    <Button Content="Uložiť" Padding="12,4" Command="{Binding SaveSettingsCommand}" />
-                </WrapPanel>
-                <TextBlock Text="{Binding SettingsHint}" Margin="0,6,0,0" Foreground="Gray" TextWrapping="Wrap" />
-            </StackPanel>
-        </GroupBox>
-
-        <StatusBar Grid.Row="5" Margin="0,10,0,0">
-            <StatusBarItem Content="{Binding StatusMessage}" />
-        </StatusBar>
-    </Grid>
+            <GroupBox Grid.Row="5" Header="Nastavenia sledovania" Margin="0,10,0,0" Padding="8"
+                      Visibility="{Binding CanManageSettings, Converter={StaticResource VisibleWhenTrue}}">
+                <StackPanel>
+                    <WrapPanel>
+                        <Label Content="_Interval synchronizácie:" Target="{Binding ElementName=SyncIntervalBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBox x:Name="SyncIntervalBox" Width="70" VerticalContentAlignment="Center"
+                                 Text="{Binding SyncIntervalText, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="s" VerticalAlignment="Center" Margin="6,0,16,0" />
+                        <Label Content="Offline _po:" Target="{Binding ElementName=OfflineThresholdBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBox x:Name="OfflineThresholdBox" Width="50" VerticalContentAlignment="Center"
+                                 ToolTip="Koľko intervalov za sebou môže zariadenie vynechať, kým sa považuje za offline."
+                                 Text="{Binding OfflineThresholdText, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="vynechaných intervaloch" VerticalAlignment="Center" Margin="6,0,16,0" />
+                        <Label Content="_Uchovávať históriu:" Target="{Binding ElementName=RetentionDaysBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBox x:Name="RetentionDaysBox" Width="60" VerticalContentAlignment="Center"
+                                 ToolTip="Staršie záznamy stavov, výpadky, udalosti a komunikáciu server raz za hodinu zmaže."
+                                 Text="{Binding RetentionDaysText, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="dní" VerticalAlignment="Center" Margin="6,0,16,0" />
+                        <Button Content="Uložiť" Command="{Binding SaveSettingsCommand}" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding SettingsHint}" Margin="0,6,0,0" Style="{StaticResource Hint}" />
+                </StackPanel>
+            </GroupBox>
+        </Grid>
+    </DockPanel>
 </Window>
