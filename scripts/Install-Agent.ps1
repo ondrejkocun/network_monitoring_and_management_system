@@ -204,6 +204,10 @@ if (-not $existing) {
         -Description 'Reports the state of this computer to the Network Monitoring System server and carries out its commands.' `
         -StartupType Automatic | Out-Null
 }
+else {
+    # A service disabled since the last installation would refuse to start.
+    Set-Service -Name $serviceName -StartupType Automatic
+}
 
 # After a failure the service is started again: twice after a minute, then every five minutes.
 & sc.exe failure $serviceName reset= 86400 actions= restart/60000/restart/60000/restart/300000 | Out-Null
