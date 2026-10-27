@@ -24,7 +24,9 @@
       "launchBrowser": true,
       "applicationUrl": "https://localhost:7006;http://localhost:5057",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Kestrel__Endpoints__Https__Url": "https://localhost:7006",
+        "Kestrel__Endpoints__Https__Certificate__AllowInvalid": "true"
       }
     },
     "network": {

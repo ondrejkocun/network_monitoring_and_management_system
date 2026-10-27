@@ -47,7 +47,7 @@ docker compose up -d
 dotnet run --project src/NetworkMonitoringSystem.Server --launch-profile network
 ```
 
-The profile makes the server listen on all network addresses on port 7006 and take the certificate from your personal store. Its `AllowInvalid` setting only tells the server that its own certificate may be self-signed. The `https` profile keeps working as before, on `localhost` with the development certificate.
+The profile makes the server listen on all network addresses on port 7006 and take the certificate from your personal store. Its `AllowInvalid` setting only tells the server that its own certificate may be self-signed. The `https` profile keeps listening only on `localhost`; once the certificate is set in user secrets, it uses that certificate too, so agents with the pin can also connect to a server started for local work.
 
 Without `dotnet run`, the same is set with environment variables: `Kestrel__Endpoints__Https__Url` (`https://0.0.0.0:7006`), `Kestrel__Endpoints__Https__Certificate__Subject`, `__Store` (`My`), `__Location` (`CurrentUser`) and `__AllowInvalid` (`true`).
 
