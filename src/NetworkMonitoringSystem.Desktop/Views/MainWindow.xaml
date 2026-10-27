@@ -97,9 +97,9 @@
         <Grid Margin="12,10,12,8">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" MinHeight="90" />
+                <RowDefinition x:Name="DeviceListRow" Height="*" MinHeight="90" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="2*" MinHeight="260" />
+                <RowDefinition x:Name="DetailRow" Height="2*" MinHeight="260" />
             </Grid.RowDefinitions>
 
             <!-- Devices -->
@@ -198,7 +198,7 @@
                 </DockPanel>
 
                 <Grid>
-                <TabControl Visibility="{Binding HasSelectedDevice, Converter={StaticResource VisibleWhenTrue}}">
+                <TabControl x:Name="DetailTabs" Visibility="{Binding HasSelectedDevice, Converter={StaticResource VisibleWhenTrue}}">
                     <TabItem Header="Prehľad">
                         <StackPanel Margin="8">
                             <TextBlock Text="{Binding ResourcesMessage}">
