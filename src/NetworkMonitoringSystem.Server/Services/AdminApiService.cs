@@ -187,7 +187,7 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
 
         // A user whose rules name single devices sees only those.
         var reply = new ListDevicesReply();
-        reply.Devices.AddRange(devices.Where(device => user.CanOnDevice(Permission.ViewDevices, device.Id)).Select(ToDeviceInfo));
+        reply.Devices.AddRange(devices.Where(device => user.CanOnDevice(Permission.ViewDevices, device.Id)).Select(device => ToDeviceInfo(device, user)));
 
         return reply;
     }
@@ -206,7 +206,7 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
                     TcpPort: request.HasTcpPort ? request.TcpPort : null),
                 context.CancellationToken);
 
-            return ToDeviceInfo(device);
+            return ToDeviceInfo(device, AdminAuthenticationInterceptor.GetUser(context));
         }
         catch (ArgumentException exception)
         {
@@ -237,7 +237,7 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
 
         return device is null
             ? throw new RpcException(new Status(StatusCode.NotFound, "The device does not exist."))
-            : ToDeviceInfo(device);
+            : ToDeviceInfo(device, AdminAuthenticationInterceptor.GetUser(context));
     }
 
     public override async Task<DeviceResourcesReply> GetDeviceResources(GetDeviceResourcesRequest request, ServerCallContext context)
@@ -401,7 +401,7 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
 
         return device is null
             ? throw new RpcException(new Status(StatusCode.NotFound, "The device does not exist."))
-            : ToDeviceInfo(device);
+            : ToDeviceInfo(device, AdminAuthenticationInterceptor.GetUser(context));
     }
 
     public override async Task<DeviceInfo> SetDeviceTrafficCapture(SetDeviceTrafficCaptureRequest request, ServerCallContext context)
@@ -423,7 +423,7 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
 
         return device is null
             ? throw new RpcException(new Status(StatusCode.NotFound, "The device does not exist."))
-            : ToDeviceInfo(device);
+            : ToDeviceInfo(device, AdminAuthenticationInterceptor.GetUser(context));
     }
 
     public override async Task<EventLogReply> GetEventLog(GetEventLogRequest request, ServerCallContext context)
@@ -880,7 +880,8 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         };
     }
 
-    private static DeviceInfo ToDeviceInfo(DeviceDto device)
+    /// <summary>The device as the given user sees it, with the permissions the user holds on it.</summary>
+    private static DeviceInfo ToDeviceInfo(DeviceDto device, AuthenticatedUser user)
     {
         var info = new DeviceInfo
         {
@@ -907,6 +908,11 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
             CaptureTraffic = device.CaptureTraffic,
             TrafficCaptureProblem = device.TrafficCaptureProblem ?? string.Empty,
         };
+
+        // Only for showing what the user may do; every operation is still checked on its own.
+        info.Permissions.AddRange(System.Enum.GetValues<Permission>()
+            .Where(permission => user.CanOnDevice(permission, device.Id))
+            .Select(permission => permission.ToString()));
 
         if (device.TcpPort is { } tcpPort)
         {

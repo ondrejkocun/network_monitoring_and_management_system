@@ -245,13 +245,13 @@
 
                 <TabItem Header="{Binding CommandsHeader}">
                     <DockPanel Margin="6">
-                        <WrapPanel DockPanel.Dock="Top" IsEnabled="{Binding CanSendCommands}">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
+                        <WrapPanel DockPanel.Dock="Top">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,12,4" IsEnabled="{Binding CanSendCommands}">
                                 <Label Content="_Príkaz:" Target="{Binding ElementName=CommandBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
                                 <ComboBox x:Name="CommandBox" Width="210" ItemsSource="{Binding CommandOptions}" DisplayMemberPath="Label"
                                           SelectedItem="{Binding SelectedCommand}" />
                             </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,12,4"
+                            <StackPanel Orientation="Horizontal" Margin="0,0,12,4" IsEnabled="{Binding CanSendCommands}"
                                         Visibility="{Binding IsCommandParameterNeeded, Converter={StaticResource VisibleWhenTrue}}">
                                 <TextBlock Text="{Binding CommandParameterLabel, StringFormat={}{0}:}" VerticalAlignment="Center" Margin="0,0,6,0" />
                                 <TextBox Width="200" VerticalContentAlignment="Center" MaxLength="253"
@@ -328,7 +328,7 @@
                         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
                             <Button DockPanel.Dock="Right" Content="{Binding ToggleTrafficCaptureText}" Padding="12,4"
                                     Command="{Binding ToggleTrafficCaptureCommand}"
-                                    Visibility="{Binding CanAddDevices, Converter={StaticResource VisibleWhenTrue}}" />
+                                    Visibility="{Binding SelectedDevice.CanManage, Converter={StaticResource VisibleWhenTrue}}" />
                             <TextBlock Text="{Binding TrafficCaptureStatusText}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
                         </DockPanel>
                         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">

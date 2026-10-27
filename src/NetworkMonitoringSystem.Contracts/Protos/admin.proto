@@ -228,6 +228,8 @@ message DeviceInfo {
   bool capture_traffic = 11;
   // Why the agent cannot capture although it is asked to; empty when there is no problem.
   string traffic_capture_problem = 12;
+  // Names of the permissions the signed-in user holds on this device, by a rule for it or for all devices.
+  repeated string permissions = 13;
 }
 
 message ListDevicesRequest {

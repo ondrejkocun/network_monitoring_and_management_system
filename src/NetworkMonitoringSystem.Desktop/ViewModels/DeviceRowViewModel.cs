@@ -5,6 +5,8 @@ namespace NetworkMonitoringSystem.Desktop.ViewModels;
 /// <summary>One device as shown in the device list.</summary>
 public sealed class DeviceRowViewModel
 {
+    private readonly HashSet<string> _permissions;
+
     public DeviceRowViewModel(DeviceInfo device)
     {
         ArgumentNullException.ThrowIfNull(device);
@@ -24,6 +26,7 @@ public sealed class DeviceRowViewModel
         TrafficCaptureProblem = device.TrafficCaptureProblem;
         OperatingSystem = device.OperatingSystem;
         LastSeenAt = device.LastSeenAt?.ToDateTimeOffset().ToLocalTime();
+        _permissions = device.Permissions.ToHashSet(StringComparer.Ordinal);
 
         ModeText = device.MonitoringMode switch
         {
@@ -71,4 +74,13 @@ public sealed class DeviceRowViewModel
     public DateTimeOffset? LastSeenAt { get; }
 
     public string LastSeenText => LastSeenAt?.ToString("dd.MM.yyyy HH:mm:ss") ?? "–";
+
+    /// <summary>True when the signed-in user may manage this device: remove, rename, disable it or switch capture.</summary>
+    public bool CanManage => Can("ManageDevices");
+
+    /// <summary>
+    /// True when the signed-in user holds the permission on this device. It only decides what is offered; the server
+    /// checks every operation itself. A server that sends no permissions at all leaves everything offered.
+    /// </summary>
+    public bool Can(string permission) => _permissions.Count == 0 || _permissions.Contains(permission);
 }

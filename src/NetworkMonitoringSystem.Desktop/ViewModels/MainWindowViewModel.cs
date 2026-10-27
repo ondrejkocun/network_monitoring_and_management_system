@@ -71,8 +71,8 @@ public sealed class MainWindowViewModel : ViewModelBase
         _timeProvider = timeProvider ?? TimeProvider.System;
         _filePicker = filePicker;
         _textInput = textInput;
-        RenameDeviceCommand = new AsyncRelayCommand(RenameSelectedDeviceAsync, () => SelectedDevice is not null && _textInput is not null);
-        SendFileCommand = new AsyncRelayCommand(SendFileAsync, () => CanSendCommands && _filePicker is not null);
+        RenameDeviceCommand = new AsyncRelayCommand(RenameSelectedDeviceAsync, () => SelectedDevice is { CanManage: true } && _textInput is not null);
+        SendFileCommand = new AsyncRelayCommand(SendFileAsync, () => CanSendFile && _filePicker is not null);
         _selectedHistoryPeriod = HistoryPeriods[1];
 
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
@@ -81,9 +81,9 @@ public sealed class MainWindowViewModel : ViewModelBase
             () => !string.IsNullOrWhiteSpace(NewDeviceName)
                 && !string.IsNullOrWhiteSpace(NewDeviceIpAddress)
                 && TryParseTcpPort(NewDeviceTcpPort, out _));
-        RemoveDeviceCommand = new AsyncRelayCommand(RemoveSelectedDeviceAsync, () => SelectedDevice is not null);
-        ToggleDeviceEnabledCommand = new AsyncRelayCommand(ToggleSelectedDeviceEnabledAsync, () => SelectedDevice is not null);
-        ToggleTrafficCaptureCommand = new AsyncRelayCommand(ToggleSelectedDeviceTrafficCaptureAsync, () => SelectedDevice is { HasAgent: true });
+        RemoveDeviceCommand = new AsyncRelayCommand(RemoveSelectedDeviceAsync, () => SelectedDevice is { CanManage: true });
+        ToggleDeviceEnabledCommand = new AsyncRelayCommand(ToggleSelectedDeviceEnabledAsync, () => SelectedDevice is { CanManage: true });
+        ToggleTrafficCaptureCommand = new AsyncRelayCommand(ToggleSelectedDeviceTrafficCaptureAsync, () => SelectedDevice is { HasAgent: true, CanManage: true });
         ResetTrafficCommand = new AsyncRelayCommand(ResetTrafficAsync, () => SelectedDevice is not null);
         ShowAllTrafficCommand = new AsyncRelayCommand(ShowAllTrafficAsync, () => _trafficSince is not null);
         SaveSettingsCommand = new AsyncRelayCommand(
@@ -97,8 +97,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public AsyncRelayCommand SendCommandCommand { get; }
 
-    /// <summary>The remote commands the user can choose from. Whether they may send one is decided by the server.</summary>
-    public IReadOnlyList<CommandOption> CommandOptions => CommandOption.All;
+    /// <summary>
+    /// The remote commands the user holds a permission for on the selected device. The server still checks each one.
+    /// </summary>
+    public IReadOnlyList<CommandOption> CommandOptions { get; private set; } = CommandOption.All;
 
     public CommandOption SelectedCommand
     {
@@ -135,8 +137,11 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
     }
 
-    /// <summary>True when the selected device has an agent that could carry a command out.</summary>
-    public bool CanSendCommands => SelectedDevice is { HasAgent: true };
+    /// <summary>True when the selected device has an agent that could carry a command out and the user may send one.</summary>
+    public bool CanSendCommands => SelectedDevice is { HasAgent: true } && CommandOptions.Count > 0;
+
+    /// <summary>True when the selected device has an agent and the user may send it a file.</summary>
+    public bool CanSendFile => SelectedDevice is { HasAgent: true } device && device.Can(CommandOption.SendFileName);
 
     /// <summary>Says what happened to the last command sent, or why commands cannot be sent.</summary>
     public string CommandMessage
@@ -421,6 +426,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             ResetTrafficCommand.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(ToggleTrafficCaptureText));
             OnPropertyChanged(nameof(TrafficCaptureStatusText));
+            UpdateCommandOptions();
 
             // Resources of another device must not stay on screen; those of the same device are simply reloaded.
             if (value?.Id != previousId)
@@ -432,10 +438,12 @@ public sealed class MainWindowViewModel : ViewModelBase
                 _shownCommands = null;
                 DeviceCommands = [];
                 SelectedCommandRow = null;
-                CommandMessage = value is { HasAgent: false } ? "Príkazy možno posielať len zariadeniu s agentom." : string.Empty;
-                OnPropertyChanged(nameof(CanSendCommands));
-                SendCommandCommand.RaiseCanExecuteChanged();
-                SendFileCommand.RaiseCanExecuteChanged();
+                CommandMessage = value switch
+                {
+                    { HasAgent: false } => "Príkazy možno posielať len zariadeniu s agentom.",
+                    { } when !CanSendCommands && !CanSendFile => "Na príkazy pre toto zariadenie nemáte oprávnenie.",
+                    _ => string.Empty,
+                };
                 SelectedDeviceHistory = null;
                 SelectedDeviceTraffic = null;
                 SelectedDeviceActivityHistory = null;
@@ -446,6 +454,30 @@ public sealed class MainWindowViewModel : ViewModelBase
 
             _ = LoadSelectedDeviceResourcesAsync();
         }
+    }
+
+    /// <summary>Offers the commands the user may send to the selected device; the list is replaced only when it changes.</summary>
+    private void UpdateCommandOptions()
+    {
+        var options = SelectedDevice is { } device
+            ? CommandOption.All.Where(option => device.Can(option.Name)).ToList()
+            : CommandOption.All;
+
+        if (!options.SequenceEqual(CommandOptions))
+        {
+            CommandOptions = options;
+            OnPropertyChanged(nameof(CommandOptions));
+
+            if (options.Count > 0 && !options.Contains(SelectedCommand))
+            {
+                SelectedCommand = options[0];
+            }
+        }
+
+        OnPropertyChanged(nameof(CanSendCommands));
+        OnPropertyChanged(nameof(CanSendFile));
+        SendCommandCommand.RaiseCanExecuteChanged();
+        SendFileCommand.RaiseCanExecuteChanged();
     }
 
     /// <summary>The latest system resources of the selected device, or null when there are none to show.</summary>

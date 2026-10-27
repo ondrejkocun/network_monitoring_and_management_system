@@ -150,6 +150,9 @@ public sealed class AccessControlTests : IClassFixture<DatabaseFixture>, IDispos
         var listed = Assert.Single(await client.GetDevicesAsync());
         Assert.Equal(allowed.Id.ToString(), listed.Id);
 
+        // The device carries what the user may do on it, so the desktop offers only that.
+        Assert.Equal(["ViewDevices", "ManageDevices"], listed.Permissions);
+
         var now = DateTimeOffset.UtcNow;
         await client.GetDeviceResourcesAsync(allowed.Id.ToString());
         await client.GetDeviceActivityAsync(allowed.Id.ToString());
