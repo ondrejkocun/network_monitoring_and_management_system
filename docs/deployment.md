@@ -91,9 +91,12 @@ If PowerShell refuses to run the script, allow scripts for this one window first
 | Program and settings (server address, pin) | `C:\Program Files\NetworkMonitoringAgent` | Everyone; nothing in it is secret |
 | Identity issued by the server | `C:\ProgramData\NetworkMonitoringSystem\Agent\identity.bin`, encrypted with Windows DPAPI | The system and administrators only |
 | Enrollment token | Nowhere; it is used for the registration and forgotten | – |
+| Files sent by the administrator | `C:\ProgramData\NetworkMonitoringSystem\Inbox` | The system and administrators only |
 | Messages of the agent | Windows event log, Application, source `NetworkMonitoringAgent` | – |
 
 The service runs under the local system account. That lets it see all processes and control services, which the remote commands need.
+
+Files sent from the desktop application (Commands tab, "Poslať súbor…") arrive in the inbox folder. A file with the name of one already there is saved as `name (2).ext` and so on, never over it. The agent does not run anything it receives; an administrator of the computer takes the file from there. Uninstalling the agent leaves the folder in place.
 
 ### Update and removal
 

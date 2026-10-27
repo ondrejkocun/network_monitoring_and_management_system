@@ -174,6 +174,20 @@ erDiagram
         datetime CompletedAt
         string ResultMessage
     }
+    RemoteCommand ||--o| FileTransfer : "posiela súbor"
+    FileTransfer ||--o{ FileTransferChunk : "obsah po 1 MB"
+    FileTransfer {
+        uuid CommandId PK
+        string FileName
+        bigint Size
+        string Sha256
+        datetime CreatedAt
+    }
+    FileTransferChunk {
+        uuid CommandId PK
+        int Index PK
+        bytea Data
+    }
 ```
 
 ## Skupiny tabuliek
@@ -227,6 +241,8 @@ Používateľ má roly, rola má pravidlá. `AccessRule` hovorí: rola smie vyko
 Implementované s tromi spresneniami: príkaz má najviac jeden parameter, preto je `Parameters` obyčajný text (`Parameter`), nie JSON; záznam si drží aj meno zariadenia a používateľa, aby prežil ich odstránenie; stav `Rejected` sa nepoužíva (zamietnutý pokus sa do frontu nedostane a je v `Event`), namiesto neho je `Expired` pre príkaz, ktorý agent neprevzal alebo nepotvrdil do 10 minút.
 
 `RemoteCommand` je zároveň front príkazov aj auditný záznam: kto, kedy, čo, na ktorom zariadení a s akým výsledkom. `CommandType` je pevný zoznam schválených príkazov; `Parameters` nesie ich overené parametre (napríklad PID alebo názov služby). Zamietnuté pokusy bez oprávnenia sa zapisujú do `Event`.
+
+Doplnené neskôr: poslanie súboru do zariadenia je príkaz `SendFile`, ktorého parametrom je meno súboru. `FileTransfer` (jeden k jednému s príkazom) drží meno, veľkosť a odtlačok SHA-256 ako súčasť auditu; samotný obsah je v `FileTransferChunk` po 1 MB, aby ho server pri sťahovaní agentom čítal po častiach. Obsah sa zmaže, keď sa príkaz skončí alebo vyprší; `FileTransfer` zostáva.
 
 ## Návrhové rozhodnutia
 
