@@ -45,6 +45,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _currentUserName = string.Empty;
     private DeviceHistoryViewModel? _selectedDeviceHistory;
     private DeviceTrafficViewModel? _selectedDeviceTraffic;
+    private DeviceActivityHistoryViewModel? _selectedDeviceActivityHistory;
     private DateTimeOffset? _trafficSince;
     private HistoryPeriodOption _selectedHistoryPeriod;
     private DateTimeOffset? _historyLoadedAt;
@@ -361,6 +362,7 @@ public sealed class MainWindowViewModel : ViewModelBase
                 SendCommandCommand.RaiseCanExecuteChanged();
                 SelectedDeviceHistory = null;
                 SelectedDeviceTraffic = null;
+                SelectedDeviceActivityHistory = null;
                 SetTrafficSince(null);
                 _historyLoadedAt = null;
                 ResourcesMessage = value is null ? NoDeviceSelectedMessage : "Načítavam…";
@@ -447,6 +449,21 @@ public sealed class MainWindowViewModel : ViewModelBase
 
             _historyLoadedAt = now;
             SelectedDeviceHistory = new DeviceHistoryViewModel(history, from, now, SelectedDeviceHistory);
+
+            var activityHistory = await _server.GetDeviceActivityHistoryAsync(device.Id, from, now);
+
+            if (SelectedDevice?.Id == device.Id && SelectedHistoryPeriod == period)
+            {
+                // The same view model is kept, so a filter the user typed stays while new data arrives.
+                if (SelectedDeviceActivityHistory is null)
+                {
+                    SelectedDeviceActivityHistory = new DeviceActivityHistoryViewModel(activityHistory, now);
+                }
+                else
+                {
+                    SelectedDeviceActivityHistory.Show(activityHistory, now);
+                }
+            }
         }
         catch (ServerClientException)
         {
@@ -497,6 +514,13 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             // What is on screen stays; the status bar already says when the server cannot be reached.
         }
+    }
+
+    /// <summary>Ports and processes of the selected device in the selected period, or null when not loaded.</summary>
+    public DeviceActivityHistoryViewModel? SelectedDeviceActivityHistory
+    {
+        get => _selectedDeviceActivityHistory;
+        private set => SetProperty(ref _selectedDeviceActivityHistory, value);
     }
 
     /// <summary>Who the selected device communicated with in the selected period, or null when not loaded.</summary>

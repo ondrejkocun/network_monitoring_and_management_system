@@ -620,6 +620,83 @@ public class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task SelectingDevice_ShowsPortsAndProcessesOfThePeriod_WithStartEndAndDuration()
+    {
+        var now = new DateTimeOffset(2026, 10, 27, 12, 0, 0, TimeSpan.Zero);
+        var clock = new MutableTimeProvider(now);
+        _server.Devices.Add(new DeviceInfo { Id = "device-1", Name = "PC-01", MonitoringMode = MonitoringMode.Agent, IsEnabled = true });
+        _server.ActivityHistory["device-1"] = new DeviceActivityHistoryReply
+        {
+            Ports =
+            {
+                new PortPeriodInfo
+                {
+                    Protocol = "TCP", LocalAddress = "0.0.0.0", Port = 8080, Pid = 4321, ProcessName = "backup.exe",
+                    OpenedAt = Timestamp.FromDateTimeOffset(now.AddMinutes(-45)),
+                    ClosedAt = Timestamp.FromDateTimeOffset(now.AddMinutes(-40)),
+                },
+                new PortPeriodInfo
+                {
+                    Protocol = "UDP", LocalAddress = "0.0.0.0", Port = 161,
+                    OpenedAt = Timestamp.FromDateTimeOffset(now.AddHours(-3)),
+                },
+            },
+            Processes =
+            {
+                new ProcessRunInfo { Pid = 4321, Name = "backup.exe", StartedAt = Timestamp.FromDateTimeOffset(now.AddMinutes(-50)), EndedAt = Timestamp.FromDateTimeOffset(now.AddMinutes(-35)) },
+                new ProcessRunInfo { Pid = 812, Name = "sqlservr.exe", StartedAt = Timestamp.FromDateTimeOffset(now.AddHours(-2)) },
+            },
+            Truncated = true,
+        };
+        var viewModel = new MainWindowViewModel(_server, _confirmation, clock);
+        await viewModel.RefreshAsync();
+
+        viewModel.SelectedDevice = viewModel.Devices[0];
+
+        Assert.Equal(("device-1", now.AddHours(-24), now), Assert.Single(_server.ActivityHistoryRequests));
+        var history = viewModel.SelectedDeviceActivityHistory;
+        Assert.NotNull(history);
+        var closedPort = history.Ports[0];
+        Assert.Equal((8080U, "backup.exe (4321)", "5 min 0 s"), (closedPort.Port, closedPort.ProcessText, closedPort.DurationText));
+        Assert.Equal(now.AddMinutes(-40).ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss"), closedPort.ClosedText);
+        Assert.Equal(("stále otvorený", "–"), (history.Ports[1].ClosedText, history.Ports[1].ProcessText));
+        Assert.Equal(("stále beží", "2 h 0 min"), (history.Processes[1].EndedText, history.Processes[1].DurationText));
+        Assert.Contains("2 období portov (1 už zatvorených)", history.SummaryText);
+        Assert.Contains("zobrazujú sa najnovšie", history.SummaryText);
+    }
+
+    [Fact]
+    public void ActivityHistoryFilter_FindsPortsAndProcessesByNamePortOrPid_AndStaysWhenNewDataArrives()
+    {
+        var now = new DateTimeOffset(2026, 10, 27, 12, 0, 0, TimeSpan.Zero);
+        var reply = new DeviceActivityHistoryReply
+        {
+            Ports = { new PortPeriodInfo { Protocol = "TCP", LocalAddress = "0.0.0.0", Port = 8080, Pid = 4321, ProcessName = "backup.exe", OpenedAt = Timestamp.FromDateTimeOffset(now) } },
+            Processes =
+            {
+                new ProcessRunInfo { Pid = 4321, Name = "backup.exe", StartedAt = Timestamp.FromDateTimeOffset(now) },
+                new ProcessRunInfo { Pid = 812, Name = "sqlservr.exe", StartedAt = Timestamp.FromDateTimeOffset(now) },
+            },
+        };
+        var history = new DeviceActivityHistoryViewModel(reply, now) { FilterText = "backup" };
+
+        Assert.Single(history.Ports);
+        Assert.Equal("backup.exe", Assert.Single(history.Processes).Name);
+        Assert.Equal("Procesy bežiace v období (1)", history.ProcessesHeader);
+
+        history.FilterText = "8080";
+        Assert.Single(history.Ports);
+        Assert.Empty(history.Processes);
+
+        history.FilterText = "812";
+        Assert.Equal("sqlservr.exe", Assert.Single(history.Processes).Name);
+
+        history.Show(new DeviceActivityHistoryReply(), now);
+        Assert.Equal("812", history.FilterText);
+        Assert.Empty(history.Processes);
+    }
+
+    [Fact]
     public void TrafficFilter_NarrowsRowsByTextPortOrTransport_AndStaysWhenNewDataArrives()
     {
         var traffic = new DeviceTrafficViewModel(
