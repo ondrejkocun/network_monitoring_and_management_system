@@ -188,6 +188,19 @@ erDiagram
         int Index PK
         bytea Data
     }
+    Device |o--o{ EnrollmentCode : "registruje znova"
+    EnrollmentCode {
+        uuid Id PK
+        string CodeHash UK
+        string Note
+        uuid DeviceId FK "null = nový počítač"
+        datetime CreatedAt
+        datetime ExpiresAt
+        string CreatedByUserName
+        datetime UsedAt
+        string UsedByHostName
+        datetime RevokedAt
+    }
 ```
 
 ## Skupiny tabuliek
@@ -195,6 +208,8 @@ erDiagram
 ### Zariadenia
 
 `Device` je jediná evidencia zariadení. `MonitoringMode` rozlišuje zariadenie s agentom (posiela údaje samo) od zariadenia bez agenta (server ho kontroluje pingom). `Status` a `LastSeenAt` sú aktuálny stav, aby ho dashboard nemusel počítať z histórie. `AgentKeyHash` slúži na overenie identity agenta; ukladá sa len odtlačok kľúča, nie kľúč.
+
+Doplnené neskôr: `EnrollmentCode` je jednorazový registračný kód, ktorým sa agent zaregistruje. Ukladá sa len odtlačok SHA-256 kódu, poznámka správcu, platnosť (najviac 7 dní), autor a kedy a ktorým počítačom bol kód použitý alebo kedy bol zrušený. Kód s `DeviceId` zaregistruje znova len toto zariadenie a zmaže sa spolu s ním; kód bez neho zaregistruje len počítač, ktorý server ešte nepozná. Stĺpec `xmin` bráni tomu, aby sa jeden kód použil dvakrát naraz.
 
 ### Stavy a systémové prostriedky
 

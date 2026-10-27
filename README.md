@@ -11,7 +11,7 @@ The project is under development. This is what works today and what is still to 
 | Area | State |
 |---|---|
 | Device registry stored in PostgreSQL | Done |
-| Agent registration and periodic heartbeat over gRPC | Done |
+| Agent registration with one-time enrollment codes and periodic heartbeat over gRPC | Done |
 | Availability tracking (online/offline), outages, event log | Done |
 | Devices without an agent, checked by the server with ping or, when ping is blocked, a TCP port | Done |
 | CPU, memory, disk and network interface metrics | Done |
@@ -87,7 +87,7 @@ dotnet user-secrets set "Access:InitialAdminPassword" "<administrator password>"
 
 The last one is the password of the first administrator, at least 8 characters long. The server uses it only once: when it starts and there are no users yet, it creates the user `admin` with this password.
 
-The database password must be the same in `.env` and in the server's secrets, and the enrollment token must be the same for the server and the agent.
+The database password must be the same in `.env` and in the server's secrets, and the enrollment token must be the same for the server and the agent. The shared token is a convenience for development; agents on other computers register with one-time enrollment codes instead (see [docs/deployment.md](docs/deployment.md#enrollment-codes-instead-of-a-shared-token)).
 
 ### 2. Trust the development certificate
 
@@ -149,11 +149,11 @@ dotnet ef migrations add <Name> --project src/NetworkMonitoringSystem.Infrastruc
 
 ## Security notes
 
-- An agent registers with a shared enrollment token and is then issued its own random key; the server stores only a SHA-256 hash of that key.
+- An agent registers with a one-time enrollment code and is then issued its own random key; the server stores only a SHA-256 hash of that key. An administrator creates the codes in the desktop application; each is valid for at most seven days and one registration, can be revoked, and is kept only as a hash. A device the server already knows registers again only with a code made for that device. A shared enrollment token can be configured for development; a deployment should leave it unset.
 - Values measured by an agent are not trusted: the server limits them to valid ranges, shortens overlong texts and caps the number of disks and interfaces in one report.
-- A device whose agent is reporting cannot be registered again, so the enrollment token alone is not enough to take over a working device.
+- A device whose agent is reporting cannot be registered again, so not even a valid code is enough to take over a working device.
 - The agent keeps its identity in a file encrypted with Windows DPAPI: for the account it runs under, or, when installed as a service, for the computer in a folder only the system and administrators can open.
-- Agents and the desktop application can be given the SHA-256 hash of the server's certificate and then talk only to a server presenting exactly that certificate. The enrollment token is not stored on a monitored computer; the installer uses it once.
+- Agents and the desktop application can be given the SHA-256 hash of the server's certificate and then talk only to a server presenting exactly that certificate. The enrollment code is not stored on a monitored computer; the installer uses it once.
 - The agent refuses to connect to a server address that is not HTTPS.
 - The administration API serves only signed-in users. Signing in returns a random session token valid for 12 hours; the server stores only its hash and checks it on every call, so signing out or deactivating a user takes effect immediately.
 - Passwords are stored as PBKDF2-HMAC-SHA256 hashes with a random salt and 600,000 iterations. After five wrong passwords in a row an account is locked for five minutes.

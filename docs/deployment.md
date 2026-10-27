@@ -53,6 +53,15 @@ Without `dotnet run`, the same is set with environment variables: `Kestrel__Endp
 
 The `Development` environment keeps using your user secrets (database password, enrollment token, first administrator's password) and applies database migrations on start. Outside it, set the same values as environment variables (`Database__Password`, `Agents__EnrollmentToken`, `Access__InitialAdminPassword`) and set `Database__MigrateOnStartup` to `true` when the database should be created or updated on start.
 
+### Enrollment codes instead of a shared token
+
+An agent registers once, with a secret it shows the server. There are two kinds:
+
+- **One-time enrollment codes** (recommended). An administrator creates them in the desktop application with **Registračné kódy…** above the device list. A code such as `K7QM-4XTD-9HPA` is valid for one hour to seven days and for one registration; it can be revoked while unused. The server keeps only its SHA-256 hash, so the code is shown just once, when it is created. A code is made either for a new computer or for one existing device; a device the server already knows, for example after its agent was reinstalled, registers again only with a code made for it (right-click the device: **Registračný kód pre toto zariadenie…**). Creating a code for a new computer needs the right to manage all devices, a code for a device the right to manage that device.
+- **The shared token** `Agents:EnrollmentToken`. It is optional: while it is set, any computer that knows it can register, and a known offline device can be taken over with it. That is convenient for development. **For a deployment leave it unset**; the server then accepts codes only.
+
+Creating, using and revoking a code are written to the event log with their author.
+
 ## 2. Agent on another computer
 
 ### Build the package
@@ -73,11 +82,11 @@ Copy the folder to the target computer and run, in PowerShell as administrator:
 .\Install-Agent.ps1 -ServerUrl https://SERVER01:7006 -ServerCertificateSha256 <pin>
 ```
 
-The script asks for the enrollment token without showing it. It then
+The script asks for the enrollment code (see [Enrollment codes](#enrollment-codes-instead-of-a-shared-token)) without showing it; it can also be given as `-EnrollmentCode K7QM-4XTD-9HPA`. It then
 
 1. copies the agent to `C:\Program Files\NetworkMonitoringAgent`,
 2. writes the server address and the pin to the agent's settings,
-3. registers the computer with the server, using the token once,
+3. registers the computer with the server, using the code once,
 4. creates the service `NetworkMonitoringAgent`, sets it to start with Windows and to restart after a failure, and starts it.
 
 The computer appears in the desktop application as a new device within a few seconds.
@@ -90,7 +99,7 @@ If PowerShell refuses to run the script, allow scripts for this one window first
 |---|---|---|
 | Program and settings (server address, pin) | `C:\Program Files\NetworkMonitoringAgent` | Everyone; nothing in it is secret |
 | Identity issued by the server | `C:\ProgramData\NetworkMonitoringSystem\Agent\identity.bin`, encrypted with Windows DPAPI | The system and administrators only |
-| Enrollment token | Nowhere; it is used for the registration and forgotten | – |
+| Enrollment code | Nowhere; it is used for the registration and forgotten. The server keeps only its hash | – |
 | Files sent by the administrator | `C:\ProgramData\NetworkMonitoringSystem\Inbox` | The system and administrators only |
 | Messages of the agent | Windows event log, Application, source `NetworkMonitoringAgent` | – |
 
@@ -182,7 +191,7 @@ Set the address and the pin in `appsettings.json` next to the application, or in
 | `The remote certificate was rejected by the provided RemoteCertificateValidationCallback` | The pin does not belong to the certificate the server presents. Check that the pin was copied whole and that the server was started with the new certificate. |
 | `The remote certificate is invalid because of errors in the certificate chain: UntrustedRoot` | No pin is set and Windows does not trust the server's certificate. Set the pin. |
 | `Server is not reachable (Unavailable)` | The address or port is wrong, the server is not running, or the firewall blocks the port. |
-| `Server refused the registration` | The enrollment token is wrong, the device is disabled, or the server still sees a device of this name as online. In the last case wait until it is marked offline (three synchronization intervals) and install again. |
+| `Server refused the registration` | The enrollment code is wrong, was already used, has expired or was revoked (the desktop application shows the state of each code); a device the server already knows was given a code for a new computer instead of one made for it; the device is disabled; or the server still sees a device of this name as online. In the last case wait until it is marked offline (three synchronization intervals) and install again. |
 | `TShark was not found at '…'` | Wireshark is not installed, or not in the default folder. Install it, or set `Agent:TsharkPath`. |
 | `No active network interface can be captured on` | Npcap is missing, or TShark cannot see any active adapter. Run `tshark -D` on the computer to see which interfaces it offers. |
 | `TShark stopped unexpectedly: …` | TShark ended on its own; its last messages follow. The agent starts it again with the next report. |

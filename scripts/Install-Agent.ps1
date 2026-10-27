@@ -7,10 +7,10 @@
 
       1. copies the agent to the installation directory,
       2. writes the address of the server and the pin of its certificate to the agent's settings,
-      3. registers this computer with the server, using the enrollment token once,
+      3. registers this computer with the server, using the enrollment code (or the shared token) once,
       4. creates the service, sets it to start with Windows and to restart after a failure, and starts it.
 
-    The enrollment token is not stored anywhere: it is used for the registration and forgotten. What the agent
+    The enrollment code is not stored anywhere: it is used for the registration and forgotten. What the agent
     keeps is the identity the server issued, encrypted and readable only by the system and administrators.
 
     Running the script again updates an installed agent and keeps its identity.
@@ -23,7 +23,10 @@
     has a certificate this computer already trusts.
 
 .PARAMETER EnrollmentToken
-    The enrollment token configured on the server. When left out, the script asks for it without showing it.
+    A one-time enrollment code created in the desktop application (Registračné kódy), for example K7QM-4XTD-9HPA,
+    or the shared token when the server has one. Also accepted as -EnrollmentCode. When left out, the script asks for
+    it without showing it. A computer the server already knows, for example after a reinstall, needs a code made for
+    that device.
 
 .PARAMETER InstallDirectory
     Where the agent is installed.
@@ -50,6 +53,7 @@ param(
 
     [string]$ServerCertificateSha256 = '',
 
+    [Alias('EnrollmentCode')]
     [string]$EnrollmentToken = '',
 
     [string]$InstallDirectory = (Join-Path $env:ProgramFiles 'NetworkMonitoringAgent'),
@@ -169,7 +173,7 @@ $program = Join-Path $InstallDirectory $programName
 Write-Host 'Registering this computer with the server...'
 
 if ($EnrollmentToken -eq '') {
-    $secure = Read-Host -Prompt 'Enrollment token' -AsSecureString
+    $secure = Read-Host -Prompt 'Enrollment code' -AsSecureString
     $pointer = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
 
     try {
@@ -180,7 +184,7 @@ if ($EnrollmentToken -eq '') {
     }
 }
 
-# The token is handed over in the environment of this one process, not on its command line and not in a file.
+# The code is handed over in the environment of this one process, not on its command line and not in a file.
 $env:Agent__EnrollmentToken = $EnrollmentToken
 
 try {
@@ -193,7 +197,7 @@ finally {
 }
 
 if (-not $registered) {
-    throw 'The computer could not be registered. Check the address of the server, the certificate pin and the enrollment token; the messages above say what failed. The service was not created.'
+    throw 'The computer could not be registered. Check the address of the server, the certificate pin and the enrollment code (it may have been used, expired or revoked); the messages above say what failed. The service was not created.'
 }
 
 if (-not $existing) {
