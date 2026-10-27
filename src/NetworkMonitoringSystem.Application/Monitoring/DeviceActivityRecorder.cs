@@ -13,6 +13,13 @@ public sealed class DeviceActivityRecorder
     /// <summary>Start of the range from which Windows assigns ports to outgoing communication.</summary>
     public const int FirstDynamicPort = 49152;
 
+    /// <summary>
+    /// A port the same program had open (on any address) this recently is not reported again when it opens.
+    /// </summary>
+    public static readonly TimeSpan RepeatedPortQuietPeriod = TimeSpan.FromHours(1);
+
+    private const int MaxRecentPorts = 2000;
+
     private readonly IDeviceActivityRepository _activity;
     private readonly IMonitoringHistoryRepository _history;
 
@@ -43,7 +50,20 @@ public sealed class DeviceActivityRecorder
 
         var runsByPid = ReconcileProcesses(device, report, runningBefore, reportedAt);
 
-        ReconcilePorts(device, report, openBefore, runsByPid, reportedAt, writeEvents: !isFirstReport);
+        // Programs such as browsers close and open the same port every minute; that is not news either.
+        var knownPorts = new HashSet<(TransportProtocol, int, string)>();
+
+        if (!isFirstReport)
+        {
+            var recent = await _activity.GetPortPeriodsAsync(device.Id, reportedAt - RepeatedPortQuietPeriod, reportedAt, MaxRecentPorts, cancellationToken);
+
+            foreach (var port in recent.Concat(openBefore))
+            {
+                knownPorts.Add(PortKey(port.Protocol, port.Port, port.ProcessRun));
+            }
+        }
+
+        ReconcilePorts(device, report, openBefore, runsByPid, reportedAt, writeEvents: !isFirstReport, knownPorts);
         AttachProcessUsage(report, snapshot, runsByPid, topProcessCount);
 
         await _activity.ReplaceConnectionsAsync(device.Id, CreateConnections(device, report, runsByPid), cancellationToken);
@@ -90,7 +110,8 @@ public sealed class DeviceActivityRecorder
         IReadOnlyList<ListeningPort> openBefore,
         Dictionary<int, ProcessRun> runsByPid,
         DateTimeOffset reportedAt,
-        bool writeEvents)
+        bool writeEvents,
+        HashSet<(TransportProtocol, int, string)> knownPorts)
     {
         var stillOpen = new HashSet<ListeningPort>();
 
@@ -116,7 +137,8 @@ public sealed class DeviceActivityRecorder
             var opened = new ListeningPort(device.Id, reported.Protocol, reported.LocalAddress, reported.Port, owner, reportedAt);
             _activity.AddListeningPort(opened);
 
-            if (writeEvents)
+            // Add returns false for a port the program had open recently, or opened on another address in this report.
+            if (writeEvents && knownPorts.Add(PortKey(reported.Protocol, reported.Port, owner)))
             {
                 _history.AddEvent(new MonitoringEvent(
                     reportedAt,
@@ -217,6 +239,12 @@ public sealed class DeviceActivityRecorder
     }
 
     /// <summary>Start times pass through the database, which keeps them less precisely than the agent reports them.</summary>
+    /// <summary>A port of a program, whatever address it listens on and whichever run of the program it is.</summary>
+    private static (TransportProtocol, int, string) PortKey(TransportProtocol protocol, int port, ProcessRun? owner)
+    {
+        return (protocol, port, owner?.Name.ToUpperInvariant() ?? string.Empty);
+    }
+
     private static bool SameMoment(DateTimeOffset left, DateTimeOffset right)
     {
         return (left - right).Duration() < TimeSpan.FromMilliseconds(5);

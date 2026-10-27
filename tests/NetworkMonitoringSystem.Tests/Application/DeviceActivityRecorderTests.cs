@@ -131,6 +131,27 @@ public class DeviceActivityRecorderTests
     }
 
     [Fact]
+    public async Task PortThatAProgramReopens_IsReportedOnce_UntilItHasBeenClosedForAnHour()
+    {
+        ProcessReport[] processes = [Process(100, "nginx"), Process(500, "chrome")];
+        await ReportAsync(Start, processes, ports: [Tcp(80, pid: 100)]);
+
+        // The browser opens its port on two addresses at once: one event.
+        await ReportAsync(Start.AddMinutes(1), processes, ports: [Tcp(80, pid: 100), Udp(5353, pid: 500, "0.0.0.0"), Udp(5353, pid: 500, "::")]);
+        // Closed and opened again a minute later, now by a new run of the browser on one address.
+        await ReportAsync(Start.AddMinutes(2), processes, ports: [Tcp(80, pid: 100)]);
+        await ReportAsync(Start.AddMinutes(3), [Process(100, "nginx"), Process(600, "chrome")], ports: [Tcp(80, pid: 100), Udp(5353, pid: 600, "::")]);
+
+        Assert.Single(_history.Events);
+
+        // After an hour without it, opening the port is news again.
+        await ReportAsync(Start.AddMinutes(4), processes, ports: [Tcp(80, pid: 100)]);
+        await ReportAsync(Start.AddMinutes(65), processes, ports: [Tcp(80, pid: 100), Udp(5353, pid: 500, "0.0.0.0")]);
+
+        Assert.Equal(2, _history.Events.Count);
+    }
+
+    [Fact]
     public async Task MissingPort_IsClosed()
     {
         await ReportAsync(Start, processes: [Process(100, "nginx")], ports: [Tcp(80, pid: 100), Tcp(443, pid: 100)]);
@@ -307,6 +328,8 @@ public class DeviceActivityRecorderTests
     }
 
     private static ListeningPortReport Tcp(int port, int pid) => new(TransportProtocol.Tcp, "0.0.0.0", port, pid);
+
+    private static ListeningPortReport Udp(int port, int pid, string address) => new(TransportProtocol.Udp, address, port, pid);
 
     private static ConnectionReport Connection(string remoteAddress, int remotePort, int pid)
     {
