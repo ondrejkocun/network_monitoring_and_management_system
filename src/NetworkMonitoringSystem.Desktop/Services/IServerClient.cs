@@ -91,6 +91,15 @@ public interface IServerClient
     /// <exception cref="ServerClientException">The server could not be reached, refused the name or the call, or the device does not exist.</exception>
     Task<DeviceInfo> RenameDeviceAsync(string id, string name, CancellationToken cancellationToken = default);
 
+    /// <summary>Creates a one-time code with which an agent registers; the reply carries the code, shown only this once.</summary>
+    /// <param name="deviceId">The device the code registers again, or null for a new computer.</param>
+    Task<CreatedEnrollmentCodeReply> CreateEnrollmentCodeAsync(string note, string? deviceId, int validMinutes, CancellationToken cancellationToken = default);
+
+    /// <summary>Codes of the last 30 days the user may manage, the newest first.</summary>
+    Task<IReadOnlyList<EnrollmentCodeInfo>> GetEnrollmentCodesAsync(CancellationToken cancellationToken = default);
+
+    Task<EnrollmentCodeInfo> RevokeEnrollmentCodeAsync(string id, CancellationToken cancellationToken = default);
+
     /// <summary>Switches capture of network traffic on or off for a device with an agent and returns it after the change.</summary>
     /// <exception cref="ServerClientException">The server could not be reached, refused the call or the device does not exist.</exception>
     Task<DeviceInfo> SetDeviceTrafficCaptureAsync(string id, bool capture, CancellationToken cancellationToken = default);

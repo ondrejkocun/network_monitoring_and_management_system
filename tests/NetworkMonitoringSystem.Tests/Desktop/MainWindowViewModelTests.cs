@@ -1345,6 +1345,45 @@ public class MainWindowViewModelTests
             return Task.CompletedTask;
         }
 
+        public List<EnrollmentCodeInfo> EnrollmentCodes { get; } = [];
+
+        public Task<CreatedEnrollmentCodeReply> CreateEnrollmentCodeAsync(string note, string? deviceId, int validMinutes, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            var info = new EnrollmentCodeInfo
+            {
+                Id = Guid.NewGuid().ToString(),
+                Note = note,
+                DeviceId = deviceId ?? string.Empty,
+                DeviceName = Devices.FirstOrDefault(device => device.Id == deviceId)?.Name ?? string.Empty,
+                CreatedAt = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow),
+                ExpiresAt = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow.AddMinutes(validMinutes)),
+                CreatedBy = "admin",
+                State = "Valid",
+            };
+            EnrollmentCodes.Insert(0, info);
+
+            return Task.FromResult(new CreatedEnrollmentCodeReply { Code = "K7QM-4XTD-9HPA", Info = info });
+        }
+
+        public Task<IReadOnlyList<EnrollmentCodeInfo>> GetEnrollmentCodesAsync(CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            return Task.FromResult<IReadOnlyList<EnrollmentCodeInfo>>(EnrollmentCodes.Select(code => code.Clone()).ToList());
+        }
+
+        public Task<EnrollmentCodeInfo> RevokeEnrollmentCodeAsync(string id, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            var code = EnrollmentCodes.Single(code => code.Id == id);
+            code.State = "Revoked";
+
+            return Task.FromResult(code.Clone());
+        }
+
         public Task DeleteUserAsync(string userId, CancellationToken cancellationToken = default)
         {
             ThrowIfFailing();

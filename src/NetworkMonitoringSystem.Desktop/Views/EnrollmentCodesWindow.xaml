@@ -1,0 +1,64 @@
+<Window x:Class="NetworkMonitoringSystem.Desktop.Views.EnrollmentCodesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:viewModels="clr-namespace:NetworkMonitoringSystem.Desktop.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=viewModels:EnrollmentCodesViewModel}"
+        Title="Registračné kódy pre agentov" Height="560" Width="900" MinHeight="420" MinWidth="700"
+        WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="VisibleWhenTrue" />
+    </Window.Resources>
+    <DockPanel Margin="16">
+        <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="Gray" Margin="0,0,0,12"
+                   Text="Agent sa pri inštalácii zaregistruje jednorazovým kódom. Kód platí obmedzený čas a dá sa použiť raz. Zariadenie, ktoré server už pozná (napríklad po preinštalovaní), sa znova zaregistruje len kódom vytvoreným pre neho." />
+
+        <GroupBox DockPanel.Dock="Top" Header="Nový kód" Padding="8" Margin="0,0,0,12">
+            <StackPanel>
+                <WrapPanel>
+                    <Label Content="_Pre:" Target="{Binding ElementName=TargetBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
+                    <ComboBox x:Name="TargetBox" Width="220" Margin="0,0,16,4" ItemsSource="{Binding Targets}" SelectedItem="{Binding SelectedTarget}" />
+                    <Label Content="P_latnosť:" Target="{Binding ElementName=ValidityBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
+                    <ComboBox x:Name="ValidityBox" Width="100" Margin="0,0,16,4" ItemsSource="{Binding ValidityOptions}" SelectedItem="{Binding SelectedValidity}" />
+                    <Label Content="_Poznámka:" Target="{Binding ElementName=NoteBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
+                    <TextBox x:Name="NoteBox" Width="200" MaxLength="200" Margin="0,0,16,4" VerticalContentAlignment="Center"
+                             ToolTip="Podľa čoho kód spoznáte, napríklad kde počítač stojí. Nepovinné."
+                             Text="{Binding Note, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button Content="Vytvoriť kód" Padding="12,4" Margin="0,0,0,4" Command="{Binding CreateCommand}" />
+                </WrapPanel>
+
+                <Border Background="#E8F5E9" BorderBrush="#A5D6A7" BorderThickness="1" CornerRadius="4" Padding="12,8" Margin="0,8,0,0"
+                        Visibility="{Binding HasCreatedCode, Converter={StaticResource VisibleWhenTrue}}">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Kopírovať" Padding="12,4" VerticalAlignment="Center" Click="OnCopyClick" />
+                        <TextBox Text="{Binding CreatedCode, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent"
+                                 FontFamily="Consolas" FontSize="22" FontWeight="SemiBold" DockPanel.Dock="Top"
+                                 AutomationProperties.Name="Vytvorený registračný kód" />
+                        <TextBlock Text="{Binding CreatedCodeHint}" TextWrapping="Wrap" Margin="0,4,12,0" />
+                    </DockPanel>
+                </Border>
+            </StackPanel>
+        </GroupBox>
+
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+            <Button DockPanel.Dock="Right" Content="Zavrieť" Padding="16,6" IsCancel="True" />
+            <Button DockPanel.Dock="Right" Content="Zrušiť vybraný kód" Padding="12,4" Margin="0,0,8,0" Command="{Binding RevokeCommand}" />
+            <TextBlock Text="{Binding Message}" Foreground="Gray" TextWrapping="Wrap" VerticalAlignment="Center" />
+        </DockPanel>
+
+        <TextBlock DockPanel.Dock="Top" Text="Kódy za posledných 30 dní" FontWeight="SemiBold" Margin="0,0,0,4" />
+        <DataGrid ItemsSource="{Binding Codes}" SelectedItem="{Binding SelectedCode}" SelectionMode="Single"
+                  AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Pre" Binding="{Binding TargetText}" Width="2*" />
+                <DataGridTextColumn Header="Poznámka" Binding="{Binding Note}" Width="2*" />
+                <DataGridTextColumn Header="Vytvoril" Binding="{Binding CreatedBy}" Width="*" />
+                <DataGridTextColumn Header="Vytvorený" Binding="{Binding CreatedText}" Width="Auto" />
+                <DataGridTextColumn Header="Platí do" Binding="{Binding ExpiresText}" Width="Auto" />
+                <DataGridTextColumn Header="Stav" Binding="{Binding StateText}" Width="2*" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</Window>

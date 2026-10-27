@@ -206,6 +206,25 @@ public sealed class GrpcServerClient : IServerClient
         return CallAsync(() => _client.RenameDeviceAsync(new RenameDeviceRequest { Id = id, Name = name }, Headers(), cancellationToken: cancellationToken));
     }
 
+    public Task<CreatedEnrollmentCodeReply> CreateEnrollmentCodeAsync(string note, string? deviceId, int validMinutes, CancellationToken cancellationToken = default)
+    {
+        return CallAsync(() => _client.CreateEnrollmentCodeAsync(
+            new CreateEnrollmentCodeRequest { Note = note, DeviceId = deviceId ?? string.Empty, ValidMinutes = validMinutes },
+            Headers(), cancellationToken: cancellationToken));
+    }
+
+    public async Task<IReadOnlyList<EnrollmentCodeInfo>> GetEnrollmentCodesAsync(CancellationToken cancellationToken = default)
+    {
+        var reply = await CallAsync(() => _client.ListEnrollmentCodesAsync(new ListEnrollmentCodesRequest(), Headers(), cancellationToken: cancellationToken));
+
+        return reply.Codes;
+    }
+
+    public Task<EnrollmentCodeInfo> RevokeEnrollmentCodeAsync(string id, CancellationToken cancellationToken = default)
+    {
+        return CallAsync(() => _client.RevokeEnrollmentCodeAsync(new RevokeEnrollmentCodeRequest { Id = id }, Headers(), cancellationToken: cancellationToken));
+    }
+
     public Task<DeviceInfo> SetDeviceTrafficCaptureAsync(string id, bool capture, CancellationToken cancellationToken = default)
     {
         return CallAsync(() => _client.SetDeviceTrafficCaptureAsync(

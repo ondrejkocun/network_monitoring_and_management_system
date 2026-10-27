@@ -358,6 +358,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         CurrentUserName = session.UserName;
 
         OnPropertyChanged(nameof(CanAddDevices));
+        OnPropertyChanged(nameof(CanManageEnrollmentCodes));
         OnPropertyChanged(nameof(CanManageSettings));
         OnPropertyChanged(nameof(CanManageUsers));
         OnPropertyChanged(nameof(CanViewEventLog));
@@ -368,6 +369,12 @@ public sealed class MainWindowViewModel : ViewModelBase
     public ChangePasswordViewModel CreateChangePasswordViewModel() => new(_server);
 
     public EventLogViewModel CreateEventLogViewModel() => new(_server, _timeProvider, _csvExporter);
+
+    /// <param name="deviceId">The device to offer first, when the window is opened for one.</param>
+    public EnrollmentCodesViewModel CreateEnrollmentCodesViewModel(string? deviceId = null) => new(_server, _confirmation, _allDevices, CanAddDevices, deviceId);
+
+    /// <summary>True when the user may create a code: for a new computer, or for a device with an agent they manage.</summary>
+    public bool CanManageEnrollmentCodes => CanAddDevices || _allDevices.Any(device => device.HasAgent && device.CanManage);
 
     /// <summary>Changing the password signs the user out everywhere, including here.</summary>
     public void EndSessionAfterPasswordChange()
@@ -1028,6 +1035,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             }
 
             OnPropertyChanged(nameof(DevicesSummaryText));
+            OnPropertyChanged(nameof(CanManageEnrollmentCodes));
             UpdateAlerts(before);
             await UpdateOverviewAsync();
 

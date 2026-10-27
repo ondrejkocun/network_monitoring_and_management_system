@@ -27,6 +27,11 @@ public class ServerMessagesTests
     [InlineData("Synchronization interval changed from 60 s to 30 s.", "Interval synchronizácie sa zmenil z 60 s na 30 s.")]
     [InlineData("The process 'chrome' (20852) was ended.", "Proces „chrome“ (20852) bol ukončený.")]
     [InlineData("The agent did not pick the command up in time.", "Agent si príkaz včas neprevzal.")]
+    [InlineData("Agent on device 'PC' registered with an enrollment code ('Učebňa 3').", "Agent na zariadení „PC“ sa zaregistroval registračným kódom ('Učebňa 3').")]
+    [InlineData("User 'admin' created an enrollment code for a new computer, valid until 2026-10-28 10:00 UTC.", "Používateľ „admin“ vytvoril registračný kód pre nový počítač s platnosťou do 2026-10-28 10:00 UTC.")]
+    [InlineData("User 'admin' created an enrollment code for device 'PC' ('reinstall'), valid until 2026-10-28 10:00 UTC.", "Používateľ „admin“ vytvoril registračný kód pre zariadenie „PC“ ('reinstall') s platnosťou do 2026-10-28 10:00 UTC.")]
+    [InlineData("User 'admin' revoked an enrollment code.", "Používateľ „admin“ zrušil registračný kód.")]
+    [InlineData("An enrollment code must be valid for 10 minutes to 7 days.", "Registračný kód musí platiť od 10 minút do 7 dní.")]
     public void EventsAndResults_AreShownInSlovak(string english, string slovak)
     {
         Assert.Equal(slovak, ServerMessages.ToSlovakText(english));

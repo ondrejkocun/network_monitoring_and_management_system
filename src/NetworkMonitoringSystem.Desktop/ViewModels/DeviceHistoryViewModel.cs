@@ -266,6 +266,8 @@ public sealed class EventRowViewModel
             "DeviceEnabled" => "Povolenie zariadenia",
             "TrafficCaptureChanged" => "Zachytávanie komunikácie",
             "DeviceRenamed" => "Premenovanie zariadenia",
+            "EnrollmentCodeCreated" => "Vytvorenie registračného kódu",
+            "EnrollmentCodeRevoked" => "Zrušenie registračného kódu",
             _ => type,
         };
     }

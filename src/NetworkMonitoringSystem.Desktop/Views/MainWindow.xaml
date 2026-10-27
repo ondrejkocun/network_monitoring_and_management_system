@@ -105,6 +105,9 @@
             <!-- Devices -->
             <DockPanel Grid.Row="0" Margin="0,0,0,6">
                 <Button DockPanel.Dock="Right" Content="Obnoviť" ToolTip="F5" Command="{Binding RefreshCommand}" />
+                <Button DockPanel.Dock="Right" Content="Registračné kódy…" Margin="0,0,8,0" Click="OnEnrollmentCodesClick"
+                        ToolTip="Jednorazové kódy, ktorými sa agenti registrujú na serveri."
+                        Visibility="{Binding CanManageEnrollmentCodes, Converter={StaticResource VisibleWhenTrue}}" />
                 <Button DockPanel.Dock="Right" Content="+ Pridať zariadenie…" Margin="0,0,8,0" Click="OnAddDeviceClick"
                         ToolTip="Pridá zariadenie bez agenta, napríklad router alebo switch."
                         Visibility="{Binding CanAddDevices, Converter={StaticResource VisibleWhenTrue}}" />
@@ -129,6 +132,9 @@
                         <MenuItem Header="{Binding ToggleDeviceEnabledText}" Command="{Binding ToggleDeviceEnabledCommand}" />
                         <MenuItem Header="{Binding ToggleTrafficCaptureText}" Command="{Binding ToggleTrafficCaptureCommand}" />
                         <MenuItem Header="Poslať _súbor…" Command="{Binding SendFileCommand}" />
+                        <MenuItem Header="_Registračný kód pre toto zariadenie…" Click="OnEnrollmentCodeForDeviceClick"
+                                  IsEnabled="{Binding SelectedDevice.CanManage, FallbackValue=False}"
+                                  Visibility="{Binding SelectedDevice.HasAgent, Converter={StaticResource VisibleWhenTrue}, FallbackValue=Collapsed}" />
                         <Separator />
                         <MenuItem Header="_Odstrániť" InputGestureText="Del" Command="{Binding RemoveDeviceCommand}" />
                         <Separator />

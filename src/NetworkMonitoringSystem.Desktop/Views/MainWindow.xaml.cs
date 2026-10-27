@@ -111,6 +111,16 @@ public partial class MainWindow : Window
         new AddDeviceWindow(_viewModel) { Owner = this }.ShowDialog();
     }
 
+    private void OnEnrollmentCodesClick(object sender, RoutedEventArgs e)
+    {
+        new EnrollmentCodesWindow(_viewModel.CreateEnrollmentCodesViewModel()) { Owner = this }.ShowDialog();
+    }
+
+    private void OnEnrollmentCodeForDeviceClick(object sender, RoutedEventArgs e)
+    {
+        new EnrollmentCodesWindow(_viewModel.CreateEnrollmentCodesViewModel(_viewModel.SelectedDevice?.Id)) { Owner = this }.ShowDialog();
+    }
+
     private void OnSettingsClick(object sender, RoutedEventArgs e)
     {
         new SettingsWindow(_viewModel) { Owner = this }.ShowDialog();

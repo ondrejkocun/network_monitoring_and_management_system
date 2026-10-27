@@ -29,6 +29,10 @@ public static partial class ServerMessages
         ["Only a device with an agent can capture network traffic."] = "Komunikáciu možno zachytávať len na zariadení s agentom.",
         ["Only a device without an agent is checked on a TCP port."] = "TCP port sa kontroluje len pri zariadení bez agenta.",
 
+        // Enrollment codes.
+        ["An enrollment code must be valid for 10 minutes to 7 days."] = "Registračný kód musí platiť od 10 minút do 7 dní.",
+        ["The note of an enrollment code must have at most 200 characters."] = "Poznámka ku kódu môže mať najviac 200 znakov.",
+
         // Remote commands and files.
         ["Commands can be sent only to a device with an agent."] = "Príkazy možno posielať len zariadeniu s agentom.",
         ["The device is disabled."] = "Zariadenie je zakázané.",
@@ -196,6 +200,7 @@ public static partial class ServerMessages
     private static readonly (Regex Pattern, string Slovak)[] TextPatterns =
     [
         // Events of devices.
+        (new(@"^Agent on device '(?<a>.*)' registered with an enrollment code(?<b> \('.*'\))?\.$"), "Agent na zariadení „{0}“ sa zaregistroval registračným kódom{1}."),
         (new(@"^Agent on device '(?<a>.*)' registered\.$"), "Agent na zariadení „{0}“ sa zaregistroval."),
         (new(@"^Device '(?<a>.*)' is online\.$"), "Zariadenie „{0}“ je online."),
         (new(@"^Device '(?<a>.*)' is offline\.$"), "Zariadenie „{0}“ je offline."),
@@ -234,6 +239,13 @@ public static partial class ServerMessages
         (new(@"^User '(?<a>.*)' allowed '(?<b>.*)' on device '(?<c>.*)' to role '(?<d>.*)'\.$"), "Používateľ „{0}“ povolil {1} na zariadení „{2}“ role „{3}“."),
         (new(@"^User '(?<a>.*)' revoked '(?<b>.*)' on all devices from role '(?<d>.*)'\.$"), "Používateľ „{0}“ odobral role „{3}“ {1} na všetkých zariadeniach."),
         (new(@"^User '(?<a>.*)' revoked '(?<b>.*)' on one device from role '(?<d>.*)'\.$"), "Používateľ „{0}“ odobral role „{3}“ {1} na jednom zariadení."),
+
+        // Enrollment codes; the note keeps its brackets, so a code without one reads well too.
+        (new(@"^User '(?<a>.*)' created an enrollment code for a new computer(?<b> \('.*'\))?, valid until (?<c>[\d-]+ [\d:]+) UTC\.$"),
+            "Používateľ „{0}“ vytvoril registračný kód pre nový počítač{1} s platnosťou do {2} UTC."),
+        (new(@"^User '(?<a>.*)' created an enrollment code for device '(?<d>.*)'(?<b> \('.*'\))?, valid until (?<c>[\d-]+ [\d:]+) UTC\.$"),
+            "Používateľ „{0}“ vytvoril registračný kód pre zariadenie „{3}“{1} s platnosťou do {2} UTC."),
+        (new(@"^User '(?<a>.*)' revoked an enrollment code(?<b> \('.*'\))?\.$"), "Používateľ „{0}“ zrušil registračný kód{1}."),
 
         // Remote commands and files.
         (new(@"^User '(?<a>.*)' sent the command '(?<cmd>\w+)'( \((?<param>.*)\))? to device '(?<d>.*)'\.$"), "Používateľ „{0}“ poslal príkaz {5} na zariadenie „{3}“."),
