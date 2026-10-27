@@ -138,6 +138,49 @@ namespace NetworkMonitoringSystem.Infrastructure.Persistence.Migrations
                     b.ToTable("UserSessions");
                 });
 
+            modelBuilder.Entity("NetworkMonitoringSystem.Domain.Commands.FileTransfer", b =>
+                {
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("CommandId");
+
+                    b.ToTable("FileTransfers");
+                });
+
+            modelBuilder.Entity("NetworkMonitoringSystem.Domain.Commands.FileTransferChunk", b =>
+                {
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Index")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("CommandId", "Index");
+
+                    b.ToTable("FileTransferChunks");
+                });
+
             modelBuilder.Entity("NetworkMonitoringSystem.Domain.Commands.RemoteCommand", b =>
                 {
                     b.Property<Guid>("Id")
@@ -718,6 +761,24 @@ namespace NetworkMonitoringSystem.Infrastructure.Persistence.Migrations
                     b.HasOne("NetworkMonitoringSystem.Domain.Access.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("NetworkMonitoringSystem.Domain.Commands.FileTransfer", b =>
+                {
+                    b.HasOne("NetworkMonitoringSystem.Domain.Commands.RemoteCommand", null)
+                        .WithOne()
+                        .HasForeignKey("NetworkMonitoringSystem.Domain.Commands.FileTransfer", "CommandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("NetworkMonitoringSystem.Domain.Commands.FileTransferChunk", b =>
+                {
+                    b.HasOne("NetworkMonitoringSystem.Domain.Commands.FileTransfer", null)
+                        .WithMany()
+                        .HasForeignKey("CommandId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

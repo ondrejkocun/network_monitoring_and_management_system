@@ -206,6 +206,59 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
     }
 
     [Fact]
+    public async Task File_SentByAdministrator_IsDownloadedByTheAgentUnchanged_AndOnlyItsRecordStaysAfterward()
+    {
+        await CreateReporter(Token).ReportOnceAsync(CancellationToken.None);
+        var identity = _identityStore.Load()!;
+        var admin = new NetworkMonitoringSystem.Desktop.Services.GrpcServerClient(new AdminContracts.AdminApi.AdminApiClient(_channel));
+        await admin.LoginAsync(Server.TestAdministrator.UserName, Server.TestAdministrator.Password);
+        var content = new byte[(1024 * 1024 * 3) / 2];
+        Random.Shared.NextBytes(content);
+
+        var sent = await admin.SendFileAsync(identity.DeviceId, "setup.bin", new MemoryStream(content));
+        Assert.Equal(("SendFile", "setup.bin", "Pending"), (sent.Type, sent.Parameter, sent.Status));
+
+        var agent = new AgentApi.AgentApiClient(_channel);
+        var credentials = new AgentCredentials { DeviceId = identity.DeviceId, AgentKey = identity.AgentKey };
+        var handed = (await agent.FetchCommandsAsync(new FetchCommandsRequest { Credentials = credentials })).Commands;
+        Assert.Equal(CommandType.SendFile, Assert.Single(handed, command => command.Id == sent.Id).Type);
+
+        FileHeader? header = null;
+        using var downloaded = new MemoryStream();
+
+        using (var download = agent.DownloadFile(new DownloadFileRequest { Credentials = credentials, CommandId = sent.Id }))
+        {
+            while (await download.ResponseStream.MoveNext(CancellationToken.None))
+            {
+                if (download.ResponseStream.Current.PartCase == DownloadFileReply.PartOneofCase.Header)
+                {
+                    header = download.ResponseStream.Current.Header;
+                }
+                else
+                {
+                    download.ResponseStream.Current.Data.WriteTo(downloaded);
+                }
+            }
+        }
+
+        Assert.Equal(("setup.bin", content.LongLength), (header!.FileName, header.Size));
+        Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), header.Sha256);
+        Assert.Equal(content, downloaded.ToArray());
+
+        await agent.ReportCommandResultAsync(new CommandResultRequest { Credentials = credentials, CommandId = sent.Id, Succeeded = true, Message = "Saved." });
+
+        await using var dbContext = _database.CreateDbContext();
+        var commandId = Guid.Parse(sent.Id);
+        Assert.True(await dbContext.FileTransfers.AnyAsync(transfer => transfer.CommandId == commandId && transfer.FileName == "setup.bin"));
+        Assert.False(await dbContext.FileTransferChunks.AnyAsync(chunk => chunk.CommandId == commandId));
+
+        // Once finished, the file cannot be downloaded again.
+        var again = agent.DownloadFile(new DownloadFileRequest { Credentials = credentials, CommandId = sent.Id });
+        var exception = await Assert.ThrowsAsync<RpcException>(() => again.ResponseStream.MoveNext(CancellationToken.None));
+        Assert.Equal(StatusCode.NotFound, exception.StatusCode);
+    }
+
+    [Fact]
     public async Task Report_WithWrongEnrollmentToken_DoesNotRegister()
     {
         var delay = await CreateReporter("wrong-token").ReportOnceAsync(CancellationToken.None);

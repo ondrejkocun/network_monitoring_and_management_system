@@ -33,6 +33,7 @@ public static class DependencyInjection
         services.AddScoped<IDeviceActivityRepository, EfDeviceActivityRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();
         services.AddScoped<IRemoteCommandRepository, EfRemoteCommandRepository>();
+        services.AddScoped<IFileTransferRepository, EfFileTransferRepository>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddSingleton<IDeviceReachabilityProbe, NetworkReachabilityProbe>();
 

@@ -1,3 +1,4 @@
+using NetworkMonitoringSystem.Application.Commands;
 using NetworkMonitoringSystem.Application.Access;
 using NetworkMonitoringSystem.Application.Monitoring;
 
@@ -50,6 +51,9 @@ public sealed class HistoryCleanupService : BackgroundService
 
             // Sessions that have expired are of no use to anyone.
             await scope.ServiceProvider.GetRequiredService<IAccessManagementService>().DeleteExpiredSessionsAsync(stoppingToken);
+
+            // Files of finished or expired commands are kept only as their audit record, without contents.
+            await scope.ServiceProvider.GetRequiredService<IRemoteCommandService>().DeleteFinishedFileContentsAsync(stoppingToken);
 
             if (removed.Total > 0)
             {

@@ -420,3 +420,37 @@ public sealed class InMemoryRemoteCommandRepository : IRemoteCommandRepository
             .ToList());
     }
 }
+
+public sealed class InMemoryFileTransferRepository(InMemoryRemoteCommandRepository commands) : IFileTransferRepository
+{
+    public List<FileTransfer> Transfers { get; } = [];
+
+    public List<FileTransferChunk> Chunks { get; } = [];
+
+    public void Add(FileTransfer transfer) => Transfers.Add(transfer);
+
+    public void AddChunk(FileTransferChunk chunk) => Chunks.Add(chunk);
+
+    public Task<FileTransfer?> GetAsync(Guid commandId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Transfers.FirstOrDefault(transfer => transfer.CommandId == commandId));
+    }
+
+    public Task<byte[]?> GetChunkAsync(Guid commandId, int index, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Chunks.FirstOrDefault(chunk => chunk.CommandId == commandId && chunk.Index == index)?.Data);
+    }
+
+    public Task DeleteContentAsync(Guid commandId, CancellationToken cancellationToken = default)
+    {
+        Chunks.RemoveAll(chunk => chunk.CommandId == commandId);
+
+        return Task.CompletedTask;
+    }
+
+    public Task<int> DeleteContentOfFinishedCommandsAsync(DateTimeOffset requestedBefore, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Chunks.RemoveAll(chunk => commands.Commands.Any(command =>
+            command.Id == chunk.CommandId && (command.IsFinished || command.RequestedAt < requestedBefore))));
+    }
+}

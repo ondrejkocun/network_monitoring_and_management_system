@@ -31,4 +31,7 @@ public enum Permission
     Ping = 108,
     Traceroute = 109,
     FlushDnsCache = 110,
+
+    /// <summary>Send a file into the inbox folder of a device.</summary>
+    SendFile = 111,
 }

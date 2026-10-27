@@ -154,6 +154,53 @@ public sealed class AgentApiService : AgentApi.AgentApiBase
         }
     }
 
+    public override async Task DownloadFile(
+        DownloadFileRequest request,
+        IServerStreamWriter<DownloadFileReply> responseStream,
+        ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.Credentials?.DeviceId, out var deviceId))
+        {
+            throw Unauthenticated();
+        }
+
+        FileTransferDto? file;
+
+        try
+        {
+            file = Guid.TryParse(request.CommandId, out var commandId)
+                ? await _commandService.GetFileForAgentAsync(new AgentCredentials(deviceId, request.Credentials.AgentKey), commandId, context.CancellationToken)
+                : null;
+        }
+        catch (AgentAuthenticationException)
+        {
+            throw Unauthenticated();
+        }
+
+        if (file is null)
+        {
+            _logger.LogWarning("Device {DeviceId} asked for a file of a command it is not carrying out.", deviceId);
+
+            throw new RpcException(new Status(StatusCode.NotFound, "No such file is waiting for this device."));
+        }
+
+        await responseStream.WriteAsync(new DownloadFileReply
+        {
+            Header = new FileHeader { FileName = file.FileName, Size = file.Size, Sha256 = file.Sha256 },
+        });
+
+        // One part at a time, so the server never holds the whole file for a download.
+        for (var index = 0; index < file.ChunkCount; index++)
+        {
+            var data = await _commandService.ReadFileChunkAsync(file.CommandId, index, context.CancellationToken)
+                ?? throw new RpcException(new Status(StatusCode.NotFound, "The contents of the file are no longer stored."));
+
+            await responseStream.WriteAsync(new DownloadFileReply { Data = Google.Protobuf.ByteString.CopyFrom(data) });
+        }
+
+        _logger.LogInformation("File {FileName} ({Size} bytes) sent to device {DeviceId}.", file.FileName, file.Size, deviceId);
+    }
+
     private static SystemMetricsReport? ToReport(SystemMetrics? metrics)
     {
         if (metrics is null)

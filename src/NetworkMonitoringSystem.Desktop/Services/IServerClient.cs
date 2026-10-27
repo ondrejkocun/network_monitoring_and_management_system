@@ -1,3 +1,4 @@
+using System.IO;
 using NetworkMonitoringSystem.Contracts.Admin;
 
 namespace NetworkMonitoringSystem.Desktop.Services;
@@ -66,6 +67,12 @@ public interface IServerClient
     /// <param name="parameter">Process identifier, service name or target address; empty when the command takes none.</param>
     /// <exception cref="ServerClientException">The user lacks the permission, the input is invalid, the device is offline, or the server could not be reached.</exception>
     Task SendCommandAsync(string deviceId, string type, string parameter, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Uploads a file and queues it for the device's agent, which saves it into its inbox folder.
+    /// </summary>
+    /// <exception cref="ServerClientException">The server could not be reached, refused the file or the device.</exception>
+    Task<CommandInfo> SendFileAsync(string deviceId, string fileName, Stream content, CancellationToken cancellationToken = default);
 
     /// <summary>Returns the most recent commands sent to the device with their results, the newest first.</summary>
     /// <exception cref="ServerClientException">The server could not be reached or refused the call.</exception>

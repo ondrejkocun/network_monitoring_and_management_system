@@ -39,6 +39,10 @@ public sealed class MonitoringDbContext : DbContext
 
     public DbSet<RemoteCommand> RemoteCommands => Set<RemoteCommand>();
 
+    public DbSet<FileTransfer> FileTransfers => Set<FileTransfer>();
+
+    public DbSet<FileTransferChunk> FileTransferChunks => Set<FileTransferChunk>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MonitoringDbContext).Assembly);

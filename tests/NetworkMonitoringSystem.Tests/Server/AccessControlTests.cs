@@ -58,6 +58,11 @@ public sealed class AccessControlTests : IClassFixture<DatabaseFixture>, IDispos
         var invented = new AdminApi.AdminApiClient(TestAdministrator.WithToken(_channel, new string('A', 64)));
         var exception = await Assert.ThrowsAsync<RpcException>(async () => await invented.ListDevicesAsync(new ListDevicesRequest()));
         Assert.Equal(StatusCode.Unauthenticated, exception.StatusCode);
+
+        // A call that streams the contents of a file needs a session just as much.
+        var upload = await Assert.ThrowsAsync<ServerClientException>(
+            () => NewClient().SendFileAsync(Guid.NewGuid().ToString(), "notes.txt", new MemoryStream([1, 2, 3])));
+        Assert.Equal(ServerErrorKind.NotSignedIn, upload.Kind);
     }
 
     [Fact]
@@ -160,6 +165,7 @@ public sealed class AccessControlTests : IClassFixture<DatabaseFixture>, IDispos
             () => client.SetDeviceTrafficCaptureAsync(other.Id.ToString(), capture: true),
             () => client.GetDeviceTrafficAsync(other.Id.ToString(), now.AddHours(-1), now),
             () => client.GetDeviceActivityHistoryAsync(other.Id.ToString(), now.AddHours(-1), now),
+            () => client.SendFileAsync(other.Id.ToString(), "notes.txt", new MemoryStream([1, 2, 3])),
             // A device that does not exist is refused the same way, so the answer does not reveal which devices exist.
             () => client.GetDeviceResourcesAsync(Guid.NewGuid().ToString()),
             // Adding a device concerns no single device, so a rule for one is not enough.

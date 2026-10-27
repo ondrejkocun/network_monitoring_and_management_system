@@ -16,6 +16,7 @@ public class RemoteCommandServiceTests
     private static readonly DateTimeOffset Now = new(2026, 10, 9, 12, 0, 0, TimeSpan.Zero);
 
     private readonly InMemoryRemoteCommandRepository _commands = new();
+    private readonly InMemoryFileTransferRepository _files;
     private readonly InMemoryDeviceRepository _devices = new();
     private readonly InMemoryMonitoringHistoryRepository _history = new();
     private readonly MutableTimeProvider _clock = new(Now);
@@ -26,7 +27,8 @@ public class RemoteCommandServiceTests
 
     public RemoteCommandServiceTests()
     {
-        _service = new RemoteCommandService(_commands, _devices, _history, new CountingUnitOfWork(), _clock);
+        _files = new InMemoryFileTransferRepository(_commands);
+        _service = new RemoteCommandService(_commands, _files, _devices, _history, new CountingUnitOfWork(), _clock);
         _device = AddAgentDevice("PC-01", AgentKeyText);
         _credentials = new AgentCredentials(_device.Id, AgentKeyText);
     }
@@ -215,6 +217,94 @@ public class RemoteCommandServiceTests
         var message = _commands.Commands[0].ResultMessage!;
         Assert.Equal(RemoteCommand.MaxResultLength, message.Length);
         Assert.StartsWith("line 1\nline 2[31m", message);
+    }
+
+    [Theory]
+    [InlineData(" notes.txt ", "notes.txt")]
+    [InlineData("Setup 2.1 (final).msi", "Setup 2.1 (final).msi")]
+    [InlineData("config.json.bak", "config.json.bak")]
+    public void FileName_ThatIsSafe_IsAccepted(string fileName, string expected)
+    {
+        Assert.Equal(expected, RemoteCommand.NormalizeParameter(RemoteCommandType.SendFile, fileName));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("..\\..\\Windows\\System32\\drivers\\etc\\hosts")]
+    [InlineData("../evil.exe")]
+    [InlineData("C:evil.txt")]
+    [InlineData("a?b.txt")]
+    [InlineData("..")]
+    [InlineData("readme.")]
+    [InlineData("CON")]
+    [InlineData("nul.txt")]
+    [InlineData("COM1.log")]
+    public void FileName_ThatCouldLeaveTheInboxOrIsNotAllowedOnWindows_IsRefused(string fileName)
+    {
+        Assert.Throws<ArgumentException>(() => RemoteCommand.NormalizeParameter(RemoteCommandType.SendFile, fileName));
+    }
+
+    [Fact]
+    public async Task SentFile_IsStoredInParts_WithItsHash_AndOnlyItsAgentCanReadIt_WhileCarryingItOut()
+    {
+        var content = Enumerable.Range(0, (FileTransfer.ChunkSize * 2) + 1000).Select(index => (byte)index).ToArray();
+
+        var requested = await _service.SendFileAsync(_actor, _device.Id, "backup.zip", content);
+
+        Assert.Equal((RemoteCommandType.SendFile, "backup.zip"), (requested!.Type, requested.Parameter));
+        Assert.Equal(3, _files.Chunks.Count);
+        var transfer = Assert.Single(_files.Transfers);
+        Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), transfer.Sha256);
+        Assert.Contains("'backup.zip' (2098152 bytes, SHA-256", Assert.Single(_history.Events).Message);
+
+        // Not before the agent has taken the command over, and never by another device.
+        Assert.Null(await _service.GetFileForAgentAsync(_credentials, requested.Id));
+        var command = Assert.Single(await _service.FetchPendingAsync(_credentials));
+        Assert.Equal((RemoteCommandType.SendFile, "backup.zip"), (command.Type, command.Parameter));
+
+        var otherKey = new string('F', 64);
+        var other = AddAgentDevice("PC-02", otherKey);
+        Assert.Null(await _service.GetFileForAgentAsync(new AgentCredentials(other.Id, otherKey), requested.Id));
+
+        var file = await _service.GetFileForAgentAsync(_credentials, requested.Id);
+        Assert.Equal(("backup.zip", content.LongLength, 3), (file!.FileName, file.Size, file.ChunkCount));
+
+        var downloaded = new List<byte>();
+
+        for (var index = 0; index < file.ChunkCount; index++)
+        {
+            downloaded.AddRange((await _service.ReadFileChunkAsync(file.CommandId, index))!);
+        }
+
+        Assert.Equal(content, downloaded);
+    }
+
+    [Fact]
+    public async Task FileContents_AreDeleted_WhenTheCommandFinishes_OrCanNoLongerBeCarriedOut()
+    {
+        var delivered = await _service.SendFileAsync(_actor, _device.Id, "a.txt", [1, 2, 3]);
+        await _service.FetchPendingAsync(_credentials);
+        var forgotten = await _service.SendFileAsync(_actor, _device.Id, "b.txt", [4, 5, 6]);
+
+        await _service.CompleteAsync(_credentials, delivered!.Id, succeeded: true, "Saved.");
+
+        Assert.Equal([forgotten!.Id], _files.Chunks.Select(chunk => chunk.CommandId));
+        Assert.Equal(2, _files.Transfers.Count);
+
+        _clock.Advance(RemoteCommand.Lifetime + TimeSpan.FromMinutes(1));
+        Assert.Equal(1, await _service.DeleteFinishedFileContentsAsync());
+        Assert.Empty(_files.Chunks);
+    }
+
+    [Fact]
+    public async Task File_IsRefused_AsPlainCommand_WhenTooLarge_AndForUnsafeName()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.RequestAsync(_actor, _device.Id, RemoteCommandType.SendFile, "a.txt"));
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.SendFileAsync(_actor, _device.Id, "big.bin", new byte[FileTransfer.MaxSize + 1]));
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.SendFileAsync(_actor, _device.Id, "..\\x.exe", [1]));
+
+        Assert.Empty(_commands.Commands);
+        Assert.Empty(_files.Transfers);
     }
 
     private Device AddAgentDevice(string name, string agentKey)

@@ -1047,6 +1047,35 @@ public class MainWindowViewModelTests
             return Task.CompletedTask;
         }
 
+        public List<(string DeviceId, string FileName, byte[] Content)> SentFiles { get; } = [];
+
+        public async Task<CommandInfo> SendFileAsync(string deviceId, string fileName, Stream content, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            using var copy = new MemoryStream();
+            await content.CopyToAsync(copy, cancellationToken);
+            SentFiles.Add((deviceId, fileName, copy.ToArray()));
+
+            var command = new CommandInfo
+            {
+                Id = "file-" + SentFiles.Count,
+                Type = "SendFile",
+                Parameter = fileName,
+                Status = "Pending",
+                RequestedBy = "admin",
+            };
+
+            if (!Commands.TryGetValue(deviceId, out var commands))
+            {
+                Commands[deviceId] = commands = [];
+            }
+
+            commands.Insert(0, command);
+
+            return command;
+        }
+
         public Task<IReadOnlyList<CommandInfo>> GetDeviceCommandsAsync(string deviceId, CancellationToken cancellationToken = default)
         {
             ThrowIfFailing();

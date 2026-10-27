@@ -20,6 +20,9 @@ public enum RemoteCommandType
     Ping = 8,
     Traceroute = 9,
     FlushDnsCache = 10,
+
+    /// <summary>Save a file the administrator sent into the inbox folder of the device. The file is never run.</summary>
+    SendFile = 11,
 }
 
 public enum RemoteCommandStatus
@@ -121,7 +124,10 @@ public sealed partial class RemoteCommand
 
     public RemoteCommandType Type { get; }
 
-    /// <summary>The process identifier, service name or target address, depending on the type; null when the type takes none.</summary>
+    /// <summary>
+    /// The process identifier, service name, target address or name of the sent file, depending on the type;
+    /// null when the type takes none.
+    /// </summary>
     public string? Parameter { get; }
 
     public RemoteCommandStatus Status { get; private set; } = RemoteCommandStatus.Pending;
@@ -151,6 +157,7 @@ public sealed partial class RemoteCommand
             RemoteCommandType.Ping => Permission.Ping,
             RemoteCommandType.Traceroute => Permission.Traceroute,
             RemoteCommandType.FlushDnsCache => Permission.FlushDnsCache,
+            RemoteCommandType.SendFile => Permission.SendFile,
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown command type."),
         };
     }
@@ -186,6 +193,9 @@ public sealed partial class RemoteCommand
                     : throw new ArgumentException(
                         "The service name must have 1 to 80 characters: letters, digits, spaces and . _ - $ only.",
                         nameof(parameter));
+
+            case RemoteCommandType.SendFile:
+                return FileTransfer.NormalizeFileName(text);
 
             case RemoteCommandType.Ping:
             case RemoteCommandType.Traceroute:

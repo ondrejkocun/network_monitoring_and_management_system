@@ -29,20 +29,59 @@ public sealed class AdminAuthenticationInterceptor : Interceptor
         ServerCallContext context,
         UnaryServerMethod<TRequest, TResponse> continuation)
     {
-        if (context.Method != LoginMethod)
-        {
-            var token = ReadToken(context);
-            var user = token is null ? null : await _authenticationService.AuthenticateAsync(token, context.CancellationToken);
-
-            if (user is null)
-            {
-                throw new RpcException(new Status(StatusCode.Unauthenticated, "Sign in to use the administration API."));
-            }
-
-            context.GetHttpContext().Items[UserKey] = user;
-        }
+        await AuthenticateAsync(context);
 
         return await continuation(request, context);
+    }
+
+    /// <summary>Uploads stream from the client, such as a file; they need a session just as much.</summary>
+    public override async Task<TResponse> ClientStreamingServerHandler<TRequest, TResponse>(
+        IAsyncStreamReader<TRequest> requestStream,
+        ServerCallContext context,
+        ClientStreamingServerMethod<TRequest, TResponse> continuation)
+    {
+        await AuthenticateAsync(context);
+
+        return await continuation(requestStream, context);
+    }
+
+    /// <summary>Any call that streams from the server; none does yet, but one added later is covered too.</summary>
+    public override async Task ServerStreamingServerHandler<TRequest, TResponse>(
+        TRequest request,
+        IServerStreamWriter<TResponse> responseStream,
+        ServerCallContext context,
+        ServerStreamingServerMethod<TRequest, TResponse> continuation)
+    {
+        await AuthenticateAsync(context);
+        await continuation(request, responseStream, context);
+    }
+
+    public override async Task DuplexStreamingServerHandler<TRequest, TResponse>(
+        IAsyncStreamReader<TRequest> requestStream,
+        IServerStreamWriter<TResponse> responseStream,
+        ServerCallContext context,
+        DuplexStreamingServerMethod<TRequest, TResponse> continuation)
+    {
+        await AuthenticateAsync(context);
+        await continuation(requestStream, responseStream, context);
+    }
+
+    private async Task AuthenticateAsync(ServerCallContext context)
+    {
+        if (context.Method == LoginMethod)
+        {
+            return;
+        }
+
+        var token = ReadToken(context);
+        var user = token is null ? null : await _authenticationService.AuthenticateAsync(token, context.CancellationToken);
+
+        if (user is null)
+        {
+            throw new RpcException(new Status(StatusCode.Unauthenticated, "Sign in to use the administration API."));
+        }
+
+        context.GetHttpContext().Items[UserKey] = user;
     }
 
     /// <summary>Returns the session token the call carries, or null when it carries none.</summary>

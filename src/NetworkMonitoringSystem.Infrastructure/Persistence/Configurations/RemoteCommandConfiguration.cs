@@ -31,3 +31,32 @@ internal sealed class RemoteCommandConfiguration : IEntityTypeConfiguration<Remo
         builder.HasIndex(command => new { command.DeviceId, command.RequestedAt });
     }
 }
+
+internal sealed class FileTransferConfiguration : IEntityTypeConfiguration<FileTransfer>
+{
+    public void Configure(EntityTypeBuilder<FileTransfer> builder)
+    {
+        builder.HasKey(transfer => transfer.CommandId);
+
+        builder.Property(transfer => transfer.FileName).HasMaxLength(FileTransfer.MaxFileNameLength).IsRequired();
+        builder.Property(transfer => transfer.Size);
+        builder.Property(transfer => transfer.Sha256).HasMaxLength(64).IsRequired();
+        builder.Property(transfer => transfer.CreatedAt);
+        builder.Ignore(transfer => transfer.ChunkCount);
+
+        // Part of the audit record of its command, so it lives as long as the command does.
+        builder.HasOne<RemoteCommand>().WithOne().HasForeignKey<FileTransfer>(transfer => transfer.CommandId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class FileTransferChunkConfiguration : IEntityTypeConfiguration<FileTransferChunk>
+{
+    public void Configure(EntityTypeBuilder<FileTransferChunk> builder)
+    {
+        builder.HasKey(chunk => new { chunk.CommandId, chunk.Index });
+
+        builder.Property(chunk => chunk.Data).IsRequired();
+
+        builder.HasOne<FileTransfer>().WithMany().HasForeignKey(chunk => chunk.CommandId).OnDelete(DeleteBehavior.Cascade);
+    }
+}

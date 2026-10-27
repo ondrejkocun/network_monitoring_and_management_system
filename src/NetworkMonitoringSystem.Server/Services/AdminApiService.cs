@@ -586,6 +586,75 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         }
     }
 
+    public override async Task<CommandInfo> SendFile(IAsyncStreamReader<SendFileRequest> requestStream, ServerCallContext context)
+    {
+        if (!await requestStream.MoveNext(context.CancellationToken) || requestStream.Current.PartCase != SendFileRequest.PartOneofCase.Header)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "The upload must start with the header of the file."));
+        }
+
+        var header = requestStream.Current.Header;
+        var user = AdminAuthenticationInterceptor.GetUser(context);
+
+        // The permission is checked before the contents are read, so a refused user cannot make the server receive them.
+        var deviceId = await AuthorizeForDeviceAsync(context, Permission.SendFile, header.DeviceId);
+
+        if (deviceId is null)
+        {
+            throw new RpcException(new Status(StatusCode.NotFound, "The device does not exist."));
+        }
+
+        if (header.Size is < 0 or > FileTransfer.MaxSize)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, $"A file can have at most {FileTransfer.MaxSize / (1024 * 1024)} MB."));
+        }
+
+        try
+        {
+            FileTransfer.NormalizeFileName(header.FileName);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
+        }
+
+        using var content = new MemoryStream((int)header.Size);
+
+        while (await requestStream.MoveNext(context.CancellationToken))
+        {
+            var data = requestStream.Current.Data;
+
+            if (requestStream.Current.PartCase != SendFileRequest.PartOneofCase.Data || content.Length + data.Length > header.Size)
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "The contents do not match the size in the header."));
+            }
+
+            data.WriteTo(content);
+        }
+
+        if (content.Length != header.Size)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "The contents do not match the size in the header."));
+        }
+
+        try
+        {
+            var command = await _commandService.SendFileAsync(user, deviceId.Value, header.FileName, content.ToArray(), context.CancellationToken);
+
+            return command is null
+                ? throw new RpcException(new Status(StatusCode.NotFound, "The device does not exist."))
+                : ToCommandInfo(command);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
+        }
+        catch (RemoteCommandRefusedException exception)
+        {
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, exception.Message));
+        }
+    }
+
     public override async Task<ListDeviceCommandsReply> ListDeviceCommands(ListDeviceCommandsRequest request, ServerCallContext context)
     {
         var reply = new ListDeviceCommandsReply();

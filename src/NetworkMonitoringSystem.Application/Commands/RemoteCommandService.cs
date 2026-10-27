@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using NetworkMonitoringSystem.Application.Access;
 using NetworkMonitoringSystem.Application.Agents;
 using NetworkMonitoringSystem.Application.Common;
@@ -66,8 +67,32 @@ public interface IRemoteCommandService
         string? parameter,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Stores the file and queues the command to receive it for the device. Whether the user may send files is checked
+    /// by the caller.
+    /// </summary>
+    /// <returns>Null when no such device exists.</returns>
+    /// <exception cref="ArgumentException">The file is too large or its name cannot be used.</exception>
+    /// <exception cref="RemoteCommandRefusedException">The device has no agent, is disabled or is not online.</exception>
+    Task<RemoteCommandDto?> SendFileAsync(
+        AuthenticatedUser actor,
+        Guid deviceId,
+        string fileName,
+        byte[] content,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Returns the most recent commands of the device, the newest first.</summary>
     Task<IReadOnlyList<RemoteCommandDto>> GetRecentAsync(Guid deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns the file of a receive command the agent of the device is carrying out, or null for any other.</summary>
+    /// <exception cref="AgentAuthenticationException">The credentials are not valid.</exception>
+    Task<FileTransferDto?> GetFileForAgentAsync(AgentCredentials credentials, Guid commandId, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns one part of a file's contents; the caller has checked the agent with <see cref="GetFileForAgentAsync"/>.</summary>
+    Task<byte[]?> ReadFileChunkAsync(Guid commandId, int index, CancellationToken cancellationToken = default);
+
+    /// <summary>Deletes the contents of files whose commands have finished, including expired ones.</summary>
+    Task<int> DeleteFinishedFileContentsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Hands the waiting commands of the device to its agent.</summary>
     /// <exception cref="AgentAuthenticationException">The credentials are not valid.</exception>
@@ -92,6 +117,7 @@ public sealed class RemoteCommandService : IRemoteCommandService
     public const int MaxUnfinishedCommands = 20;
 
     private readonly IRemoteCommandRepository _commands;
+    private readonly IFileTransferRepository _files;
     private readonly IDeviceRepository _devices;
     private readonly IMonitoringHistoryRepository _history;
     private readonly IUnitOfWork _unitOfWork;
@@ -99,18 +125,21 @@ public sealed class RemoteCommandService : IRemoteCommandService
 
     public RemoteCommandService(
         IRemoteCommandRepository commands,
+        IFileTransferRepository files,
         IDeviceRepository devices,
         IMonitoringHistoryRepository history,
         IUnitOfWork unitOfWork,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(files);
         ArgumentNullException.ThrowIfNull(devices);
         ArgumentNullException.ThrowIfNull(history);
         ArgumentNullException.ThrowIfNull(unitOfWork);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         _commands = commands;
+        _files = files;
         _devices = devices;
         _history = history;
         _unitOfWork = unitOfWork;
@@ -126,6 +155,109 @@ public sealed class RemoteCommandService : IRemoteCommandService
     {
         ArgumentNullException.ThrowIfNull(actor);
 
+        if (type == RemoteCommandType.SendFile)
+        {
+            throw new ArgumentException("A file is sent together with its contents, not as a plain command.", nameof(type));
+        }
+
+        if (await CreateCommandAsync(actor, deviceId, type, parameter, cancellationToken) is not var (command, device))
+        {
+            return null;
+        }
+
+        _history.AddEvent(new MonitoringEvent(
+            command.RequestedAt,
+            MonitoringEventType.RemoteCommand,
+            EventSeverity.Info,
+            $"User '{actor.UserName}' sent the command {Describe(command)} to device '{device.Name}'.",
+            device.Id,
+            actor.Id));
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return RemoteCommandDto.FromCommand(command);
+    }
+
+    public async Task<RemoteCommandDto?> SendFileAsync(
+        AuthenticatedUser actor,
+        Guid deviceId,
+        string fileName,
+        byte[] content,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(content);
+
+        if (content.LongLength > FileTransfer.MaxSize)
+        {
+            throw new ArgumentException($"A file can have at most {FileTransfer.MaxSize / (1024 * 1024)} MB.", nameof(content));
+        }
+
+        if (await CreateCommandAsync(actor, deviceId, RemoteCommandType.SendFile, fileName, cancellationToken) is not var (command, device))
+        {
+            return null;
+        }
+
+        var sha256 = Convert.ToHexString(SHA256.HashData(content));
+        var transfer = new FileTransfer(command.Id, command.Parameter!, content.LongLength, sha256, command.RequestedAt);
+        _files.Add(transfer);
+
+        for (var index = 0; index < transfer.ChunkCount; index++)
+        {
+            var offset = index * FileTransfer.ChunkSize;
+            _files.AddChunk(new FileTransferChunk(command.Id, index, content[offset..Math.Min(offset + FileTransfer.ChunkSize, content.Length)]));
+        }
+
+        _history.AddEvent(new MonitoringEvent(
+            command.RequestedAt,
+            MonitoringEventType.RemoteCommand,
+            EventSeverity.Info,
+            $"User '{actor.UserName}' sent the file '{transfer.FileName}' ({transfer.Size} bytes, SHA-256 {transfer.Sha256}) to device '{device.Name}'.",
+            device.Id,
+            actor.Id));
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return RemoteCommandDto.FromCommand(command);
+    }
+
+    public async Task<FileTransferDto?> GetFileForAgentAsync(
+        AgentCredentials credentials,
+        Guid commandId,
+        CancellationToken cancellationToken = default)
+    {
+        var device = await AuthenticateAsync(credentials, cancellationToken);
+        var command = await _commands.GetByIdAsync(commandId, cancellationToken);
+
+        // Only the agent the file was sent to, and only while it is carrying the command out.
+        if (command is not { Type: RemoteCommandType.SendFile, Status: RemoteCommandStatus.Sent } || command.DeviceId != device.Id)
+        {
+            return null;
+        }
+
+        return await _files.GetAsync(commandId, cancellationToken) is { } transfer ? FileTransferDto.FromTransfer(transfer) : null;
+    }
+
+    public Task<byte[]?> ReadFileChunkAsync(Guid commandId, int index, CancellationToken cancellationToken = default)
+    {
+        return _files.GetChunkAsync(commandId, index, cancellationToken);
+    }
+
+    public Task<int> DeleteFinishedFileContentsAsync(CancellationToken cancellationToken = default)
+    {
+        // A command older than its lifetime will expire however long nobody looks at it.
+        return _files.DeleteContentOfFinishedCommandsAsync(_timeProvider.GetUtcNow() - RemoteCommand.Lifetime, cancellationToken);
+    }
+
+    /// <summary>
+    /// Checks that the device can take a command now and creates it; the caller adds the event and saves.
+    /// Returns null when no such device exists.
+    /// </summary>
+    private async Task<(RemoteCommand Command, Device Device)?> CreateCommandAsync(
+        AuthenticatedUser actor,
+        Guid deviceId,
+        RemoteCommandType type,
+        string? parameter,
+        CancellationToken cancellationToken)
+    {
         var device = await _devices.GetByIdAsync(deviceId, cancellationToken);
 
         if (device is null)
@@ -161,16 +293,8 @@ public sealed class RemoteCommandService : IRemoteCommandService
         var command = new RemoteCommand(Guid.NewGuid(), device.Id, device.Name, actor.Id, actor.UserName, type, parameter, now);
 
         _commands.Add(command);
-        _history.AddEvent(new MonitoringEvent(
-            now,
-            MonitoringEventType.RemoteCommand,
-            EventSeverity.Info,
-            $"User '{actor.UserName}' sent the command {Describe(command)} to device '{device.Name}'.",
-            device.Id,
-            actor.Id));
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return RemoteCommandDto.FromCommand(command);
+        return (command, device);
     }
 
     public async Task<IReadOnlyList<RemoteCommandDto>> GetRecentAsync(Guid deviceId, CancellationToken cancellationToken = default)
@@ -229,6 +353,12 @@ public sealed class RemoteCommandService : IRemoteCommandService
             device.Id,
             command.RequestedByUserId));
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // The file has arrived or never will; its contents are not needed any more, only the audit record.
+        if (command.Type == RemoteCommandType.SendFile)
+        {
+            await _files.DeleteContentAsync(command.Id, cancellationToken);
+        }
 
         return true;
     }

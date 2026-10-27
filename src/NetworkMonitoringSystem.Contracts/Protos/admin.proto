@@ -65,6 +65,10 @@ service AdminApi {
   // Queues a command for the device's agent. Requires the permission of that command on the device.
   rpc SendCommand (SendCommandRequest) returns (CommandInfo);
 
+  // Uploads a file and queues it for the device's agent, which saves it into its inbox folder. The first message
+  // carries the header, the following ones the contents in order. Requires the SendFile permission on the device.
+  rpc SendFile (stream SendFileRequest) returns (CommandInfo);
+
   // Returns the most recent commands sent to the device with their results, the newest first.
   rpc ListDeviceCommands (ListDeviceCommandsRequest) returns (ListDeviceCommandsReply);
 
@@ -455,6 +459,22 @@ message ResourcePointInfo {
   optional double cpu_usage_percent = 2;
   uint64 memory_used_bytes = 3;
   uint64 memory_total_bytes = 4;
+}
+
+message SendFileRequest {
+  oneof part {
+    SendFileHeader header = 1;
+    // A part of the contents, at most 1 MB.
+    bytes data = 2;
+  }
+}
+
+message SendFileHeader {
+  string device_id = 1;
+  // Name only, without a folder; it is the name the file gets on the device.
+  string file_name = 2;
+  // Size of the whole file in bytes; the upload is refused when the contents do not match.
+  int64 size = 3;
 }
 
 message SendCommandRequest {

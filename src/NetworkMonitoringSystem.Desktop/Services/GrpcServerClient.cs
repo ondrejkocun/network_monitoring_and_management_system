@@ -1,3 +1,4 @@
+using System.IO;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using NetworkMonitoringSystem.Contracts.Admin;
@@ -251,6 +252,45 @@ public sealed class GrpcServerClient : IServerClient
             Headers(), cancellationToken: cancellationToken));
     }
 
+    public async Task<CommandInfo> SendFileAsync(string deviceId, string fileName, Stream content, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+
+        using var call = _client.SendFile(Headers(), cancellationToken: cancellationToken);
+
+        try
+        {
+            try
+            {
+                await call.RequestStream.WriteAsync(new SendFileRequest
+                {
+                    Header = new SendFileHeader { DeviceId = deviceId, FileName = fileName, Size = content.Length },
+                });
+
+                // The server takes parts of at most 1 MB.
+                var buffer = new byte[1024 * 1024];
+                int read;
+
+                while ((read = await content.ReadAsync(buffer, cancellationToken)) > 0)
+                {
+                    await call.RequestStream.WriteAsync(new SendFileRequest { Data = Google.Protobuf.ByteString.CopyFrom(buffer, 0, read) });
+                }
+
+                await call.RequestStream.CompleteAsync();
+            }
+            catch (Exception exception) when (exception is RpcException or InvalidOperationException)
+            {
+                // The server may refuse the file before all of it is written; why is in its answer below.
+            }
+
+            return await call.ResponseAsync;
+        }
+        catch (RpcException exception) when (exception.StatusCode != StatusCode.Cancelled)
+        {
+            throw Translate(exception);
+        }
+    }
+
     /// <summary>The session token is kept only in memory and sent with every call.</summary>
     private Metadata? Headers()
     {
@@ -265,15 +305,20 @@ public sealed class GrpcServerClient : IServerClient
         }
         catch (RpcException exception) when (exception.StatusCode != StatusCode.Cancelled)
         {
-            throw exception.StatusCode switch
-            {
-                StatusCode.InvalidArgument or StatusCode.FailedPrecondition => new ServerClientException(ServerErrorKind.InvalidInput, exception.Status.Detail, exception),
-                StatusCode.NotFound => new ServerClientException(ServerErrorKind.NotFound, exception.Status.Detail, exception),
-                StatusCode.PermissionDenied => new ServerClientException(ServerErrorKind.AccessDenied, exception.Status.Detail, exception),
-                StatusCode.Unauthenticated => new ServerClientException(ServerErrorKind.NotSignedIn, exception.Status.Detail, exception),
-                StatusCode.Unavailable or StatusCode.DeadlineExceeded or StatusCode.Internal => new ServerClientException(ServerErrorKind.Unavailable, exception.Status.Detail, exception),
-                _ => new ServerClientException(ServerErrorKind.Other, exception.Status.Detail, exception),
-            };
+            throw Translate(exception);
         }
+    }
+
+    private static ServerClientException Translate(RpcException exception)
+    {
+        return exception.StatusCode switch
+        {
+            StatusCode.InvalidArgument or StatusCode.FailedPrecondition => new ServerClientException(ServerErrorKind.InvalidInput, exception.Status.Detail, exception),
+            StatusCode.NotFound => new ServerClientException(ServerErrorKind.NotFound, exception.Status.Detail, exception),
+            StatusCode.PermissionDenied => new ServerClientException(ServerErrorKind.AccessDenied, exception.Status.Detail, exception),
+            StatusCode.Unauthenticated => new ServerClientException(ServerErrorKind.NotSignedIn, exception.Status.Detail, exception),
+            StatusCode.Unavailable or StatusCode.DeadlineExceeded or StatusCode.Internal => new ServerClientException(ServerErrorKind.Unavailable, exception.Status.Detail, exception),
+            _ => new ServerClientException(ServerErrorKind.Other, exception.Status.Detail, exception),
+        };
     }
 }
