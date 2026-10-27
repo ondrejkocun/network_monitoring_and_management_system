@@ -100,6 +100,31 @@ public class MainWindowViewModelTests
 
         Assert.Equal("Server nie je dostupný.", viewModel.StatusMessage);
         Assert.Single(viewModel.Devices);
+        Assert.True(viewModel.IsServerUnavailable);
+        Assert.Contains($"údaje sú z {viewModel.LastRefreshedAt:HH:mm:ss}", viewModel.ConnectionWarningText);
+
+        _server.Failure = null;
+        await viewModel.RefreshAsync();
+
+        Assert.False(viewModel.IsServerUnavailable);
+        Assert.Equal(string.Empty, viewModel.ConnectionWarningText);
+        Assert.Equal("Pripojené k serveru.", viewModel.StatusMessage);
+    }
+
+    [Fact]
+    public async Task PeriodicRefresh_KeepsWhatTheLastActionSaid_AndShowsWhenItLoaded()
+    {
+        var now = new DateTimeOffset(2026, 10, 27, 14, 32, 5, TimeSpan.Zero);
+        var viewModel = new MainWindowViewModel(_server, _confirmation, new MutableTimeProvider(now));
+        await viewModel.RefreshAsync();
+        viewModel.SyncIntervalText = "30";
+        await viewModel.SaveSettingsCommand.ExecuteAsync();
+        var saved = viewModel.StatusMessage;
+
+        await viewModel.RefreshAsync();
+
+        Assert.Equal(saved, viewModel.StatusMessage);
+        Assert.Equal($"Obnovené {now.ToLocalTime():HH:mm:ss}", viewModel.LastRefreshText);
     }
 
     [Fact]

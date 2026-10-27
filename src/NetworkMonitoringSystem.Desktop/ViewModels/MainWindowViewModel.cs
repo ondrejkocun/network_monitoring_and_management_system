@@ -44,6 +44,8 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _resourcesMessage = NoDeviceSelectedMessage;
     private bool _isRebuildingList;
     private bool _sessionEnded;
+    private DateTimeOffset? _lastRefreshedAt;
+    private bool _isServerUnavailable;
     private string _addDeviceMessage = string.Empty;
     private string _settingsMessage = string.Empty;
     private HashSet<string> _permissions = [];
@@ -935,7 +937,15 @@ public sealed class MainWindowViewModel : ViewModelBase
             }
 
             OnPropertyChanged(nameof(DevicesSummaryText));
-            StatusMessage = "Pripojené k serveru.";
+
+            // A periodic refresh does not overwrite what the last action said, only a lost connection it outlived.
+            if (LastRefreshedAt is null || IsServerUnavailable)
+            {
+                StatusMessage = "Pripojené k serveru.";
+            }
+
+            LastRefreshedAt = _timeProvider.GetLocalNow();
+            IsServerUnavailable = false;
         }
         catch (ServerClientException exception) when (exception.Kind == ServerErrorKind.NotSignedIn)
         {
@@ -944,8 +954,44 @@ public sealed class MainWindowViewModel : ViewModelBase
         catch (ServerClientException exception)
         {
             StatusMessage = Describe(exception);
+            IsServerUnavailable = exception.Kind == ServerErrorKind.Unavailable;
         }
     }
+
+    /// <summary>When the device list was last loaded successfully; null before the first time.</summary>
+    public DateTimeOffset? LastRefreshedAt
+    {
+        get => _lastRefreshedAt;
+        private set
+        {
+            if (SetProperty(ref _lastRefreshedAt, value))
+            {
+                OnPropertyChanged(nameof(LastRefreshText));
+                OnPropertyChanged(nameof(ConnectionWarningText));
+            }
+        }
+    }
+
+    public string LastRefreshText => LastRefreshedAt is { } refreshedAt ? $"Obnovené {refreshedAt:HH:mm:ss}" : string.Empty;
+
+    /// <summary>True while the server cannot be reached; what is on screen then is getting old.</summary>
+    public bool IsServerUnavailable
+    {
+        get => _isServerUnavailable;
+        private set
+        {
+            if (SetProperty(ref _isServerUnavailable, value))
+            {
+                OnPropertyChanged(nameof(ConnectionWarningText));
+            }
+        }
+    }
+
+    public string ConnectionWarningText => !IsServerUnavailable
+        ? string.Empty
+        : LastRefreshedAt is { } refreshedAt
+            ? $"Server nie je dostupný. Zobrazené údaje sú z {refreshedAt:HH:mm:ss}; aplikácia to skúša znova každých 5 sekúnd."
+            : "Server nie je dostupný; aplikácia to skúša znova každých 5 sekúnd.";
 
     private async Task AddDeviceAsync()
     {

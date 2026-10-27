@@ -53,8 +53,20 @@
         </Border>
 
         <StatusBar DockPanel.Dock="Bottom">
+            <StatusBar.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <DockPanel LastChildFill="True" />
+                </ItemsPanelTemplate>
+            </StatusBar.ItemsPanel>
+            <StatusBarItem DockPanel.Dock="Right" Content="{Binding LastRefreshText}" Foreground="Gray" Margin="12,0,4,0" />
             <StatusBarItem Content="{Binding StatusMessage}" />
         </StatusBar>
+
+        <!-- Hard to miss: without the server everything shown is getting old. -->
+        <Border DockPanel.Dock="Top" Background="#C62828" Padding="12,6"
+                Visibility="{Binding IsServerUnavailable, Converter={StaticResource VisibleWhenTrue}}">
+            <TextBlock Text="{Binding ConnectionWarningText}" Foreground="White" FontWeight="SemiBold" TextWrapping="Wrap" />
+        </Border>
 
         <Grid Margin="12,10,12,8">
             <Grid.RowDefinitions>
