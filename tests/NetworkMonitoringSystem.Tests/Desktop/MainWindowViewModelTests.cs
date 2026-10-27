@@ -1153,6 +1153,15 @@ public class MainWindowViewModelTests
             return Task.CompletedTask;
         }
 
+        public Task DeleteUserAsync(string userId, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            Users.RemoveAll(user => user.Id == userId);
+
+            return Task.CompletedTask;
+        }
+
         public Task SetUserRolesAsync(string userId, IReadOnlyCollection<string> roleIds, CancellationToken cancellationToken = default)
         {
             ThrowIfFailing();

@@ -15,6 +15,7 @@ public static partial class ServerMessages
         ["Sign in to use the administration API."] = "Prihláste sa.",
         ["The current password is not correct."] = "Súčasné heslo nie je správne.",
         ["The user does not exist."] = "Používateľ neexistuje.",
+        ["You cannot delete your own account."] = "Vlastný účet nemôžete odstrániť.",
         ["The role does not exist."] = "Rola neexistuje.",
         ["Unknown permission."] = "Neznáme oprávnenie.",
 

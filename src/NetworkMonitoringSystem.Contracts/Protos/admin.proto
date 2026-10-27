@@ -24,6 +24,8 @@ service AdminApi {
   rpc SetUserActive (SetUserActiveRequest) returns (UserInfo);
   rpc SetUserRoles (SetUserRolesRequest) returns (UserInfo);
   rpc ResetUserPassword (ResetUserPasswordRequest) returns (ResetUserPasswordReply);
+  // Deletes a user for good; what they did stays in the audit under their name.
+  rpc DeleteUser (DeleteUserRequest) returns (DeleteUserReply);
   rpc ListRoles (ListRolesRequest) returns (ListRolesReply);
   rpc CreateRole (CreateRoleRequest) returns (RoleInfo);
   rpc DeleteRole (DeleteRoleRequest) returns (DeleteRoleReply);
@@ -195,6 +197,13 @@ message ListRolesReply {
 
 message CreateRoleRequest {
   string name = 1;
+}
+
+message DeleteUserRequest {
+  string user_id = 1;
+}
+
+message DeleteUserReply {
 }
 
 message DeleteRoleRequest {

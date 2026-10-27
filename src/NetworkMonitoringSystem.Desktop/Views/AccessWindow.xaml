@@ -51,6 +51,8 @@
 
                                     <Button Content="{Binding ToggleUserActiveText}" Padding="12,4" Margin="0,16,0,0" HorizontalAlignment="Left"
                                             Command="{Binding ToggleUserActiveCommand}" />
+                                    <Button Content="Odstrániť používateľa" Padding="12,4" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                            Command="{Binding DeleteUserCommand}" />
 
                                     <Label Content="_Nové heslo" Target="{Binding ElementName=ResetPasswordBox}" Padding="0,16,0,4" />
                                     <PasswordBox x:Name="ResetPasswordBox" Padding="4" MaxLength="256" />

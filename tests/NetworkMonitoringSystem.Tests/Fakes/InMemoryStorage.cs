@@ -360,6 +360,8 @@ public sealed class InMemoryUserRepository : IUserRepository
 
     public void AddUser(User user) => Users.Add(user);
 
+    public void RemoveUser(User user) => Users.Remove(user);
+
     public void AddRole(Role role) => Roles.Add(role);
 
     public void RemoveRole(Role role)

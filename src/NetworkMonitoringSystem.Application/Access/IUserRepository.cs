@@ -27,6 +27,9 @@ public interface IUserRepository
 
     void AddUser(User user);
 
+    /// <summary>Removes the user together with their sessions; the audit keeps their name.</summary>
+    void RemoveUser(User user);
+
     void AddRole(Role role);
 
     /// <summary>Removes the role; users who had it lose it.</summary>

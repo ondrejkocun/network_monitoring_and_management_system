@@ -147,6 +147,15 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         return ToRoleInfo(await ManageAsync(() => _accessManagement.CreateRoleAsync(actor, request.Name, context.CancellationToken)));
     }
 
+    public override async Task<DeleteUserReply> DeleteUser(DeleteUserRequest request, ServerCallContext context)
+    {
+        var actor = await RequireAsync(context, Permission.ManageUsers);
+
+        await ManageAsync(() => _accessManagement.DeleteUserAsync(actor, ParseId(request.UserId), context.CancellationToken));
+
+        return new DeleteUserReply();
+    }
+
     public override async Task<DeleteRoleReply> DeleteRole(DeleteRoleRequest request, ServerCallContext context)
     {
         var actor = await RequireAsync(context, Permission.ManageUsers);

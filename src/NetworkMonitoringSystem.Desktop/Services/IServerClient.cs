@@ -31,6 +31,8 @@ public interface IServerClient
 
     Task SetUserActiveAsync(string userId, bool isActive, CancellationToken cancellationToken = default);
 
+    Task DeleteUserAsync(string userId, CancellationToken cancellationToken = default);
+
     Task SetUserRolesAsync(string userId, IReadOnlyCollection<string> roleIds, CancellationToken cancellationToken = default);
 
     Task ResetUserPasswordAsync(string userId, string newPassword, CancellationToken cancellationToken = default);

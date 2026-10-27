@@ -55,6 +55,8 @@ public sealed class EfUserRepository : IUserRepository
 
     public void AddRole(Role role) => _dbContext.Roles.Add(role);
 
+    public void RemoveUser(User user) => _dbContext.Users.Remove(user);
+
     public void RemoveRole(Role role) => _dbContext.Roles.Remove(role);
 
     public async Task<IReadOnlyList<UserSession>> GetSessionsOfUserAsync(Guid userId, CancellationToken cancellationToken = default)

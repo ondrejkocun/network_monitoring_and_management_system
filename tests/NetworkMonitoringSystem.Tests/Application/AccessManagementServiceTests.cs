@@ -100,6 +100,37 @@ public class AccessManagementServiceTests
     }
 
     [Fact]
+    public async Task DeletedUser_IsGone_WithTheirSessions_AndTheDeletionIsLoggedWithItsAuthor()
+    {
+        var user = await _service.CreateUserAsync(_actor, "jana", Password, []);
+        var session = await _authentication.LoginAsync("jana", Password);
+
+        await _service.DeleteUserAsync(_actor, user.Id);
+
+        Assert.DoesNotContain(_users.Users, stored => stored.Id == user.Id);
+        Assert.Empty(_users.Sessions);
+        Assert.Null(await _authentication.AuthenticateAsync(session.Token));
+        Assert.Contains(_history.Events, monitoringEvent => monitoringEvent.Message == $"User '{_actor.UserName}' deleted user 'jana'.");
+        await Assert.ThrowsAsync<AccessItemNotFoundException>(() => _service.DeleteUserAsync(_actor, user.Id));
+    }
+
+    [Fact]
+    public async Task Nobody_CanDeleteThemselves_NorTheLastActiveAdministrator()
+    {
+        await Assert.ThrowsAsync<AccessChangeRefusedException>(() => _service.DeleteUserAsync(_actor, _administrator.Id));
+
+        var jana = await _service.CreateUserAsync(_actor, "jana", Password, []);
+        var janaActor = new AuthenticatedUser(jana.Id, jana.UserName, []);
+        await Assert.ThrowsAsync<AccessChangeRefusedException>(() => _service.DeleteUserAsync(janaActor, _administrator.Id));
+
+        // With another administrator, the first one can go.
+        await _service.CreateUserAsync(_actor, "second", Password, [_administratorRole.Id]);
+        await _service.DeleteUserAsync(janaActor, _administrator.Id);
+
+        Assert.DoesNotContain(_users.Users, stored => stored.Id == _administrator.Id);
+    }
+
+    [Fact]
     public async Task LastActiveAdministrator_CannotBeDeactivated_NorLoseTheRole_UntilThereIsAnother()
     {
         await Assert.ThrowsAsync<AccessChangeRefusedException>(() => _service.SetUserActiveAsync(_actor, _administrator.Id, isActive: false));

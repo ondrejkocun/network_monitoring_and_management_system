@@ -35,6 +35,12 @@ public interface IAccessManagementService
     /// <summary>Activates or deactivates the user. A deactivated user is signed out everywhere.</summary>
     Task<UserDto> SetUserActiveAsync(AuthenticatedUser actor, Guid userId, bool isActive, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Deletes a user for good. Their sessions go with them; remote commands keep the name of who sent them and events
+    /// keep it in their message. Nobody can delete themselves, and the last active administrator cannot be deleted.
+    /// </summary>
+    Task DeleteUserAsync(AuthenticatedUser actor, Guid userId, CancellationToken cancellationToken = default);
+
     /// <summary>Replaces the roles of the user with the given ones.</summary>
     Task<UserDto> SetUserRolesAsync(AuthenticatedUser actor, Guid userId, IReadOnlyCollection<Guid> roleIds, CancellationToken cancellationToken = default);
 
@@ -152,6 +158,25 @@ public sealed class AccessManagementService : IAccessManagementService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return ToDto(user);
+    }
+
+    public async Task DeleteUserAsync(AuthenticatedUser actor, Guid userId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+
+        var user = await GetUserAsync(userId, cancellationToken);
+
+        if (user.Id == actor.Id)
+        {
+            throw new AccessChangeRefusedException("You cannot delete your own account.");
+        }
+
+        await EnsureAnotherAdministratorRemainsAsync(user, cancellationToken);
+        await RemoveSessionsAsync(user, cancellationToken);
+        _users.RemoveUser(user);
+
+        Record(actor, $"User '{actor.UserName}' deleted user '{user.UserName}'.");
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<UserDto> SetUserRolesAsync(

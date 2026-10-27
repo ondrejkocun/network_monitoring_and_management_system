@@ -83,6 +83,11 @@ public sealed class GrpcServerClient : IServerClient
             Headers(), cancellationToken: cancellationToken));
     }
 
+    public async Task DeleteUserAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        await CallAsync(() => _client.DeleteUserAsync(new DeleteUserRequest { UserId = userId }, Headers(), cancellationToken: cancellationToken));
+    }
+
     public async Task SetUserRolesAsync(string userId, IReadOnlyCollection<string> roleIds, CancellationToken cancellationToken = default)
     {
         var request = new SetUserRolesRequest { UserId = userId };

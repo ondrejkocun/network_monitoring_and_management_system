@@ -235,6 +235,30 @@ public sealed class AccessControlTests : IClassFixture<DatabaseFixture>, IDispos
     }
 
     [Fact]
+    public async Task DeletedUser_CannotSignInOrUseTheirSession_WhileTheirEventsStay()
+    {
+        var user = await AddUserAsync(role => role.Allow(Permission.ViewDevices));
+        var deleted = NewClient();
+        var session = await deleted.LoginAsync(user.UserName, Password);
+        var administrator = NewClient();
+        await administrator.LoginAsync(TestAdministrator.UserName, TestAdministrator.Password);
+
+        await administrator.DeleteUserAsync(user.Id.ToString());
+
+        var raw = new AdminApi.AdminApiClient(TestAdministrator.WithToken(_channel, session.Token));
+        var refused = await Assert.ThrowsAsync<RpcException>(async () => await raw.ListDevicesAsync(new ListDevicesRequest()));
+        Assert.Equal(StatusCode.Unauthenticated, refused.StatusCode);
+        await Assert.ThrowsAsync<ServerClientException>(() => NewClient().LoginAsync(user.UserName, Password));
+
+        // The sign-in stays in the event log; only the link to the user is gone, the name is in the message.
+        await using var dbContext = _database.CreateDbContext();
+        Assert.False(await dbContext.Users.AnyAsync(stored => stored.Id == user.Id));
+        Assert.Contains(
+            await dbContext.Events.Where(monitoringEvent => monitoringEvent.Type == MonitoringEventType.UserLoggedIn).ToListAsync(),
+            monitoringEvent => monitoringEvent.UserId == null && monitoringEvent.Message.Contains(user.UserName));
+    }
+
+    [Fact]
     public async Task Administrator_CreatesRoleRuleAndUser_AndThatUserGetsExactlyThatAccess()
     {
         var device = await AddDeviceAsync();

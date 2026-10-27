@@ -38,6 +38,7 @@ public sealed class AccessViewModel : ViewModelBase
 
         SaveUserRolesCommand = new AsyncRelayCommand(SaveUserRolesAsync, () => SelectedUser is not null);
         ToggleUserActiveCommand = new AsyncRelayCommand(ToggleUserActiveAsync, () => SelectedUser is not null);
+        DeleteUserCommand = new AsyncRelayCommand(DeleteUserAsync, () => SelectedUser is not null);
         CreateRoleCommand = new AsyncRelayCommand(CreateRoleAsync, () => !string.IsNullOrWhiteSpace(NewRoleName));
         DeleteRoleCommand = new AsyncRelayCommand(DeleteRoleAsync, () => SelectedRole is { IsBuiltIn: false });
         AddRuleCommand = new AsyncRelayCommand(
@@ -58,6 +59,8 @@ public sealed class AccessViewModel : ViewModelBase
     public AsyncRelayCommand SaveUserRolesCommand { get; }
 
     public AsyncRelayCommand ToggleUserActiveCommand { get; }
+
+    public AsyncRelayCommand DeleteUserCommand { get; }
 
     public AsyncRelayCommand CreateRoleCommand { get; }
 
@@ -81,6 +84,7 @@ public sealed class AccessViewModel : ViewModelBase
             OnPropertyChanged(nameof(ToggleUserActiveText));
             SaveUserRolesCommand.RaiseCanExecuteChanged();
             ToggleUserActiveCommand.RaiseCanExecuteChanged();
+            DeleteUserCommand.RaiseCanExecuteChanged();
         }
     }
 
@@ -329,6 +333,23 @@ public sealed class AccessViewModel : ViewModelBase
         await RunAsync(
             () => _server.SetUserActiveAsync(user.Id, activate),
             activate ? $"Používateľ „{user.UserName}“ bol aktivovaný." : $"Používateľ „{user.UserName}“ bol deaktivovaný.");
+    }
+
+    private async Task DeleteUserAsync()
+    {
+        if (SelectedUser is not { } user)
+        {
+            return;
+        }
+
+        if (!_confirmation.Confirm(
+                "Odstrániť používateľa",
+                $"Naozaj chcete natrvalo odstrániť používateľa „{user.UserName}“? Ak sa má len prestať prihlasovať, stačí ho deaktivovať. Záznamy o tom, čo urobil, zostanú."))
+        {
+            return;
+        }
+
+        await RunAsync(() => _server.DeleteUserAsync(user.Id), $"Používateľ „{user.UserName}“ bol odstránený.");
     }
 
     private async Task CreateRoleAsync()
