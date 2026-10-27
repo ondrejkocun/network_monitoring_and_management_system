@@ -31,6 +31,13 @@ public interface IDeviceService
     /// <exception cref="ArgumentException">The device has no agent, so nothing could capture its traffic.</exception>
     Task<DeviceDto?> SetTrafficCaptureAsync(Guid id, bool capture, Guid? userId = null, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Returns the process runs and port periods of the device that overlap the period, with their start, end and
+    /// owning process, the most recent first.
+    /// </summary>
+    /// <exception cref="ArgumentException">The period ends before it starts.</exception>
+    Task<ActivityHistoryDto> GetActivityHistoryAsync(Guid id, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
+
     /// <summary>Returns the traffic of the device in the period, summed per conversation, the largest first.</summary>
     Task<IReadOnlyList<TrafficEntryDto>> GetTrafficAsync(Guid id, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
 }

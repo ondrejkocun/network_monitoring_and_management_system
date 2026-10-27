@@ -1205,6 +1205,19 @@ public class MainWindowViewModelTests
             return Task.FromResult<IReadOnlyList<TrafficEntry>>(Traffic.TryGetValue(id, out var entries) ? entries : []);
         }
 
+        public Dictionary<string, DeviceActivityHistoryReply> ActivityHistory { get; } = [];
+
+        public List<(string Id, DateTimeOffset From, DateTimeOffset To)> ActivityHistoryRequests { get; } = [];
+
+        public Task<DeviceActivityHistoryReply> GetDeviceActivityHistoryAsync(string id, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            ActivityHistoryRequests.Add((id, from, to));
+
+            return Task.FromResult(ActivityHistory.TryGetValue(id, out var history) ? history : new DeviceActivityHistoryReply());
+        }
+
         public EventLogReply EventLog { get; } = new();
 
         public List<(DateTimeOffset From, DateTimeOffset To)> EventLogRequests { get; } = [];

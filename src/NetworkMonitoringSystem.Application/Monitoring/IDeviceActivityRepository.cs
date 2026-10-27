@@ -20,6 +20,28 @@ public interface IDeviceActivityRepository
     /// <summary>Returns the usage recorded in the most recent snapshot of the device that has any.</summary>
     Task<IReadOnlyList<ProcessUsage>> GetLatestProcessUsagesAsync(Guid deviceId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Returns the process runs of the device that overlap the period (started before it ended, and not ended before
+    /// it started), the most recently started first.
+    /// </summary>
+    Task<IReadOnlyList<ProcessRun>> GetProcessRunsAsync(
+        Guid deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        int limit,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the periods in which ports of the device were open that overlap the period, with their processes,
+    /// the most recently opened first.
+    /// </summary>
+    Task<IReadOnlyList<ListeningPort>> GetPortPeriodsAsync(
+        Guid deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        int limit,
+        CancellationToken cancellationToken = default);
+
     void AddProcessRun(ProcessRun processRun);
 
     void AddListeningPort(ListeningPort port);

@@ -84,6 +84,10 @@ public interface IServerClient
 
     /// <summary>Returns the traffic of the device in the period, summed per conversation, the largest first.</summary>
     /// <exception cref="ServerClientException">The server could not be reached or refused the call.</exception>
+    /// <summary>Returns the process runs and port periods of the device in the period, the most recent first.</summary>
+    /// <exception cref="ServerClientException">The server could not be reached or refused the call.</exception>
+    Task<DeviceActivityHistoryReply> GetDeviceActivityHistoryAsync(string id, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<TrafficEntry>> GetDeviceTrafficAsync(string id, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
 
     /// <summary>Returns the events of the whole system in the period, the newest first.</summary>

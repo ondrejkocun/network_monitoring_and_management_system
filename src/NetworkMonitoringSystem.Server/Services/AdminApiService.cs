@@ -283,6 +283,54 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         return reply;
     }
 
+    public override async Task<DeviceActivityHistoryReply> GetDeviceActivityHistory(GetDeviceActivityHistoryRequest request, ServerCallContext context)
+    {
+        if (request.From is null || request.To is null)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "The period must have a start and an end."));
+        }
+
+        var reply = new DeviceActivityHistoryReply();
+
+        if (await AuthorizeForDeviceAsync(context, Permission.ViewDevices, request.Id) is not { } id)
+        {
+            return reply;
+        }
+
+        ActivityHistoryDto history;
+
+        try
+        {
+            history = await _deviceService.GetActivityHistoryAsync(
+                id, request.From.ToDateTimeOffset(), request.To.ToDateTimeOffset(), context.CancellationToken);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
+        }
+
+        reply.Truncated = history.Truncated;
+        reply.Processes.AddRange(history.Processes.Select(run => new ProcessRunInfo
+        {
+            Pid = (uint)run.Pid,
+            Name = run.Name,
+            StartedAt = Timestamp.FromDateTimeOffset(run.StartedAt),
+            EndedAt = run.EndedAt is { } endedAt ? Timestamp.FromDateTimeOffset(endedAt) : null,
+        }));
+        reply.Ports.AddRange(history.Ports.Select(port => new PortPeriodInfo
+        {
+            Protocol = port.Protocol.ToString().ToUpperInvariant(),
+            LocalAddress = port.LocalAddress,
+            Port = (uint)port.Port,
+            OpenedAt = Timestamp.FromDateTimeOffset(port.OpenedAt),
+            ClosedAt = port.ClosedAt is { } closedAt ? Timestamp.FromDateTimeOffset(closedAt) : null,
+            Pid = (uint)(port.Process?.Pid ?? 0),
+            ProcessName = port.Process?.Name ?? string.Empty,
+        }));
+
+        return reply;
+    }
+
     public override async Task<DeviceActivityReply> GetDeviceActivity(GetDeviceActivityRequest request, ServerCallContext context)
     {
         var reply = new DeviceActivityReply();

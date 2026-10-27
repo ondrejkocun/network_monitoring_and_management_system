@@ -62,6 +62,39 @@ public sealed class EfDeviceActivityRepository : IDeviceActivityRepository
 
     public void AddProcessRun(ProcessRun processRun) => _dbContext.ProcessRuns.Add(processRun);
 
+    public async Task<IReadOnlyList<ProcessRun>> GetProcessRunsAsync(
+        Guid deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.ProcessRuns
+            .AsNoTracking()
+            .Where(run => run.DeviceId == deviceId && run.StartedAt <= to && (run.EndedAt == null || run.EndedAt >= from))
+            .OrderByDescending(run => run.StartedAt)
+            .ThenByDescending(run => run.Id)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ListeningPort>> GetPortPeriodsAsync(
+        Guid deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.ListeningPorts
+            .AsNoTracking()
+            .Include(port => port.ProcessRun)
+            .Where(port => port.DeviceId == deviceId && port.OpenedAt <= to && (port.ClosedAt == null || port.ClosedAt >= from))
+            .OrderByDescending(port => port.OpenedAt)
+            .ThenByDescending(port => port.Id)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+    }
+
     public void AddListeningPort(ListeningPort port) => _dbContext.ListeningPorts.Add(port);
 
     public void AddTrafficRecords(IEnumerable<TrafficRecord> records) => _dbContext.TrafficRecords.AddRange(records);

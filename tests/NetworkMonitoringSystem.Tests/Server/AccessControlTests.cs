@@ -159,6 +159,7 @@ public sealed class AccessControlTests : IClassFixture<DatabaseFixture>, IDispos
             () => client.SetDeviceEnabledAsync(other.Id.ToString(), isEnabled: false),
             () => client.SetDeviceTrafficCaptureAsync(other.Id.ToString(), capture: true),
             () => client.GetDeviceTrafficAsync(other.Id.ToString(), now.AddHours(-1), now),
+            () => client.GetDeviceActivityHistoryAsync(other.Id.ToString(), now.AddHours(-1), now),
             // A device that does not exist is refused the same way, so the answer does not reveal which devices exist.
             () => client.GetDeviceResourcesAsync(Guid.NewGuid().ToString()),
             // Adding a device concerns no single device, so a rule for one is not enough.

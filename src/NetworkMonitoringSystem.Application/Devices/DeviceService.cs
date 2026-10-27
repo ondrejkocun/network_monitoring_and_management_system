@@ -11,6 +11,9 @@ public sealed class DeviceService : IDeviceService
     /// <summary>Most conversations shown for one period; the rest are the smallest ones.</summary>
     public const int MaxTrafficEntries = 500;
 
+    /// <summary>Most process runs, and separately port periods, returned for one period; the most recent ones are.</summary>
+    public const int MaxActivityHistoryEntries = 1000;
+
     private readonly IDeviceRepository _deviceRepository;
     private readonly IMonitoringHistoryRepository _history;
     private readonly IDeviceActivityRepository _activity;
@@ -195,6 +198,27 @@ public sealed class DeviceService : IDeviceService
         return ConcurrencyRetry.RunAsync(
             _unitOfWork,
             () => SetTrafficCaptureOnceAsync(id, capture, userId, cancellationToken));
+    }
+
+    public async Task<ActivityHistoryDto> GetActivityHistoryAsync(
+        Guid id,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        CancellationToken cancellationToken = default)
+    {
+        if (to < from)
+        {
+            throw new ArgumentException("The period must not end before it starts.", nameof(to));
+        }
+
+        // One more than shown tells whether anything was left out.
+        var runs = await _activity.GetProcessRunsAsync(id, from, to, MaxActivityHistoryEntries + 1, cancellationToken);
+        var ports = await _activity.GetPortPeriodsAsync(id, from, to, MaxActivityHistoryEntries + 1, cancellationToken);
+
+        return new ActivityHistoryDto(
+            runs.Take(MaxActivityHistoryEntries).Select(ProcessRunDto.FromRun).ToList(),
+            ports.Take(MaxActivityHistoryEntries).Select(PortPeriodDto.FromPort).ToList(),
+            runs.Count > MaxActivityHistoryEntries || ports.Count > MaxActivityHistoryEntries);
     }
 
     public Task<IReadOnlyList<TrafficEntryDto>> GetTrafficAsync(

@@ -237,6 +237,59 @@ public class DeviceServiceTests
     }
 
     [Fact]
+    public async Task GetActivityHistoryAsync_ReturnsRunsAndPortsThatOverlapThePeriod_MostRecentFirst()
+    {
+        var deviceId = Guid.NewGuid();
+        var endedBefore = Run(deviceId, 1, "old", Now.AddHours(-5), Now.AddHours(-3));
+        var endedInside = Run(deviceId, 2, "backup", Now.AddHours(-4), Now.AddMinutes(-30));
+        var stillRunning = Run(deviceId, 3, "sqlservr", Now.AddMinutes(-20), null);
+        _activity.ProcessRuns.AddRange([endedBefore, endedInside, stillRunning, Run(Guid.NewGuid(), 4, "other device", Now.AddMinutes(-5), null)]);
+
+        var openedAndClosed = new ListeningPort(deviceId, TransportProtocol.Tcp, "0.0.0.0", 8080, endedInside, Now.AddMinutes(-50));
+        openedAndClosed.Close(Now.AddMinutes(-40));
+        var closedBefore = new ListeningPort(deviceId, TransportProtocol.Udp, "0.0.0.0", 161, endedBefore, Now.AddHours(-5));
+        closedBefore.Close(Now.AddHours(-4));
+        _activity.ListeningPorts.AddRange([openedAndClosed, closedBefore]);
+
+        var history = await _service.GetActivityHistoryAsync(deviceId, Now.AddHours(-1), Now);
+
+        Assert.Equal(["sqlservr", "backup"], history.Processes.Select(run => run.Name));
+        Assert.Null(history.Processes[0].EndedAt);
+        var port = Assert.Single(history.Ports);
+        Assert.Equal((8080, Now.AddMinutes(-40), "backup"), (port.Port, port.ClosedAt, port.Process!.Name));
+        Assert.False(history.Truncated);
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.GetActivityHistoryAsync(deviceId, Now, Now.AddSeconds(-1)));
+    }
+
+    [Fact]
+    public async Task GetActivityHistoryAsync_ReturnsAtMostTheLimit_AndSaysSomethingWasLeftOut()
+    {
+        var deviceId = Guid.NewGuid();
+
+        for (var pid = 0; pid < DeviceService.MaxActivityHistoryEntries + 1; pid++)
+        {
+            _activity.ProcessRuns.Add(Run(deviceId, pid, "short", Now.AddSeconds(-pid), Now.AddSeconds(-pid + 1)));
+        }
+
+        var history = await _service.GetActivityHistoryAsync(deviceId, Now.AddHours(-1), Now);
+
+        Assert.Equal(DeviceService.MaxActivityHistoryEntries, history.Processes.Count);
+        Assert.True(history.Truncated);
+    }
+
+    private static ProcessRun Run(Guid deviceId, int pid, string name, DateTimeOffset startedAt, DateTimeOffset? endedAt)
+    {
+        var run = new ProcessRun(deviceId, pid, name, startedAt);
+
+        if (endedAt is { } ended)
+        {
+            run.End(ended);
+        }
+
+        return run;
+    }
+
+    [Fact]
     public async Task GetTrafficAsync_SumsSummariesThatOverlapThePeriod_LargestFirst()
     {
         var deviceId = Guid.NewGuid();

@@ -53,6 +53,9 @@ service AdminApi {
   // Returns what the device's agent last reported as running: processes, open ports and connections.
   rpc GetDeviceActivity (GetDeviceActivityRequest) returns (DeviceActivityReply);
 
+  // Returns the process runs and port periods of the device in a period, with start, end and owning process.
+  rpc GetDeviceActivityHistory (GetDeviceActivityHistoryRequest) returns (DeviceActivityHistoryReply);
+
   // Returns the availability, outages, events and resource use of the device in a period.
   rpc GetDeviceHistory (GetDeviceHistoryRequest) returns (DeviceHistoryReply);
 
@@ -308,6 +311,41 @@ message NetworkInterfaceInfo {
 
 message GetDeviceActivityRequest {
   string id = 1;
+}
+
+message GetDeviceActivityHistoryRequest {
+  string id = 1;
+  google.protobuf.Timestamp from = 2;
+  google.protobuf.Timestamp to = 3;
+}
+
+message DeviceActivityHistoryReply {
+  // The most recently started first.
+  repeated ProcessRunInfo processes = 1;
+  // The most recently opened first.
+  repeated PortPeriodInfo ports = 2;
+  // True when the period had more process runs or port periods than are returned; the most recent ones are.
+  bool truncated = 3;
+}
+
+message ProcessRunInfo {
+  uint32 pid = 1;
+  string name = 2;
+  google.protobuf.Timestamp started_at = 3;
+  // Not set while the process is running.
+  google.protobuf.Timestamp ended_at = 4;
+}
+
+message PortPeriodInfo {
+  string protocol = 1;
+  string local_address = 2;
+  uint32 port = 3;
+  google.protobuf.Timestamp opened_at = 4;
+  // Not set while the port is open.
+  google.protobuf.Timestamp closed_at = 5;
+  // Zero and empty when the owning process is not known.
+  uint32 pid = 6;
+  string process_name = 7;
 }
 
 message DeviceActivityReply {

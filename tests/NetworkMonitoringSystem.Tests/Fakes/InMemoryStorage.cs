@@ -207,6 +207,38 @@ public sealed class InMemoryDeviceActivityRepository : IDeviceActivityRepository
 
     public void AddProcessRun(ProcessRun processRun) => ProcessRuns.Add(processRun);
 
+    public Task<IReadOnlyList<ProcessRun>> GetProcessRunsAsync(
+        Guid deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<ProcessRun> runs = ProcessRuns
+            .Where(run => run.DeviceId == deviceId && run.StartedAt <= to && (run.EndedAt == null || run.EndedAt >= from))
+            .OrderByDescending(run => run.StartedAt)
+            .Take(limit)
+            .ToList();
+
+        return Task.FromResult(runs);
+    }
+
+    public Task<IReadOnlyList<ListeningPort>> GetPortPeriodsAsync(
+        Guid deviceId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<ListeningPort> ports = ListeningPorts
+            .Where(port => port.DeviceId == deviceId && port.OpenedAt <= to && (port.ClosedAt == null || port.ClosedAt >= from))
+            .OrderByDescending(port => port.OpenedAt)
+            .Take(limit)
+            .ToList();
+
+        return Task.FromResult(ports);
+    }
+
     public void AddListeningPort(ListeningPort port) => ListeningPorts.Add(port);
 
     public void AddTrafficRecords(IEnumerable<TrafficRecord> records) => TrafficRecords.AddRange(records);

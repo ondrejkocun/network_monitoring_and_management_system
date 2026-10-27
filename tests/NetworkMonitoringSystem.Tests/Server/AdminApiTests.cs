@@ -17,6 +17,7 @@ using Device = NetworkMonitoringSystem.Domain.Devices.Device;
 using DomainMonitoringMode = NetworkMonitoringSystem.Domain.Devices.MonitoringMode;
 using DomainDeviceStatus = NetworkMonitoringSystem.Domain.Devices.DeviceStatus;
 using TrafficTransport = NetworkMonitoringSystem.Domain.Monitoring.TrafficTransport;
+using DomainTransportProtocol = NetworkMonitoringSystem.Domain.Monitoring.TransportProtocol;
 
 /// <summary>
 /// Calls the administration API of the real server (hosted in memory) with a real PostgreSQL database,
@@ -129,6 +130,37 @@ public sealed class AdminApiTests : IClassFixture<DatabaseFixture>, IAsyncLifeti
         var exception = await Assert.ThrowsAsync<ServerClientException>(() => _client.RemoveDeviceAsync(id));
 
         Assert.Equal(ServerErrorKind.NotFound, exception.Kind);
+    }
+
+    [Fact]
+    public async Task ActivityHistory_FindsPortOpenedAndClosedWithinThePeriod_WithItsProcess()
+    {
+        var now = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        var hostName = "pc-" + Guid.NewGuid().ToString("N");
+        var device = new Device(Guid.NewGuid(), hostName, DomainMonitoringMode.Agent, hostName, null, now.AddDays(-1));
+        var backup = new ProcessRun(device.Id, 4321, "backup.exe", now.AddMinutes(-50));
+        backup.End(now.AddMinutes(-35));
+        var port = new ListeningPort(device.Id, DomainTransportProtocol.Tcp, "0.0.0.0", 8080, backup, now.AddMinutes(-45));
+        port.Close(now.AddMinutes(-40));
+        var longAgo = new ProcessRun(device.Id, 99, "old.exe", now.AddDays(-1));
+        longAgo.End(now.AddHours(-20));
+
+        await using (var dbContext = _database.CreateDbContext())
+        {
+            dbContext.Devices.Add(device);
+            dbContext.ProcessRuns.AddRange(backup, longAgo);
+            dbContext.ListeningPorts.Add(port);
+            await dbContext.SaveChangesAsync();
+        }
+
+        var history = await _client.GetDeviceActivityHistoryAsync(device.Id.ToString(), now.AddHours(-1), now);
+
+        var process = Assert.Single(history.Processes);
+        Assert.Equal(("backup.exe", 4321U, now.AddMinutes(-35)), (process.Name, process.Pid, process.EndedAt.ToDateTimeOffset()));
+        var shown = Assert.Single(history.Ports);
+        Assert.Equal(("TCP", 8080U, "backup.exe"), (shown.Protocol, shown.Port, shown.ProcessName));
+        Assert.Equal((now.AddMinutes(-45), now.AddMinutes(-40)), (shown.OpenedAt.ToDateTimeOffset(), shown.ClosedAt.ToDateTimeOffset()));
+        Assert.False(history.Truncated);
     }
 
     [Fact]
