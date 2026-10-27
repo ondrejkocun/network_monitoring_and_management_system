@@ -316,14 +316,16 @@ public sealed class GrpcServerClient : IServerClient
 
     private static ServerClientException Translate(RpcException exception)
     {
+        var message = ServerMessages.ToSlovak(exception.Status.Detail);
+
         return exception.StatusCode switch
         {
-            StatusCode.InvalidArgument or StatusCode.FailedPrecondition => new ServerClientException(ServerErrorKind.InvalidInput, exception.Status.Detail, exception),
-            StatusCode.NotFound => new ServerClientException(ServerErrorKind.NotFound, exception.Status.Detail, exception),
-            StatusCode.PermissionDenied => new ServerClientException(ServerErrorKind.AccessDenied, exception.Status.Detail, exception),
-            StatusCode.Unauthenticated => new ServerClientException(ServerErrorKind.NotSignedIn, exception.Status.Detail, exception),
-            StatusCode.Unavailable or StatusCode.DeadlineExceeded or StatusCode.Internal => new ServerClientException(ServerErrorKind.Unavailable, exception.Status.Detail, exception),
-            _ => new ServerClientException(ServerErrorKind.Other, exception.Status.Detail, exception),
+            StatusCode.InvalidArgument or StatusCode.FailedPrecondition => new ServerClientException(ServerErrorKind.InvalidInput, message, exception),
+            StatusCode.NotFound => new ServerClientException(ServerErrorKind.NotFound, message, exception),
+            StatusCode.PermissionDenied => new ServerClientException(ServerErrorKind.AccessDenied, message, exception),
+            StatusCode.Unauthenticated => new ServerClientException(ServerErrorKind.NotSignedIn, message, exception),
+            StatusCode.Unavailable or StatusCode.DeadlineExceeded or StatusCode.Internal => new ServerClientException(ServerErrorKind.Unavailable, message, exception),
+            _ => new ServerClientException(ServerErrorKind.Other, message, exception),
         };
     }
 }

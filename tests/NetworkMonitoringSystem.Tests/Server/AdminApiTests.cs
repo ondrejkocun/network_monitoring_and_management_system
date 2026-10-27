@@ -395,7 +395,7 @@ public sealed class AdminApiTests : IClassFixture<DatabaseFixture>, IAsyncLifeti
             _client.AddAgentlessDeviceAsync("Router Copy-" + Guid.NewGuid().ToString("N"), ipAddress));
 
         Assert.Equal(ServerErrorKind.InvalidInput, exception.Kind);
-        Assert.Contains("already exists", exception.Message);
+        Assert.Contains("už existuje", exception.Message);
         Assert.Equal(before, (await _client.GetDevicesAsync()).Count);
     }
 
