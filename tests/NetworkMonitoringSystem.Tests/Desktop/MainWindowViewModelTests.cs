@@ -733,7 +733,7 @@ public class MainWindowViewModelTests
         Assert.Empty(traffic.Rows);
         Assert.Equal("Filtru nezodpovedá žiadna komunikácia.", traffic.TotalText);
 
-        traffic.ClearFilter();
+        traffic.SelectedTransport = DeviceTrafficViewModel.AllTransports;
         Assert.Equal(("Komunikácia (1)", false), (traffic.Header, traffic.IsFiltered));
     }
 
@@ -916,7 +916,6 @@ public class MainWindowViewModelTests
         // Memory was measured in every report: 4 of 16 units is a quarter.
         Assert.Equal(6, history.MemoryPoints.Count);
         Assert.All(history.MemoryPoints.Where(point => point is not null), point => Assert.Equal(25, point!.Value.Y));
-        Assert.True(history.HasCharts);
 
         ResourcePointInfo Point(int minute, double? cpu)
         {

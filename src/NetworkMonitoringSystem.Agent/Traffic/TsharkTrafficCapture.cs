@@ -297,23 +297,26 @@ public sealed partial class TsharkTrafficCapture : ITrafficCapture
 
     private static string ListInterfaces(string tshark)
     {
+        // Its error output is not redirected: unread, it could fill up and make TShark wait forever.
         var startInfo = new ProcessStartInfo(tshark, "-D")
         {
             RedirectStandardOutput = true,
-            RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
 
         using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("TShark did not start.");
-        var output = process.StandardOutput.ReadToEnd();
+        var output = process.StandardOutput.ReadToEndAsync();
 
+        // A TShark that hangs must not hold up the report that switched capture on.
         if (!process.WaitForExit(15_000))
         {
             process.Kill(entireProcessTree: true);
+
+            throw new TimeoutException("TShark did not list the network interfaces within 15 seconds.");
         }
 
-        return output;
+        return output.GetAwaiter().GetResult();
     }
 
     /// <summary>Every address of this computer, so that each packet can be told as sent or received.</summary>

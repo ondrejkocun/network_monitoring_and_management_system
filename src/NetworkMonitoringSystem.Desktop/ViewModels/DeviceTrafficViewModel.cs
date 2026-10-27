@@ -80,12 +80,6 @@ public sealed class DeviceTrafficViewModel : ViewModelBase
         Apply();
     }
 
-    public void ClearFilter()
-    {
-        FilterText = string.Empty;
-        SelectedTransport = AllTransports;
-    }
-
     private void Apply()
     {
         var text = FilterText.Trim();

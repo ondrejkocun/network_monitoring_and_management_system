@@ -131,6 +131,13 @@ public sealed partial class InboxFileReceiver : IFileReceiver
         {
             return Fail(partialPath, $"The file could not be saved: {exception.Message}");
         }
+        catch (Exception exception) when (exception is OperationCanceledException or RpcException)
+        {
+            // A timeout or the agent stopping: the caller reports it, but the partial file must not stay behind.
+            DeletePartial(partialPath);
+
+            throw;
+        }
     }
 
     /// <summary>
@@ -205,18 +212,22 @@ public sealed partial class InboxFileReceiver : IFileReceiver
 
     private CommandResult Fail(string partialPath, string message)
     {
+        DeletePartial(partialPath);
+        _logger.LogWarning("{Message}", message);
+
+        return CommandResult.Failure(message);
+    }
+
+    private void DeletePartial(string partialPath)
+    {
         try
         {
             File.Delete(partialPath);
         }
-        catch (IOException exception)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             _logger.LogWarning(exception, "A partly received file could not be deleted: {Path}", partialPath);
         }
-
-        _logger.LogWarning("{Message}", message);
-
-        return CommandResult.Failure(message);
     }
 
     [GeneratedRegex(@"^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$", RegexOptions.IgnoreCase)]

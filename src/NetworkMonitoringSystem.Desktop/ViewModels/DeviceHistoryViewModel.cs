@@ -89,8 +89,6 @@ public sealed class DeviceHistoryViewModel
     /// <summary>Share of memory in use over the period; a null separates stretches without measurements.</summary>
     public IReadOnlyList<ChartPoint?> MemoryPoints { get; }
 
-    public bool HasCharts => CpuPoints.Count > 0 || MemoryPoints.Count > 0;
-
     internal static string FormatTime(DateTimeOffset time) => time.ToLocalTime().ToString(TimeFormat);
 
     /// <summary>Formats a duration with its two largest units, for example "2 h 5 min".</summary>

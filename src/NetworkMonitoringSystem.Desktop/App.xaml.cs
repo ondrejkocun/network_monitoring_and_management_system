@@ -24,6 +24,17 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
+        // Commands run as async void, so an error no view model expected would otherwise close the application.
+        DispatcherUnhandledException += (_, args) =>
+        {
+            MessageBox.Show(
+                $"Nastala neočakávaná chyba. Aplikácia pokračuje, ale posledná operácia sa nemusela dokončiť.\n\n{args.Exception.Message}",
+                "Chyba",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            args.Handled = true;
+        };
+
         var configuration = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: false)

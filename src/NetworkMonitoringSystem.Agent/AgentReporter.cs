@@ -88,6 +88,11 @@ public sealed class AgentReporter
         {
             _logger.LogWarning("Server is not reachable ({Status}): {Detail}", exception.StatusCode, exception.Status.Detail);
         }
+        catch (Exception exception) when (exception is not (OperationCanceledException or RpcException))
+        {
+            // For example the identity cannot be written. The loop must go on, or the whole service would stop.
+            _logger.LogError(exception, "Reporting to the server failed unexpectedly; it will be tried again.");
+        }
 
         return RetryInterval;
     }

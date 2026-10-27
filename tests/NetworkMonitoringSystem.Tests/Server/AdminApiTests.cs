@@ -1,7 +1,6 @@
 namespace NetworkMonitoringSystem.Tests.Server;
 
 using System.Net;
-using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;

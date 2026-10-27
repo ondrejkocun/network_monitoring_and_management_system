@@ -50,16 +50,15 @@ public sealed class CommandWorker : BackgroundService
     /// <summary>Fetches and carries out the waiting commands. Returns how long to wait before asking again.</summary>
     public async Task<TimeSpan> PollOnceAsync(CancellationToken cancellationToken)
     {
-        // An agent that has not registered yet has no commands; the reporting loop registers it.
-        if (_identityStore.Load() is not { } identity)
-        {
-            return DefaultPollInterval;
-        }
-
-        var credentials = new AgentCredentials { DeviceId = identity.DeviceId, AgentKey = identity.AgentKey };
-
         try
         {
+            // An agent that has not registered yet has no commands; the reporting loop registers it.
+            if (_identityStore.Load() is not { } identity)
+            {
+                return DefaultPollInterval;
+            }
+
+            var credentials = new AgentCredentials { DeviceId = identity.DeviceId, AgentKey = identity.AgentKey };
             var reply = await _client.FetchCommandsAsync(new FetchCommandsRequest { Credentials = credentials }, cancellationToken: cancellationToken);
 
             foreach (var command in reply.Commands)
@@ -83,6 +82,13 @@ public sealed class CommandWorker : BackgroundService
         {
             // The reporting loop already logs an unreachable server and repairs a rejected identity.
             _logger.LogDebug("Commands could not be fetched or reported ({Status}).", exception.StatusCode);
+
+            return DefaultPollInterval;
+        }
+        catch (Exception exception) when (exception is not (OperationCanceledException or RpcException))
+        {
+            // The loop must go on, or the whole service would stop.
+            _logger.LogError(exception, "Fetching commands failed unexpectedly; it will be tried again.");
 
             return DefaultPollInterval;
         }

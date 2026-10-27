@@ -51,6 +51,31 @@ public class InboxFileReceiverTests
     }
 
     [Fact]
+    public async Task CancelledDownload_LeavesNoPartialFileBehind()
+    {
+        var inbox = Path.Combine(Path.GetTempPath(), "nms-inbox-" + Guid.NewGuid().ToString("N"));
+        using var channel = GrpcChannel.ForAddress("https://localhost:1");
+        var receiver = new InboxFileReceiver(new AgentApi.AgentApiClient(channel), Options.Create(new AgentOptions { InboxPath = inbox }), NullLogger<InboxFileReceiver>.Instance);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        try
+        {
+            // A timeout or the agent stopping cancels the download after the partial file was opened.
+            await Assert.ThrowsAnyAsync<Exception>(() => receiver.ReceiveAsync(
+                new AgentCommand { Id = Guid.NewGuid().ToString(), Type = CommandType.SendFile, Parameter = "notes.txt" },
+                new AgentCredentials { DeviceId = Guid.NewGuid().ToString(), AgentKey = "key" },
+                cancellation.Token));
+
+            Assert.Empty(Directory.GetFiles(inbox));
+        }
+        finally
+        {
+            Directory.Delete(inbox, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Inbox_IsOneFolderUnderProgramData_ByDefault()
     {
         using var channel = GrpcChannel.ForAddress("https://localhost:1");
