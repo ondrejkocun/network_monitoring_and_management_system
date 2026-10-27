@@ -104,8 +104,9 @@ public class MainWindowViewModelTests
     {
         var viewModel = new MainWindowViewModel(_server, _confirmation);
         await viewModel.RefreshAsync();
-        Assert.Equal("60", viewModel.SyncIntervalText);
-        Assert.Contains("5 – 86400", viewModel.SyncIntervalHint);
+        Assert.Equal(("60", "3", "30"), (viewModel.SyncIntervalText, viewModel.OfflineThresholdText, viewModel.RetentionDaysText));
+        Assert.Contains("5 – 86400", viewModel.SettingsHint);
+        Assert.Contains("offline po 3 min 0 s", viewModel.SettingsHint);
 
         viewModel.SyncIntervalText = "12";
         await viewModel.RefreshAsync();
@@ -863,35 +864,50 @@ public class MainWindowViewModelTests
     [InlineData("abc")]
     [InlineData("-5")]
     [InlineData("1.5")]
-    public void SaveSyncIntervalCommand_IsDisabled_ForTextThatIsNotAWholeNumber(string text)
+    public async Task SaveSettingsCommand_IsDisabled_ForTextThatIsNotAWholeNumber(string text)
     {
-        var viewModel = new MainWindowViewModel(_server, _confirmation) { SyncIntervalText = text };
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+        Assert.True(viewModel.SaveSettingsCommand.CanExecute(null));
 
-        Assert.False(viewModel.SaveSyncIntervalCommand.CanExecute(null));
+        viewModel.RetentionDaysText = text;
+
+        Assert.False(viewModel.SaveSettingsCommand.CanExecute(null));
     }
 
     [Fact]
-    public async Task SaveSyncIntervalCommand_SendsNewInterval_AndConfirms()
+    public async Task SaveSettingsCommand_SendsOnlyChangedValues_AndConfirms()
     {
-        var viewModel = new MainWindowViewModel(_server, _confirmation) { SyncIntervalText = "30" };
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
 
-        await viewModel.SaveSyncIntervalCommand.ExecuteAsync();
+        await viewModel.SaveSettingsCommand.ExecuteAsync();
+        Assert.Equal("Nastavenia sa nezmenili.", viewModel.StatusMessage);
 
-        Assert.Equal(30, _server.SyncIntervalSeconds);
-        Assert.Equal("30", viewModel.SyncIntervalText);
-        Assert.Contains("30 s", viewModel.StatusMessage);
+        viewModel.SyncIntervalText = "30";
+        viewModel.RetentionDaysText = "90";
+        await viewModel.SaveSettingsCommand.ExecuteAsync();
+
+        Assert.Equal((30, 3, 90), (_server.SyncIntervalSeconds, _server.OfflineAfterMissedSyncs, _server.RetentionDays));
+        Assert.Equal(("30", "90"), (viewModel.SyncIntervalText, viewModel.RetentionDaysText));
+        Assert.Contains("interval 30 s", viewModel.StatusMessage);
+        Assert.Contains("história 90 dní", viewModel.StatusMessage);
+        Assert.Contains("offline po 1 min 30 s", viewModel.SettingsHint);
     }
 
     [Fact]
-    public async Task SaveSyncIntervalCommand_WhenServerRejectsInterval_ShowsReason()
+    public async Task SaveSettingsCommand_WhenServerRejectsValue_ShowsReason_AndKeepsWhatUserTyped()
     {
+        var viewModel = new MainWindowViewModel(_server, _confirmation);
+        await viewModel.RefreshAsync();
+        viewModel.SyncIntervalText = "1";
         _server.Failure = new ServerClientException(ServerErrorKind.InvalidInput, "Interval must be between 5 and 86400 seconds.");
-        var viewModel = new MainWindowViewModel(_server, _confirmation) { SyncIntervalText = "1" };
 
-        await viewModel.SaveSyncIntervalCommand.ExecuteAsync();
+        await viewModel.SaveSettingsCommand.ExecuteAsync();
 
         Assert.Contains("between 5 and 86400", viewModel.StatusMessage);
         Assert.Equal(60, _server.SyncIntervalSeconds);
+        Assert.Equal("1", viewModel.SyncIntervalText);
     }
 
     internal sealed class FakeServerClient : IServerClient

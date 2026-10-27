@@ -22,7 +22,10 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _newDeviceIpAddress = string.Empty;
     private string _newDeviceTcpPort = string.Empty;
     private string _syncIntervalText = string.Empty;
-    private string _syncIntervalHint = string.Empty;
+    private string _offlineThresholdText = string.Empty;
+    private string _retentionDaysText = string.Empty;
+    private string _settingsHint = string.Empty;
+    private MonitoringSettingsInfo? _shownSettings;
     private bool _settingsLoaded;
     private DeviceRowViewModel? _selectedDevice;
     private DeviceResourcesViewModel? _selectedDeviceResources;
@@ -68,9 +71,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         ToggleTrafficCaptureCommand = new AsyncRelayCommand(ToggleSelectedDeviceTrafficCaptureAsync, () => SelectedDevice is { HasAgent: true });
         ResetTrafficCommand = new AsyncRelayCommand(ResetTrafficAsync, () => SelectedDevice is not null);
         ShowAllTrafficCommand = new AsyncRelayCommand(ShowAllTrafficAsync, () => _trafficSince is not null);
-        SaveSyncIntervalCommand = new AsyncRelayCommand(
-            SaveSyncIntervalAsync,
-            () => int.TryParse(SyncIntervalText, NumberStyles.None, CultureInfo.InvariantCulture, out _));
+        SaveSettingsCommand = new AsyncRelayCommand(
+            SaveSettingsAsync,
+            () => IsWholeNumber(SyncIntervalText) && IsWholeNumber(OfflineThresholdText) && IsWholeNumber(RetentionDaysText));
         LogoutCommand = new AsyncRelayCommand(LogoutAsync);
         SendCommandCommand = new AsyncRelayCommand(
             SendCommandAsync,
@@ -308,7 +311,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public string ToggleDeviceEnabledText => SelectedDevice is { IsEnabled: false } ? "Povoliť vybrané" : "Zakázať vybrané";
 
-    public AsyncRelayCommand SaveSyncIntervalCommand { get; }
+    /// <summary>Saves the monitoring settings the user changed: interval, offline tolerance and history retention.</summary>
+    public AsyncRelayCommand SaveSettingsCommand { get; }
 
     /// <summary>The device selected in the list, or null when none is.</summary>
     public DeviceRowViewModel? SelectedDevice
@@ -680,15 +684,42 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             if (SetProperty(ref _syncIntervalText, value))
             {
-                SaveSyncIntervalCommand.RaiseCanExecuteChanged();
+                SaveSettingsCommand.RaiseCanExecuteChanged();
             }
         }
     }
 
-    public string SyncIntervalHint
+    /// <summary>How many synchronizations in a row a device may miss before it is offline, as typed by the user.</summary>
+    public string OfflineThresholdText
     {
-        get => _syncIntervalHint;
-        private set => SetProperty(ref _syncIntervalHint, value);
+        get => _offlineThresholdText;
+        set
+        {
+            if (SetProperty(ref _offlineThresholdText, value))
+            {
+                SaveSettingsCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    /// <summary>How many days history is kept, as typed by the user.</summary>
+    public string RetentionDaysText
+    {
+        get => _retentionDaysText;
+        set
+        {
+            if (SetProperty(ref _retentionDaysText, value))
+            {
+                SaveSettingsCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    /// <summary>The allowed ranges of the settings and what they mean together.</summary>
+    public string SettingsHint
+    {
+        get => _settingsHint;
+        private set => SetProperty(ref _settingsHint, value);
     }
 
     /// <summary>Loads the current device list from the server. Called at start-up, periodically and on demand.</summary>
@@ -876,29 +907,71 @@ public sealed class MainWindowViewModel : ViewModelBase
             : $"Zachytávanie komunikácie na zariadení „{device.Name}“ bolo vypnuté. {StatusMessage}";
     }
 
-    private async Task SaveSyncIntervalAsync()
+    /// <summary>Sends only the settings that differ from what the server last reported, one after another.</summary>
+    private async Task SaveSettingsAsync()
     {
-        var seconds = int.Parse(SyncIntervalText, NumberStyles.None, CultureInfo.InvariantCulture);
+        var seconds = ParseWholeNumber(SyncIntervalText);
+        var missedSyncs = ParseWholeNumber(OfflineThresholdText);
+        var days = ParseWholeNumber(RetentionDaysText);
+        var shown = _shownSettings;
+        var changed = false;
 
         try
         {
-            ShowSettings(await _server.UpdateSyncIntervalAsync(seconds));
-            StatusMessage = $"Interval synchronizácie je nastavený na {seconds} s.";
+            if (shown is null || seconds != shown.SyncIntervalSeconds)
+            {
+                shown = await _server.UpdateSyncIntervalAsync(seconds);
+                changed = true;
+            }
+
+            if (missedSyncs != shown.OfflineAfterMissedSyncs)
+            {
+                shown = await _server.UpdateOfflineThresholdAsync(missedSyncs);
+                changed = true;
+            }
+
+            if (days != shown.RetentionDays)
+            {
+                shown = await _server.UpdateRetentionAsync(days);
+                changed = true;
+            }
         }
         catch (ServerClientException exception)
         {
+            // What the user typed stays, so the wrong value can be corrected; what was saved is remembered.
+            _shownSettings = shown;
             StatusMessage = Describe(exception);
+
+            return;
         }
+
+        ShowSettings(shown);
+        StatusMessage = changed
+            ? $"Nastavenia sú uložené: interval {seconds} s, offline po {missedSyncs} vynechaných intervaloch, história {days} dní."
+            : "Nastavenia sa nezmenili.";
     }
 
     private void ShowSettings(MonitoringSettingsInfo settings)
     {
         _settingsLoaded = true;
+        _shownSettings = settings;
         SyncIntervalText = settings.SyncIntervalSeconds.ToString(CultureInfo.InvariantCulture);
-        SyncIntervalHint =
-            $"Povolený rozsah: {settings.MinSyncIntervalSeconds} – {settings.MaxSyncIntervalSeconds} s. "
-            + $"Zariadenie je offline po {settings.OfflineAfterMissedSyncs} vynechaných intervaloch.";
+        OfflineThresholdText = settings.OfflineAfterMissedSyncs.ToString(CultureInfo.InvariantCulture);
+        RetentionDaysText = settings.RetentionDays.ToString(CultureInfo.InvariantCulture);
+
+        var offlineAfter = TimeSpan.FromSeconds((long)settings.SyncIntervalSeconds * settings.OfflineAfterMissedSyncs);
+        SettingsHint =
+            $"Interval {settings.MinSyncIntervalSeconds} – {settings.MaxSyncIntervalSeconds} s, "
+            + $"vynechané intervaly 1 – {settings.MaxOfflineAfterMissedSyncs}, história 1 – {settings.MaxRetentionDays} dní. "
+            + $"Zariadenie je teraz offline po {DeviceHistoryViewModel.FormatDuration(offlineAfter)} bez kontaktu.";
     }
+
+    private static bool IsWholeNumber(string text)
+    {
+        return int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out _);
+    }
+
+    private static int ParseWholeNumber(string text) => int.Parse(text, NumberStyles.None, CultureInfo.InvariantCulture);
 
     private static string Describe(ServerClientException exception)
     {
