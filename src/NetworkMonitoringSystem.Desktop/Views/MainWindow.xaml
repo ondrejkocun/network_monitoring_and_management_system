@@ -388,6 +388,8 @@
                                 <Button DockPanel.Dock="Right" Content="Zobraziť všetko" Margin="8,0,0,0"
                                         Command="{Binding ShowAllTrafficCommand}"
                                         ToolTip="Znova zobrazí komunikáciu za celé zvolené obdobie." />
+                                <Button DockPanel.Dock="Right" Content="Exportovať CSV…" Margin="8,0,0,0" Command="{Binding ExportTrafficCommand}"
+                                        ToolTip="Uloží zobrazenú komunikáciu (aj s filtrom) do súboru CSV." />
                                 <Button DockPanel.Dock="Right" Content="Vynulovať" Margin="8,0,0,0"
                                         Command="{Binding ResetTrafficCommand}"
                                         ToolTip="Vyprázdni tabuľku; potom ukazuje len komunikáciu, ktorá príde po tomto okamihu." />
@@ -463,6 +465,7 @@
                             <TabControl Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3">
                                 <TabItem Header="{Binding SelectedDeviceHistory.OutagesHeader, FallbackValue=Výpadky}">
                                     <DockPanel>
+                                        <Button DockPanel.Dock="Top" HorizontalAlignment="Right" Content="Exportovať CSV…" Margin="0,6,6,0" Command="{Binding ExportOutagesCommand}" />
                                         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6">
                                             <TextBlock Text="Dostupnosť za obdobie: " FontWeight="SemiBold" />
                                             <TextBlock Text="{Binding SelectedDeviceHistory.AvailabilityText, FallbackValue=–}" Margin="0,0,24,0" />
@@ -479,6 +482,8 @@
                                     </DockPanel>
                                 </TabItem>
                                 <TabItem Header="{Binding SelectedDeviceHistory.EventsHeader, FallbackValue=Udalosti}">
+                                    <DockPanel>
+                                    <Button DockPanel.Dock="Top" HorizontalAlignment="Right" Content="Exportovať CSV…" Margin="0,6,6,6" Command="{Binding ExportEventsCommand}" />
                                     <DataGrid ItemsSource="{Binding SelectedDeviceHistory.Events}" BorderThickness="0">
                                         <DataGrid.Columns>
                                             <DataGridTextColumn Header="Čas" Binding="{Binding OccurredText}" Width="Auto" />
@@ -487,6 +492,7 @@
                                             <DataGridTextColumn Header="Správa" Binding="{Binding Message}" Width="*" />
                                         </DataGrid.Columns>
                                     </DataGrid>
+                                    </DockPanel>
                                 </TabItem>
                             </TabControl>
                         </Grid>

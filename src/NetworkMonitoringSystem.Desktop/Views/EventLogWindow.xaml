@@ -19,6 +19,8 @@
                      ToolTip="Typ udalosti, zariadenie, používateľ alebo text správy."
                      Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}" />
             <Button Content="Obnoviť" Padding="12,4" Command="{Binding RefreshCommand}" />
+            <Button Content="Exportovať CSV…" Padding="12,4" Margin="8,0,0,0" Command="{Binding ExportCommand}"
+                    ToolTip="Uloží zobrazené udalosti (aj s filtrom) do súboru CSV." />
         </WrapPanel>
 
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding Message}" Foreground="Gray" Margin="0,8,0,0" TextWrapping="Wrap" />

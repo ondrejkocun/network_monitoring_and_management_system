@@ -15,6 +15,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private readonly IConfirmationDialog _confirmation;
     private readonly TimeProvider _timeProvider;
     private readonly IFilePicker? _filePicker;
+    private readonly ICsvExporter? _csvExporter;
     private readonly ITextInputDialog? _textInput;
 
     // Reading a long history is much more work for the server than the current state, and it changes slowly.
@@ -66,12 +67,14 @@ public sealed class MainWindowViewModel : ViewModelBase
     /// <param name="timeProvider">The clock history periods are counted from; the system clock when not given.</param>
     /// <param name="filePicker">Lets the user choose a file to send to a device; without it files cannot be sent.</param>
     /// <param name="textInput">Asks the user for a new name of a device; without it devices cannot be renamed.</param>
+    /// <param name="csvExporter">Saves tables as CSV files; without it nothing can be exported.</param>
     public MainWindowViewModel(
         IServerClient server,
         IConfirmationDialog confirmation,
         TimeProvider? timeProvider = null,
         IFilePicker? filePicker = null,
-        ITextInputDialog? textInput = null)
+        ITextInputDialog? textInput = null,
+        ICsvExporter? csvExporter = null)
     {
         ArgumentNullException.ThrowIfNull(server);
         ArgumentNullException.ThrowIfNull(confirmation);
@@ -80,6 +83,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         _confirmation = confirmation;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _filePicker = filePicker;
+        _csvExporter = csvExporter;
         _textInput = textInput;
         RenameDeviceCommand = new AsyncRelayCommand(RenameSelectedDeviceAsync, () => SelectedDevice is { CanManage: true } && _textInput is not null);
         SendFileCommand = new AsyncRelayCommand(SendFileAsync, () => CanSendFile && _filePicker is not null);
@@ -101,6 +105,9 @@ public sealed class MainWindowViewModel : ViewModelBase
             () => IsWholeNumber(SyncIntervalText) && IsWholeNumber(OfflineThresholdText) && IsWholeNumber(RetentionDaysText));
         LogoutCommand = new AsyncRelayCommand(LogoutAsync);
         DismissAlertsCommand = new AsyncRelayCommand(DismissAlertsAsync);
+        ExportTrafficCommand = new AsyncRelayCommand(ExportTrafficAsync, () => _csvExporter is not null);
+        ExportEventsCommand = new AsyncRelayCommand(ExportEventsAsync, () => _csvExporter is not null);
+        ExportOutagesCommand = new AsyncRelayCommand(ExportOutagesAsync, () => _csvExporter is not null);
         SendCommandCommand = new AsyncRelayCommand(
             SendCommandAsync,
             () => CanSendCommands && (!SelectedCommand.NeedsParameter || !string.IsNullOrWhiteSpace(CommandParameter)));
@@ -360,7 +367,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     public ChangePasswordViewModel CreateChangePasswordViewModel() => new(_server);
 
-    public EventLogViewModel CreateEventLogViewModel() => new(_server, _timeProvider);
+    public EventLogViewModel CreateEventLogViewModel() => new(_server, _timeProvider, _csvExporter);
 
     /// <summary>Changing the password signs the user out everywhere, including here.</summary>
     public void EndSessionAfterPasswordChange()
@@ -1043,6 +1050,74 @@ public sealed class MainWindowViewModel : ViewModelBase
             IsServerUnavailable = exception.Kind == ServerErrorKind.Unavailable;
         }
     }
+
+    public AsyncRelayCommand ExportTrafficCommand { get; }
+
+    public AsyncRelayCommand ExportEventsCommand { get; }
+
+    public AsyncRelayCommand ExportOutagesCommand { get; }
+
+    /// <summary>Exports the traffic as it is shown, filter included, with exact byte counts.</summary>
+    private Task ExportTrafficAsync()
+    {
+        Export(
+            "komunikacia",
+            ["Vzdialená adresa", "Port", "Protokol", "Transport", "Odoslané (B)", "Prijaté (B)"],
+            SelectedDeviceTraffic?.Rows.Select(row => (IReadOnlyList<string>)
+                [row.RemoteAddress, row.PortText, row.Protocol, row.Transport, Invariant(row.BytesSent), Invariant(row.BytesReceived)]));
+
+        return Task.CompletedTask;
+    }
+
+    private Task ExportEventsAsync()
+    {
+        Export(
+            "udalosti",
+            ["Čas", "Udalosť", "Závažnosť", "Správa"],
+            SelectedDeviceHistory?.Events.Select(row => (IReadOnlyList<string>)[row.OccurredText, row.TypeText, row.SeverityText, row.Message]));
+
+        return Task.CompletedTask;
+    }
+
+    private Task ExportOutagesAsync()
+    {
+        Export(
+            "vypadky",
+            ["Začiatok", "Koniec", "Trvanie"],
+            SelectedDeviceHistory?.Outages.Select(row => (IReadOnlyList<string>)[row.StartedText, row.EndedText, row.DurationText]));
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Saves the rows of the selected device's table under a name with the device and the date.</summary>
+    private void Export(string table, IReadOnlyList<string> header, IEnumerable<IReadOnlyList<string>>? rows)
+    {
+        if (_csvExporter is null || SelectedDevice is not { } device || rows is null)
+        {
+            StatusMessage = "Nie je čo exportovať.";
+
+            return;
+        }
+
+        var name = $"{table}-{SafeFileName(device.Name)}-{_timeProvider.GetLocalNow():yyyy-MM-dd}";
+
+        try
+        {
+            if (_csvExporter.Export(name, header, rows.ToList()) is { } path)
+            {
+                StatusMessage = $"Exportované do {path}.";
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            StatusMessage = $"Súbor sa nepodarilo uložiť: {exception.Message}";
+        }
+    }
+
+    private static string Invariant(long value) => value.ToString(CultureInfo.InvariantCulture);
+
+    private static string SafeFileName(string name) =>
+        string.Concat(name.Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '_' : character));
 
     /// <summary>The whole network at a glance; shown while no device is selected.</summary>
     public NetworkOverviewViewModel? NetworkOverview

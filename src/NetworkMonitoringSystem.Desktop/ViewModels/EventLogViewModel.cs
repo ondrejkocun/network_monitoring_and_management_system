@@ -13,6 +13,7 @@ public sealed class EventLogViewModel : ViewModelBase
     public const string AllSeverities = "Všetky";
 
     private readonly IServerClient _server;
+    private readonly ICsvExporter? _csvExporter;
     private readonly TimeProvider _timeProvider;
     private IReadOnlyList<EventLogRowViewModel> _allRows = [];
     private IReadOnlyList<EventLogRowViewModel> _rows = [];
@@ -22,14 +23,16 @@ public sealed class EventLogViewModel : ViewModelBase
     private string _message = string.Empty;
     private bool _truncated;
 
-    public EventLogViewModel(IServerClient server, TimeProvider? timeProvider = null)
+    public EventLogViewModel(IServerClient server, TimeProvider? timeProvider = null, ICsvExporter? csvExporter = null)
     {
         ArgumentNullException.ThrowIfNull(server);
 
         _server = server;
+        _csvExporter = csvExporter;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _selectedPeriod = Periods[1];
         RefreshCommand = new AsyncRelayCommand(LoadAsync);
+        ExportCommand = new AsyncRelayCommand(ExportAsync, () => _csvExporter is not null);
     }
 
     public IReadOnlyList<HistoryPeriodOption> Periods { get; } =
@@ -81,6 +84,8 @@ public sealed class EventLogViewModel : ViewModelBase
 
     public AsyncRelayCommand RefreshCommand { get; }
 
+    public AsyncRelayCommand ExportCommand { get; }
+
     /// <summary>The events that pass the filter, the newest first.</summary>
     public IReadOnlyList<EventLogRowViewModel> Rows
     {
@@ -93,6 +98,29 @@ public sealed class EventLogViewModel : ViewModelBase
     {
         get => _message;
         private set => SetProperty(ref _message, value);
+    }
+
+    /// <summary>Exports the events as they are shown, filter included.</summary>
+    private Task ExportAsync()
+    {
+        try
+        {
+            var path = _csvExporter?.Export(
+                $"zaznam-udalosti-{_timeProvider.GetLocalNow():yyyy-MM-dd}",
+                ["Čas", "Závažnosť", "Udalosť", "Zariadenie", "Používateľ", "Správa"],
+                Rows.Select(row => (IReadOnlyList<string>)[row.OccurredText, row.SeverityText, row.TypeText, row.DeviceText, row.UserText, row.Message]).ToList());
+
+            if (path is not null)
+            {
+                Message = $"Exportované do {path}.";
+            }
+        }
+        catch (Exception exception) when (exception is System.IO.IOException or UnauthorizedAccessException)
+        {
+            Message = $"Súbor sa nepodarilo uložiť: {exception.Message}";
+        }
+
+        return Task.CompletedTask;
     }
 
     public async Task LoadAsync()

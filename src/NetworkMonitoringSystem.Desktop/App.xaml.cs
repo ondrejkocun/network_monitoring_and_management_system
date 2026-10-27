@@ -114,6 +114,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IServerClient, GrpcServerClient>();
         services.AddSingleton<IConfirmationDialog, MessageBoxConfirmationDialog>();
         services.AddSingleton<IFilePicker, OpenFileDialogPicker>();
+        services.AddSingleton<ICsvExporter, SaveFileDialogCsvExporter>();
         services.AddSingleton<ITextInputDialog, TextInputDialog>();
 
         // Every sign-in gets a fresh form and a fresh main window, so nothing of the previous user stays on screen.
