@@ -26,7 +26,14 @@ public sealed record CommandOption(string Name, string Label, string? ParameterL
     public bool NeedsParameter => ParameterLabel is not null;
 
     /// <summary>Returns the name of the command for people, or the server's name for a command this version does not know.</summary>
-    public static string Describe(string name) => All.FirstOrDefault(option => option.Name == name)?.Label ?? name;
+    public static string Describe(string name) => name == SendFileName
+        ? SendFileLabel
+        : All.FirstOrDefault(option => option.Name == name)?.Label ?? name;
+
+    /// <summary>Sending a file is not in the list: it needs a chosen file, not a typed parameter.</summary>
+    public const string SendFileName = "SendFile";
+
+    public const string SendFileLabel = "Poslanie súboru";
 
     /// <summary>Screen readers announce an item of a list by this text.</summary>
     public override string ToString() => Label;

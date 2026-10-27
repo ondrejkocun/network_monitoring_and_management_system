@@ -257,6 +257,8 @@
                                          Text="{Binding CommandParameter, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
                             <Button Content="Odoslať príkaz" Padding="12,4" Margin="0,0,0,4" Command="{Binding SendCommandCommand}" />
+                            <Button Content="Poslať súbor…" Padding="12,4" Margin="12,0,0,4" Command="{Binding SendFileCommand}"
+                                    ToolTip="Pošle súbor (najviac 100 MB) do priečinka C:\ProgramData\NetworkMonitoringSystem\Inbox na zariadení. Agent ho nespustí." />
                         </WrapPanel>
 
                         <TextBlock DockPanel.Dock="Top" Text="{Binding CommandMessage}" Foreground="Gray" TextWrapping="Wrap" Margin="0,2,0,6" />

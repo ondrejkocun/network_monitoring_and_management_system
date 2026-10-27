@@ -102,6 +102,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton(provider => new AdminApi.AdminApiClient(provider.GetRequiredService<GrpcChannel>()));
         services.AddSingleton<IServerClient, GrpcServerClient>();
         services.AddSingleton<IConfirmationDialog, MessageBoxConfirmationDialog>();
+        services.AddSingleton<IFilePicker, OpenFileDialogPicker>();
 
         // Every sign-in gets a fresh form and a fresh main window, so nothing of the previous user stays on screen.
         services.AddTransient<LoginViewModel>();

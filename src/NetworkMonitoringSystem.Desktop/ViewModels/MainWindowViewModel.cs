@@ -1,3 +1,4 @@
+using System.IO;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using NetworkMonitoringSystem.Contracts.Admin;
@@ -13,6 +14,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private readonly IServerClient _server;
     private readonly IConfirmationDialog _confirmation;
     private readonly TimeProvider _timeProvider;
+    private readonly IFilePicker? _filePicker;
 
     // Reading a long history is much more work for the server than the current state, and it changes slowly.
     private static readonly TimeSpan HistoryReloadInterval = TimeSpan.FromSeconds(30);
@@ -51,7 +53,12 @@ public sealed class MainWindowViewModel : ViewModelBase
     private DateTimeOffset? _historyLoadedAt;
 
     /// <param name="timeProvider">The clock history periods are counted from; the system clock when not given.</param>
-    public MainWindowViewModel(IServerClient server, IConfirmationDialog confirmation, TimeProvider? timeProvider = null)
+    /// <param name="filePicker">Lets the user choose a file to send to a device; without it files cannot be sent.</param>
+    public MainWindowViewModel(
+        IServerClient server,
+        IConfirmationDialog confirmation,
+        TimeProvider? timeProvider = null,
+        IFilePicker? filePicker = null)
     {
         ArgumentNullException.ThrowIfNull(server);
         ArgumentNullException.ThrowIfNull(confirmation);
@@ -59,6 +66,8 @@ public sealed class MainWindowViewModel : ViewModelBase
         _server = server;
         _confirmation = confirmation;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _filePicker = filePicker;
+        SendFileCommand = new AsyncRelayCommand(SendFileAsync, () => CanSendCommands && _filePicker is not null);
         _selectedHistoryPeriod = HistoryPeriods[1];
 
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
@@ -184,6 +193,66 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             // What is on screen stays; the status bar already says when the server cannot be reached.
         }
+    }
+
+    /// <summary>Lets the user pick a file and sends it into the inbox folder of the selected device.</summary>
+    public AsyncRelayCommand SendFileCommand { get; }
+
+    /// <summary>Largest file the server accepts; checked here too, so the user is not left waiting for a refusal.</summary>
+    public const long MaxFileSize = 100L * 1024 * 1024;
+
+    private async Task SendFileAsync()
+    {
+        var device = SelectedDevice;
+
+        if (device is not { HasAgent: true } || _filePicker?.PickFileToSend() is not { } path)
+        {
+            return;
+        }
+
+        var fileName = Path.GetFileName(path);
+
+        try
+        {
+            var size = new FileInfo(path).Length;
+
+            if (size > MaxFileSize)
+            {
+                CommandMessage = $"Súbor „{fileName}“ má {ByteSize.Format((ulong)size)}; poslať možno najviac 100 MB.";
+
+                return;
+            }
+
+            if (!_confirmation.Confirm(
+                    "Poslať súbor",
+                    $"Naozaj chcete zariadeniu „{device.Name}“ poslať súbor „{fileName}“ ({ByteSize.Format((ulong)size)})? "
+                    + "Agent ho uloží do priečinka C:\\ProgramData\\NetworkMonitoringSystem\\Inbox a nespustí ho."))
+            {
+                return;
+            }
+
+            CommandMessage = $"Posielam súbor „{fileName}“…";
+
+            await using var content = File.OpenRead(path);
+            await _server.SendFileAsync(device.Id, fileName, content);
+        }
+        catch (ServerClientException exception)
+        {
+            CommandMessage = Describe(exception);
+
+            return;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            CommandMessage = $"Súbor „{fileName}“ sa nedá prečítať: {exception.Message}";
+
+            return;
+        }
+
+        CommandMessage = $"Súbor „{fileName}“ bol odoslaný na server. Agent si ho stiahne pri najbližšom dopyte na príkazy.";
+
+        await LoadSelectedDeviceCommandsAsync();
+        SelectedCommandRow = DeviceCommands.FirstOrDefault();
     }
 
     private async Task SendCommandAsync()
@@ -360,6 +429,7 @@ public sealed class MainWindowViewModel : ViewModelBase
                 CommandMessage = value is { HasAgent: false } ? "Príkazy možno posielať len zariadeniu s agentom." : string.Empty;
                 OnPropertyChanged(nameof(CanSendCommands));
                 SendCommandCommand.RaiseCanExecuteChanged();
+                SendFileCommand.RaiseCanExecuteChanged();
                 SelectedDeviceHistory = null;
                 SelectedDeviceTraffic = null;
                 SelectedDeviceActivityHistory = null;
