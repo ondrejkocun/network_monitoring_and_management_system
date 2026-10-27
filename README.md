@@ -69,7 +69,7 @@ The planned data model is described in [docs/datovy-model.md](docs/datovy-model.
 - Windows 10 or 11
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) for the local database and the integration tests
-- [Wireshark](https://www.wireshark.org/download.html) with Npcap, only on computers whose network traffic is captured (see [docs/deployment.md](docs/deployment.md#network-traffic-capture))
+- [Wireshark](https://www.wireshark.org/download.html) with Npcap, only on computers whose network traffic is captured; the agent installer can install them with `-WithTrafficCapture` (see [docs/deployment.md](docs/deployment.md#network-traffic-capture))
 
 ### 1. Configure secrets
 

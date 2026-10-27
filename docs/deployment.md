@@ -111,7 +111,23 @@ Running `Install-Agent.ps1` again from a newer package replaces the program and 
 
 Capturing the traffic of a device is optional and off until an administrator switches it on for that device in the desktop application (Traffic tab). The agent learns about it in the reply to its next report and starts capturing; the first summary arrives with the report after that. With the default interval of 60 seconds the first rows therefore appear after one to two minutes.
 
-**Install Wireshark** on every computer whose traffic should be captured, from [wireshark.org](https://www.wireshark.org/download.html), with the Npcap packet driver it offers during installation. The default options are enough. The agent looks for TShark, the command line part of Wireshark, in `C:\Program Files\Wireshark\tshark.exe`; a different place is set in the agent's settings:
+**Install Wireshark and Npcap** on every computer whose traffic should be captured. The simplest way is to add `-WithTrafficCapture` when installing the agent:
+
+```powershell
+.\Install-Agent.ps1 -ServerUrl https://SERVER01:7006 -ServerCertificateSha256 <pin> -WithTrafficCapture
+```
+
+The script then installs what is missing after the agent itself:
+
+1. Wireshark, which includes TShark, silently with `winget` (part of Windows 10 and 11).
+2. The Npcap packet driver. The script downloads the current installer from [npcap.com](https://npcap.com/), runs it only when it is validly signed by Nmap Software LLC, and opens it. Confirm the licence and click Install; the default options are enough.
+3. Finally it checks with `tshark -D` that TShark sees the network adapters and says whether capture is ready.
+
+Npcap is the one step that needs a click, and the reason is its licence, not the script. The free edition of Npcap may not be shipped with other software and has no silent installation (both only in the paid OEM edition), so the agent neither carries it nor installs it unseen. The free edition may be used on up to five computers; a larger deployment needs an Npcap OEM licence. Wireshark itself is free software under the GPL.
+
+If any of this fails, the agent is still installed and runs; the script says what went wrong. Wireshark with Npcap can also be installed by hand from [wireshark.org](https://www.wireshark.org/download.html), whose installer offers Npcap during installation. Running `Install-Agent.ps1 -WithTrafficCapture` again on an installed agent keeps its identity and only adds what is missing.
+
+The agent looks for TShark, the command line part of Wireshark, in `C:\Program Files\Wireshark\tshark.exe`; a different place is set in the agent's settings:
 
 ```json
 {

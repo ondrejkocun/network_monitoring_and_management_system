@@ -28,8 +28,19 @@
 .PARAMETER InstallDirectory
     Where the agent is installed.
 
+.PARAMETER WithTrafficCapture
+    Also prepares this computer for capturing its network traffic, which is switched on per device in the desktop
+    application. When missing, Wireshark (with TShark) is installed silently with winget, and the installer of the
+    Npcap driver is downloaded from npcap.com, its signature checked and started. Npcap cannot be installed
+    silently: its free edition allows that only in the paid OEM edition, and it may not be shipped with the agent
+    either, so its installer asks for a few clicks. A failure here does not stop the installation of the agent;
+    the agent then reports why it cannot capture.
+
 .EXAMPLE
     .\Install-Agent.ps1 -ServerUrl https://SERVER01:7006 -ServerCertificateSha256 3F2A...9C
+
+.EXAMPLE
+    .\Install-Agent.ps1 -ServerUrl https://SERVER01:7006 -ServerCertificateSha256 3F2A...9C -WithTrafficCapture
 #>
 #Requires -RunAsAdministrator
 [CmdletBinding()]
@@ -41,10 +52,77 @@ param(
 
     [string]$EnrollmentToken = '',
 
-    [string]$InstallDirectory = (Join-Path $env:ProgramFiles 'NetworkMonitoringAgent')
+    [string]$InstallDirectory = (Join-Path $env:ProgramFiles 'NetworkMonitoringAgent'),
+
+    [switch]$WithTrafficCapture
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Prepares TShark and Npcap for traffic capture. Returns a message for the summary; never stops the installation.
+function Install-TrafficCapture {
+    $tshark = Join-Path $env:ProgramFiles 'Wireshark\tshark.exe'
+
+    if (-not (Test-Path $tshark)) {
+        if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+            return 'Wireshark is not installed and winget is not available. Install it from https://www.wireshark.org/download.html.'
+        }
+
+        Write-Host 'Installing Wireshark with winget...'
+        & winget install --id WiresharkFoundation.Wireshark --exact --silent --scope machine `
+            --accept-package-agreements --accept-source-agreements | Out-Host
+
+        if (-not (Test-Path $tshark)) {
+            return 'Wireshark could not be installed with winget; the messages above say why.'
+        }
+    }
+    else {
+        Write-Host 'Wireshark is already installed.'
+    }
+
+    if (-not (Get-Service -Name npcap -ErrorAction SilentlyContinue)) {
+        Write-Host 'Downloading the Npcap installer from npcap.com...'
+
+        # The page links the current version as dist/npcap-<version>.exe.
+        $page = Invoke-WebRequest -Uri 'https://npcap.com/' -UseBasicParsing
+        $match = [regex]::Match($page.Content, 'dist/npcap-[0-9.]+\.exe')
+
+        if (-not $match.Success) {
+            return 'The Npcap installer was not found on https://npcap.com/. Download and install it from there.'
+        }
+
+        $installer = Join-Path $env:TEMP ([System.IO.Path]::GetFileName($match.Value))
+        Invoke-WebRequest -Uri "https://npcap.com/$($match.Value)" -OutFile $installer -UseBasicParsing
+
+        # Only a file signed by the authors of Npcap is run.
+        $signature = Get-AuthenticodeSignature -FilePath $installer
+
+        if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch '(^|, )O=Nmap Software LLC(,|$)') {
+            Remove-Item $installer -Force
+            return "The downloaded Npcap installer is not signed by its authors ($($signature.Status)); it was not run."
+        }
+
+        Write-Host 'Starting the Npcap installer; confirm its licence and click Install. The default options are enough.'
+        Start-Process -FilePath $installer -Wait
+        Remove-Item $installer -Force -ErrorAction SilentlyContinue
+
+        if (-not (Get-Service -Name npcap -ErrorAction SilentlyContinue)) {
+            return 'Npcap was not installed. Run the installer from https://npcap.com/ again.'
+        }
+    }
+    else {
+        Write-Host 'Npcap is already installed.'
+    }
+
+    # TShark lists the interfaces it can capture on; Npcap adapters appear as \Device\NPF_{...}.
+    $interfaces = & $tshark -D 2>$null
+
+    if (-not ($interfaces -match '\\Device\\NPF_')) {
+        return 'TShark and Npcap are installed, but TShark sees no network adapter. Restart the computer and check it with: tshark -D'
+    }
+
+    return 'Traffic capture is ready; switch it on for this device in the desktop application.'
+}
 
 $serviceName = 'NetworkMonitoringAgent'
 $programName = 'NetworkMonitoringSystem.Agent.exe'
@@ -132,6 +210,22 @@ if (-not $existing) {
 
 Start-Service -Name $serviceName
 
+# The agent works without traffic capture, so this comes last and cannot undo the installation.
+$captureMessage = $null
+
+if ($WithTrafficCapture) {
+    try {
+        $captureMessage = Install-TrafficCapture
+    }
+    catch {
+        $captureMessage = "Traffic capture could not be prepared: $($_.Exception.Message)"
+    }
+}
+
 Write-Host ''
 Write-Host "The agent is installed and running as the service '$serviceName'."
 Write-Host 'Its messages are in the Windows event log (Application, source NetworkMonitoringAgent).'
+
+if ($captureMessage) {
+    Write-Host $captureMessage
+}
