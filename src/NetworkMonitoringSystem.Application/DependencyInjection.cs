@@ -15,6 +15,7 @@ public static class DependencyInjection
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IDeviceService, DeviceService>();
         services.AddScoped<IDeviceHistoryService, DeviceHistoryService>();
+        services.AddScoped<IEventLogService, EventLogService>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IAccessManagementService, AccessManagementService>();
         services.AddScoped<IAgentService, AgentService>();

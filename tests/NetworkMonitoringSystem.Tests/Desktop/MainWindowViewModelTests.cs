@@ -1205,6 +1205,19 @@ public class MainWindowViewModelTests
             return Task.FromResult<IReadOnlyList<TrafficEntry>>(Traffic.TryGetValue(id, out var entries) ? entries : []);
         }
 
+        public EventLogReply EventLog { get; } = new();
+
+        public List<(DateTimeOffset From, DateTimeOffset To)> EventLogRequests { get; } = [];
+
+        public Task<EventLogReply> GetEventLogAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            EventLogRequests.Add((from, to));
+
+            return Task.FromResult(EventLog);
+        }
+
         public Task<MonitoringSettingsInfo> GetSettingsAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfFailing();

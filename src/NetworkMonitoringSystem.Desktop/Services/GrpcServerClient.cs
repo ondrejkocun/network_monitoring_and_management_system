@@ -216,6 +216,13 @@ public sealed class GrpcServerClient : IServerClient
         return CallAsync(() => _client.GetMonitoringSettingsAsync(new GetMonitoringSettingsRequest(), Headers(), cancellationToken: cancellationToken));
     }
 
+    public Task<EventLogReply> GetEventLogAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
+    {
+        return CallAsync(() => _client.GetEventLogAsync(
+            new GetEventLogRequest { From = Timestamp.FromDateTimeOffset(from), To = Timestamp.FromDateTimeOffset(to) },
+            Headers(), cancellationToken: cancellationToken));
+    }
+
     public Task<MonitoringSettingsInfo> UpdateSyncIntervalAsync(int seconds, CancellationToken cancellationToken = default)
     {
         return CallAsync(() => _client.UpdateSyncIntervalAsync(

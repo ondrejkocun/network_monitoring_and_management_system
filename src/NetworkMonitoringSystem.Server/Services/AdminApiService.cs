@@ -26,6 +26,7 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
     private readonly DeniedAccessLog _deniedAccessLog;
     private readonly IAccessManagementService _accessManagement;
     private readonly IRemoteCommandService _commandService;
+    private readonly IEventLogService _eventLog;
 
     public AdminApiService(
         IDeviceService deviceService,
@@ -34,9 +35,11 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         IAuthenticationService authenticationService,
         IAccessManagementService accessManagement,
         IRemoteCommandService commandService,
+        IEventLogService eventLog,
         DeniedAccessLog deniedAccessLog)
     {
         _commandService = commandService;
+        _eventLog = eventLog;
         _accessManagement = accessManagement;
         _historyService = historyService;
         _authenticationService = authenticationService;
@@ -355,6 +358,40 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
             : ToDeviceInfo(device);
     }
 
+    public override async Task<EventLogReply> GetEventLog(GetEventLogRequest request, ServerCallContext context)
+    {
+        await RequireAsync(context, Permission.ViewEventLog);
+
+        if (request.From is null || request.To is null)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "The period must have a start and an end."));
+        }
+
+        EventLogDto log;
+
+        try
+        {
+            log = await _eventLog.GetAsync(request.From.ToDateTimeOffset(), request.To.ToDateTimeOffset(), context.CancellationToken);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
+        }
+
+        var reply = new EventLogReply { Truncated = log.Truncated };
+        reply.Events.AddRange(log.Events.Select(entry => new EventLogEntry
+        {
+            OccurredAt = Timestamp.FromDateTimeOffset(entry.OccurredAt),
+            Type = entry.Type.ToString(),
+            Severity = ToSeverity(entry.Severity),
+            Message = entry.Message,
+            DeviceName = entry.DeviceName ?? string.Empty,
+            UserName = entry.UserName ?? string.Empty,
+        }));
+
+        return reply;
+    }
+
     public override async Task<DeviceTrafficReply> GetDeviceTraffic(GetDeviceTrafficRequest request, ServerCallContext context)
     {
         if (request.From is null || request.To is null)
@@ -448,13 +485,7 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         {
             OccurredAt = Timestamp.FromDateTimeOffset(monitoringEvent.OccurredAt),
             Type = monitoringEvent.Type.ToString(),
-            Severity = monitoringEvent.Severity switch
-            {
-                DomainEventSeverity.Info => EventSeverity.Info,
-                DomainEventSeverity.Warning => EventSeverity.Warning,
-                DomainEventSeverity.Error => EventSeverity.Error,
-                _ => EventSeverity.Unspecified,
-            },
+            Severity = ToSeverity(monitoringEvent.Severity),
             Message = monitoringEvent.Message,
         }));
         reply.ResourcePoints.AddRange(history.ResourcePoints.Select(point =>
@@ -699,6 +730,17 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         }
 
         return new RpcException(new Status(StatusCode.PermissionDenied, "You do not have permission for this operation."));
+    }
+
+    private static EventSeverity ToSeverity(DomainEventSeverity severity)
+    {
+        return severity switch
+        {
+            DomainEventSeverity.Info => EventSeverity.Info,
+            DomainEventSeverity.Warning => EventSeverity.Warning,
+            DomainEventSeverity.Error => EventSeverity.Error,
+            _ => EventSeverity.Unspecified,
+        };
     }
 
     private static DeviceInfo ToDeviceInfo(DeviceDto device)

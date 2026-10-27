@@ -17,6 +17,9 @@ public enum Permission
     /// <summary>Manage users, roles and access rules.</summary>
     ManageUsers = 4,
 
+    /// <summary>Read the event log of the whole system, including sign-ins and refused access.</summary>
+    ViewEventLog = 5,
+
     // One permission for each remote command; a user may send only the commands they hold.
     RestartDevice = 101,
     ShutDownDevice = 102,

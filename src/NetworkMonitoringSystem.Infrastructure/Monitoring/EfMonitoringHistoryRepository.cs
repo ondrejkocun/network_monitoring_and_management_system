@@ -98,6 +98,38 @@ public sealed class EfMonitoringHistoryRepository : IMonitoringHistoryRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<EventLogEntryDto>> GetEventLogAsync(
+        DateTimeOffset from,
+        DateTimeOffset to,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        // A removed device or user leaves its events behind; the name is then simply not known.
+        var rows = await (
+                from monitoringEvent in _dbContext.Events.AsNoTracking()
+                where monitoringEvent.OccurredAt >= @from && monitoringEvent.OccurredAt <= to
+                join device in _dbContext.Devices on monitoringEvent.DeviceId equals (Guid?)device.Id into devices
+                from device in devices.DefaultIfEmpty()
+                join user in _dbContext.Users on monitoringEvent.UserId equals (Guid?)user.Id into users
+                from user in users.DefaultIfEmpty()
+                orderby monitoringEvent.OccurredAt descending, monitoringEvent.Id descending
+                select new
+                {
+                    monitoringEvent.OccurredAt,
+                    monitoringEvent.Type,
+                    monitoringEvent.Severity,
+                    monitoringEvent.Message,
+                    DeviceName = device == null ? null : device.Name,
+                    UserName = user == null ? null : user.UserName,
+                })
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Select(row => new EventLogEntryDto(row.OccurredAt, row.Type, row.Severity, row.Message, row.DeviceName, row.UserName))
+            .ToList();
+    }
+
     public async Task<IReadOnlyList<ResourcePoint>> GetResourcePointsAsync(
         Guid deviceId,
         DateTimeOffset from,

@@ -86,6 +86,10 @@ public interface IServerClient
     /// <exception cref="ServerClientException">The server could not be reached or refused the call.</exception>
     Task<IReadOnlyList<TrafficEntry>> GetDeviceTrafficAsync(string id, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns the events of the whole system in the period, the newest first.</summary>
+    /// <exception cref="ServerClientException">The server could not be reached or the user may not read the event log.</exception>
+    Task<EventLogReply> GetEventLogAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
+
     /// <exception cref="ServerClientException">The server could not be reached or refused the call.</exception>
     Task<MonitoringSettingsInfo> GetSettingsAsync(CancellationToken cancellationToken = default);
 

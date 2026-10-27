@@ -166,6 +166,8 @@ public sealed class AccessControlTests : IClassFixture<DatabaseFixture>, IDispos
             // Neither do the monitoring settings.
             () => client.UpdateOfflineThresholdAsync(5),
             () => client.UpdateRetentionAsync(60),
+            // The event log of the whole system needs its own permission.
+            () => client.GetEventLogAsync(now.AddHours(-1), now),
         };
 
         foreach (var call in refused)

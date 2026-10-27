@@ -34,6 +34,16 @@ public interface IMonitoringHistoryRepository
         int limit,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Returns the events of all devices and of the system in the period, the newest first, with the names of the device
+    /// and the user each one concerns, when they still exist.
+    /// </summary>
+    Task<IReadOnlyList<EventLogEntryDto>> GetEventLogAsync(
+        DateTimeOffset from,
+        DateTimeOffset to,
+        int limit,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Returns processor and memory use from the device's snapshots in the period, the oldest first.</summary>
     Task<IReadOnlyList<ResourcePoint>> GetResourcePointsAsync(
         Guid deviceId,

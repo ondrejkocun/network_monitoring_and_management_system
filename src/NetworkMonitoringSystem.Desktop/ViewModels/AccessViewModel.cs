@@ -528,6 +528,7 @@ public sealed record PermissionOption(string Name, string Label)
             "ManageDevices" => "Správa zariadení",
             "ManageSettings" => "Správa nastavení",
             "ManageUsers" => "Správa používateľov",
+            "ViewEventLog" => "Zobrazenie záznamu udalostí",
 
             // Each remote command has a permission of the same name.
             _ => CommandOption.All.FirstOrDefault(command => command.Name == permission) is { } command

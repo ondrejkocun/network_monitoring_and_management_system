@@ -177,6 +177,44 @@ public sealed class AdminApiTests : IClassFixture<DatabaseFixture>, IAsyncLifeti
     }
 
     [Fact]
+    public async Task EventLog_ShowsEventsOfTheWholeSystem_WithDeviceAndUserNames()
+    {
+        var from = DateTimeOffset.UtcNow.AddSeconds(-1);
+        var name = "Printer-" + Guid.NewGuid().ToString("N");
+        await _client.AddAgentlessDeviceAsync(name, "192.0.2.95");
+        var device = Assert.Single(await _client.GetDevicesAsync(), device => device.Name == name);
+
+        await _client.SetDeviceEnabledAsync(device.Id, isEnabled: false);
+        await _client.RemoveDeviceAsync(device.Id);
+
+        var log = await _client.GetEventLogAsync(from, DateTimeOffset.UtcNow.AddSeconds(1));
+
+        // The device is gone, so its name is no longer known; the message still says which one it was.
+        var disabled = Assert.Single(log.Events, entry => entry.Type == "DeviceDisabled" && entry.Message.Contains(name));
+        Assert.Equal((string.Empty, TestAdministrator.UserName), (disabled.DeviceName, disabled.UserName));
+        Assert.Contains(log.Events, entry => entry.Type == "DeviceRemoved" && entry.Message.Contains(name));
+        Assert.False(log.Truncated);
+        Assert.True(log.Events.Select(entry => entry.OccurredAt.ToDateTimeOffset()).SequenceEqual(
+            log.Events.Select(entry => entry.OccurredAt.ToDateTimeOffset()).OrderDescending()));
+    }
+
+    [Fact]
+    public async Task EventLog_NamesTheDevice_WhileItExists()
+    {
+        var from = DateTimeOffset.UtcNow.AddSeconds(-1);
+        var name = "Switch-" + Guid.NewGuid().ToString("N");
+        await _client.AddAgentlessDeviceAsync(name, "192.0.2.96");
+        var device = Assert.Single(await _client.GetDevicesAsync(), device => device.Name == name);
+
+        await _client.SetDeviceEnabledAsync(device.Id, isEnabled: false);
+
+        var log = await _client.GetEventLogAsync(from, DateTimeOffset.UtcNow.AddSeconds(1));
+
+        var disabled = Assert.Single(log.Events, entry => entry.Type == "DeviceDisabled" && entry.Message.Contains(name));
+        Assert.Equal((name, TestAdministrator.UserName), (disabled.DeviceName, disabled.UserName));
+    }
+
+    [Fact]
     public async Task DisabledDevice_StaysInList_UntilEnabled_AndBothChangesAreLoggedWithTheirAuthor()
     {
         var name = "Printer-" + Guid.NewGuid().ToString("N");

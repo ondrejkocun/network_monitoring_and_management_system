@@ -56,6 +56,9 @@ service AdminApi {
   // Returns the availability, outages, events and resource use of the device in a period.
   rpc GetDeviceHistory (GetDeviceHistoryRequest) returns (DeviceHistoryReply);
 
+  // Returns the events of the whole system in a period, the newest first. Requires ViewEventLog.
+  rpc GetEventLog (GetEventLogRequest) returns (EventLogReply);
+
   // Queues a command for the device's agent. Requires the permission of that command on the device.
   rpc SendCommand (SendCommandRequest) returns (CommandInfo);
 
@@ -384,6 +387,29 @@ message EventInfo {
   string type = 2;
   EventSeverity severity = 3;
   string message = 4;
+}
+
+message GetEventLogRequest {
+  google.protobuf.Timestamp from = 1;
+  google.protobuf.Timestamp to = 2;
+}
+
+message EventLogReply {
+  repeated EventLogEntry events = 1;
+  // True when the period had more events than are returned; the newest ones are.
+  bool truncated = 2;
+}
+
+message EventLogEntry {
+  google.protobuf.Timestamp occurred_at = 1;
+  // Name of the event type, for example "SettingsChanged".
+  string type = 2;
+  EventSeverity severity = 3;
+  string message = 4;
+  // Empty for an event of the system as a whole, or when the device no longer exists.
+  string device_name = 5;
+  // Empty when the event was not caused by a user, or the user no longer exists.
+  string user_name = 6;
 }
 
 message ResourcePointInfo {

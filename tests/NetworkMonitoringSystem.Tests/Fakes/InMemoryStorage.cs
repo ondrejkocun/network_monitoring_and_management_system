@@ -106,6 +106,24 @@ public sealed class InMemoryMonitoringHistoryRepository : IMonitoringHistoryRepo
         return Task.FromResult(outages);
     }
 
+    /// <summary>Device and user names are not known here; the database test covers them.</summary>
+    public Task<IReadOnlyList<EventLogEntryDto>> GetEventLogAsync(
+        DateTimeOffset from,
+        DateTimeOffset to,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<EventLogEntryDto> entries = Events
+            .Where(monitoringEvent => monitoringEvent.OccurredAt >= from && monitoringEvent.OccurredAt <= to)
+            .OrderByDescending(monitoringEvent => monitoringEvent.OccurredAt)
+            .Take(limit)
+            .Select(monitoringEvent => new EventLogEntryDto(
+                monitoringEvent.OccurredAt, monitoringEvent.Type, monitoringEvent.Severity, monitoringEvent.Message, null, null))
+            .ToList();
+
+        return Task.FromResult(entries);
+    }
+
     public Task<IReadOnlyList<MonitoringEvent>> GetEventsAsync(
         Guid deviceId,
         DateTimeOffset from,
