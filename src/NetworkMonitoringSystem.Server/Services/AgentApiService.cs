@@ -31,7 +31,7 @@ public sealed class AgentApiService : AgentApi.AgentApiBase
         try
         {
             var registration = await _agentService.RegisterAsync(
-                new RegisterAgentRequest(request.EnrollmentToken, request.HostName, request.OperatingSystem),
+                new RegisterAgentRequest(request.EnrollmentToken, request.HostName, request.OperatingSystem, NetworkAddressOf(request.IpAddress, context)),
                 context.CancellationToken);
 
             _logger.LogInformation(
@@ -75,6 +75,7 @@ public sealed class AgentApiService : AgentApi.AgentApiBase
                 ToReport(request.Metrics),
                 ToReport(request.Activity),
                 ToReport(request.Traffic),
+                NetworkAddressOf(request.IpAddress, context),
                 context.CancellationToken);
 
             return new HeartbeatReply { SyncIntervalSeconds = result.SyncIntervalSeconds, CaptureTraffic = result.CaptureTraffic };
@@ -199,6 +200,22 @@ public sealed class AgentApiService : AgentApi.AgentApiBase
         }
 
         _logger.LogInformation("File {FileName} ({Size} bytes) sent to device {DeviceId}.", file.FileName, file.Size, deviceId);
+    }
+
+    /// <summary>
+    /// The address the agent reported, or else the one its request came from. The latter is what the server sees, which
+    /// behind a router may be the router's; loopback is ignored later, so an agent on the server's own computer gets none.
+    /// </summary>
+    private static System.Net.IPAddress? NetworkAddressOf(string reported, ServerCallContext context)
+    {
+        if (System.Net.IPAddress.TryParse(reported, out var address))
+        {
+            return address;
+        }
+
+        var remote = context.GetHttpContext().Connection.RemoteIpAddress;
+
+        return remote is { IsIPv4MappedToIPv6: true } ? remote.MapToIPv4() : remote;
     }
 
     private static SystemMetricsReport? ToReport(SystemMetrics? metrics)

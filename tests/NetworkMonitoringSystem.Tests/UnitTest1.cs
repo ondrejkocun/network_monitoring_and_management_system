@@ -83,4 +83,30 @@ public class UnitTest1
 
         Assert.Throws<InvalidOperationException>(() => device.SetTcpPort(3389));
     }
+
+    [Fact]
+    public void Device_WithAgent_TakesTheAddressItsAgentReports_IgnoringLoopbackAndUnspecified()
+    {
+        var device = new Device(Guid.NewGuid(), "PC", MonitoringMode.Agent, "pc-01", null, CreatedAt);
+
+        Assert.False(device.RecordNetworkAddress(null));
+        Assert.False(device.RecordNetworkAddress(IPAddress.Loopback));
+        Assert.False(device.RecordNetworkAddress(IPAddress.IPv6Loopback));
+        Assert.False(device.RecordNetworkAddress(IPAddress.Any));
+        Assert.Null(device.IpAddress);
+
+        Assert.True(device.RecordNetworkAddress(IPAddress.Parse("192.168.50.20")));
+        Assert.False(device.RecordNetworkAddress(IPAddress.Parse("192.168.50.20")));
+        Assert.True(device.RecordNetworkAddress(IPAddress.Parse("10.0.0.7")));
+        Assert.Equal(IPAddress.Parse("10.0.0.7"), device.IpAddress);
+    }
+
+    [Fact]
+    public void Device_WithoutAgent_KeepsTheAddressItIsCheckedAt()
+    {
+        var device = new Device(Guid.NewGuid(), "Router", MonitoringMode.Agentless, null, IPAddress.Parse("192.168.50.1"), CreatedAt);
+
+        Assert.False(device.RecordNetworkAddress(IPAddress.Parse("192.168.50.99")));
+        Assert.Equal(IPAddress.Parse("192.168.50.1"), device.IpAddress);
+    }
 }

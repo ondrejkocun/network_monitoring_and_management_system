@@ -103,6 +103,21 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
     }
 
     [Fact]
+    public async Task Report_StoresTheAddressOfThisComputerInTheNetwork()
+    {
+        var reporter = CreateReporter(Token);
+        await reporter.ReportOnceAsync(CancellationToken.None);
+        await reporter.ReportOnceAsync(CancellationToken.None);
+
+        var device = await LoadDeviceAsync(_identityStore.Load()!.DeviceId);
+        var expected = NetworkAddress.FindPrimary();
+
+        Assert.False(string.IsNullOrEmpty(expected), "This computer has no active network adapter with an IPv4 address.");
+        Assert.Equal(expected, device.IpAddress?.ToString());
+        Assert.False(System.Net.IPAddress.IsLoopback(device.IpAddress!));
+    }
+
+    [Fact]
     public async Task SecondReport_SendsHeartbeat_AndMovesLastSeenForward()
     {
         var reporter = CreateReporter(Token);

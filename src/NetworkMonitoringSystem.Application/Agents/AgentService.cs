@@ -91,6 +91,7 @@ public sealed class AgentService : IAgentService
         }
 
         device.AssignAgentIdentity(AgentKey.Hash(agentKey), request.OperatingSystem);
+        device.RecordNetworkAddress(request.NetworkAddress);
 
         _history.AddEvent(new MonitoringEvent(
             now,
@@ -112,6 +113,7 @@ public sealed class AgentService : IAgentService
         SystemMetricsReport? metrics = null,
         SystemActivityReport? activity = null,
         TrafficReport? traffic = null,
+        System.Net.IPAddress? networkAddress = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(credentials);
@@ -120,7 +122,7 @@ public sealed class AgentService : IAgentService
         // from the device as the check left it, so the device ends up online.
         return ConcurrencyRetry.RunAsync(
             _unitOfWork,
-            () => RecordHeartbeatAsync(credentials, metrics, activity, traffic, cancellationToken));
+            () => RecordHeartbeatAsync(credentials, metrics, activity, traffic, networkAddress, cancellationToken));
     }
 
     private async Task<AgentHeartbeatResult> RecordHeartbeatAsync(
@@ -128,6 +130,7 @@ public sealed class AgentService : IAgentService
         SystemMetricsReport? metrics,
         SystemActivityReport? activity,
         TrafficReport? traffic,
+        System.Net.IPAddress? networkAddress,
         CancellationToken cancellationToken)
     {
         var device = await _deviceRepository.GetByIdAsync(credentials.DeviceId, cancellationToken);
@@ -139,6 +142,8 @@ public sealed class AgentService : IAgentService
 
         var now = _timeProvider.GetUtcNow();
         var settings = await _settingsRepository.GetAsync(cancellationToken);
+
+        device.RecordNetworkAddress(networkAddress);
 
         var snapshot = await _recorder.RecordOnlineAsync(
             device,

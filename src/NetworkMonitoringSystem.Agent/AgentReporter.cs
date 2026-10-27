@@ -60,6 +60,7 @@ public sealed class AgentReporter
                     Activity = CollectActivity(),
                     // Traffic counted while a report fails is lost with it; capture goes on for the next one.
                     Traffic = _trafficCapture.IsEnabled ? _trafficCapture.TakeSummary() : null,
+                    IpAddress = NetworkAddress.FindPrimary(),
                 },
                 cancellationToken: cancellationToken);
 
@@ -137,6 +138,7 @@ public sealed class AgentReporter
                 EnrollmentToken = _options.EnrollmentToken,
                 HostName = Environment.MachineName,
                 OperatingSystem = RuntimeInformation.OSDescription,
+                IpAddress = NetworkAddress.FindPrimary(),
             },
             cancellationToken: cancellationToken);
 

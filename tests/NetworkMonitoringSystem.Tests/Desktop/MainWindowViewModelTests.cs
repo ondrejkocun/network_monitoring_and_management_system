@@ -187,6 +187,16 @@ public class MainWindowViewModelTests
     }
 
     [Fact]
+    public void DeviceRow_OfAgent_ShowsItsAddressInTheNetwork_AndTheComputerNameOnlyUntilItHasOne()
+    {
+        var withAddress = new DeviceRowViewModel(new DeviceInfo { MonitoringMode = MonitoringMode.Agent, HostName = "DESKTOP-TKKTAJ2", IpAddress = "192.168.50.20" });
+        var withoutAddress = new DeviceRowViewModel(new DeviceInfo { MonitoringMode = MonitoringMode.Agent, HostName = "DESKTOP-TKKTAJ2" });
+
+        Assert.Equal("192.168.50.20", withAddress.Address);
+        Assert.Equal("DESKTOP-TKKTAJ2", withoutAddress.Address);
+    }
+
+    [Fact]
     public async Task AddDeviceCommand_WhenServerRejectsInput_ShowsReason_AndKeepsForm()
     {
         _server.Failure = new ServerClientException(ServerErrorKind.InvalidInput, "'abc' is not a valid IP address.");

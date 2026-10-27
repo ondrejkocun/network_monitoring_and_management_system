@@ -7,7 +7,8 @@ public interface IAgentService
 
     /// <summary>
     /// Records that the device is alive and, when given, the system resources its agent measured
-    /// and what it found running. A summary of the device's traffic is stored only while capture is switched on.
+    /// and what it found running. A summary of the device's traffic is stored only while capture is switched on. The
+    /// network address, when given, keeps the address of the device current.
     /// </summary>
     /// <exception cref="AgentAuthenticationException">The credentials are not accepted.</exception>
     Task<AgentHeartbeatResult> ReportHeartbeatAsync(
@@ -15,5 +16,6 @@ public interface IAgentService
         SystemMetricsReport? metrics = null,
         SystemActivityReport? activity = null,
         TrafficReport? traffic = null,
+        System.Net.IPAddress? networkAddress = null,
         CancellationToken cancellationToken = default);
 }

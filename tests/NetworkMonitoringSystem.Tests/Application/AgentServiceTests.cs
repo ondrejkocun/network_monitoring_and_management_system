@@ -119,6 +119,24 @@ public class AgentServiceTests
     }
 
     [Fact]
+    public async Task Agent_KeepsTheAddressOfItsDeviceCurrent_FromRegistrationOn()
+    {
+        var service = CreateService();
+        var registration = await service.RegisterAsync(
+            new RegisterAgentRequest(Token, "PC-01", null, System.Net.IPAddress.Parse("192.168.50.20")));
+        var device = (await _devices.GetByIdAsync(registration.Credentials.DeviceId))!;
+        Assert.Equal("192.168.50.20", device.IpAddress?.ToString());
+
+        // The computer got another address from DHCP.
+        await service.ReportHeartbeatAsync(registration.Credentials, networkAddress: System.Net.IPAddress.Parse("192.168.50.31"));
+        Assert.Equal("192.168.50.31", device.IpAddress?.ToString());
+
+        // A report without one keeps what is known.
+        await service.ReportHeartbeatAsync(registration.Credentials);
+        Assert.Equal("192.168.50.31", device.IpAddress?.ToString());
+    }
+
+    [Fact]
     public async Task ReportHeartbeatAsync_UpdatesLastSeen_AddsSnapshot_AndReturnsInterval()
     {
         var service = CreateService();

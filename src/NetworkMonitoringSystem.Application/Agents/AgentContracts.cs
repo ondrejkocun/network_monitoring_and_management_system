@@ -1,6 +1,7 @@
 namespace NetworkMonitoringSystem.Application.Agents;
 
-public sealed record RegisterAgentRequest(string EnrollmentToken, string HostName, string? OperatingSystem);
+/// <param name="NetworkAddress">Address of the device in the network, as the agent reported it or the server saw it.</param>
+public sealed record RegisterAgentRequest(string EnrollmentToken, string HostName, string? OperatingSystem, System.Net.IPAddress? NetworkAddress = null);
 
 /// <summary>Identity an agent presents with every request after it has registered.</summary>
 public sealed record AgentCredentials(Guid DeviceId, string AgentKey);

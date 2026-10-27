@@ -101,6 +101,8 @@ message RegisterRequest {
   string enrollment_token = 1;
   string host_name = 2;
   string operating_system = 3;
+  // IPv4 address of the device's main network adapter; empty when the agent could not tell.
+  string ip_address = 4;
 }
 
 message RegisterReply {
@@ -116,6 +118,8 @@ message HeartbeatRequest {
   SystemActivity activity = 3;
   // Summary of the traffic captured since the previous report. Set only while the server asks for capture.
   TrafficSummary traffic = 4;
+  // IPv4 address of the device's main network adapter; empty when the agent could not tell.
+  string ip_address = 5;
 }
 
 // How much the device communicated, per conversation, between two reports. No packet contents are included.

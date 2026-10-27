@@ -53,7 +53,11 @@ public sealed class Device
 
     public string? HostName { get; }
 
-    public IPAddress? IpAddress { get; }
+    /// <summary>
+    /// Address of the device in the network. A device without an agent is checked at this address; for a device with
+    /// an agent it is the address the agent last reported, null until it has reported one.
+    /// </summary>
+    public IPAddress? IpAddress { get; private set; }
 
     public DateTimeOffset CreatedAt { get; }
 
@@ -173,6 +177,29 @@ public sealed class Device
         }
 
         IsEnabled = true;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Records the address an agent reported for its device. A device without an agent keeps the address it was added
+    /// with, because that is where it is checked. Loopback and unspecified addresses say nothing about the network and
+    /// are ignored.
+    /// </summary>
+    /// <returns>True when this changed the address.</returns>
+    public bool RecordNetworkAddress(IPAddress? address)
+    {
+        if (MonitoringMode != MonitoringMode.Agent
+            || address is null
+            || IPAddress.IsLoopback(address)
+            || address.Equals(IPAddress.Any)
+            || address.Equals(IPAddress.IPv6Any)
+            || address.Equals(IpAddress))
+        {
+            return false;
+        }
+
+        IpAddress = address;
 
         return true;
     }
