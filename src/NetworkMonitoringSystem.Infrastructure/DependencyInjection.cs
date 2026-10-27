@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NetworkMonitoringSystem.Application.Access;
+using NetworkMonitoringSystem.Application.Agents;
 using NetworkMonitoringSystem.Application.Commands;
 using NetworkMonitoringSystem.Application.Common;
 using NetworkMonitoringSystem.Infrastructure.Commands;
@@ -34,6 +35,7 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, EfUserRepository>();
         services.AddScoped<IRemoteCommandRepository, EfRemoteCommandRepository>();
         services.AddScoped<IFileTransferRepository, EfFileTransferRepository>();
+        services.AddScoped<IEnrollmentCodeRepository, EfEnrollmentCodeRepository>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddSingleton<IDeviceReachabilityProbe, NetworkReachabilityProbe>();
 

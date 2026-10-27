@@ -15,6 +15,7 @@ public class AgentServiceTests
     private readonly InMemoryMonitoringHistoryRepository _history = new();
     private readonly InMemoryDeviceActivityRepository _activity;
     private readonly CountingUnitOfWork _unitOfWork = new();
+    private readonly InMemoryEnrollmentCodeRepository _codes = new();
     private readonly MonitoringSettings _settings = new(syncIntervalSeconds: 120);
     private readonly MutableTimeProvider _time = new(new DateTimeOffset(2026, 10, 9, 12, 0, 0, TimeSpan.Zero));
 
@@ -265,6 +266,7 @@ public class AgentServiceTests
             _activity,
             _unitOfWork,
             Options.Create(new AgentEnrollmentOptions { EnrollmentToken = configuredToken }),
+            _codes,
             _time);
     }
 }

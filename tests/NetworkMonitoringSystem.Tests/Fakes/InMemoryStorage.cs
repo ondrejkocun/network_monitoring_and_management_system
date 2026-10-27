@@ -2,6 +2,7 @@ namespace NetworkMonitoringSystem.Tests.Fakes;
 
 using System.Net;
 using NetworkMonitoringSystem.Application.Access;
+using NetworkMonitoringSystem.Application.Agents;
 using NetworkMonitoringSystem.Application.Commands;
 using NetworkMonitoringSystem.Application.Common;
 using NetworkMonitoringSystem.Application.Devices;
@@ -456,4 +457,26 @@ public sealed class InMemoryFileTransferRepository(InMemoryRemoteCommandReposito
         return Task.FromResult(Chunks.RemoveAll(chunk => commands.Commands.Any(command =>
             command.Id == chunk.CommandId && (command.IsFinished || command.RequestedAt < requestedBefore))));
     }
+}
+
+public sealed class InMemoryEnrollmentCodeRepository : IEnrollmentCodeRepository
+{
+    public List<EnrollmentCode> Codes { get; } = [];
+
+    public Task<EnrollmentCode?> GetByHashAsync(string codeHash, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Codes.FirstOrDefault(code => code.CodeHash == codeHash));
+    }
+
+    public Task<EnrollmentCode?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Codes.FirstOrDefault(code => code.Id == id));
+    }
+
+    public Task<IReadOnlyList<EnrollmentCode>> GetCreatedSinceAsync(DateTimeOffset since, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<EnrollmentCode>>(Codes.Where(code => code.CreatedAt >= since).OrderByDescending(code => code.CreatedAt).ToList());
+    }
+
+    public void Add(EnrollmentCode code) => Codes.Add(code);
 }

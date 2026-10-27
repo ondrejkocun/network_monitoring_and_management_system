@@ -17,6 +17,7 @@ public sealed class AgentService : IAgentService
     private readonly IDeviceActivityRepository _activity;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IOptions<AgentEnrollmentOptions> _enrollmentOptions;
+    private readonly IEnrollmentCodeRepository _enrollmentCodes;
     private readonly TimeProvider _timeProvider;
 
     public AgentService(
@@ -28,6 +29,7 @@ public sealed class AgentService : IAgentService
         IDeviceActivityRepository activity,
         IUnitOfWork unitOfWork,
         IOptions<AgentEnrollmentOptions> enrollmentOptions,
+        IEnrollmentCodeRepository enrollmentCodes,
         TimeProvider timeProvider)
     {
         _deviceRepository = deviceRepository;
@@ -38,6 +40,7 @@ public sealed class AgentService : IAgentService
         _activity = activity;
         _unitOfWork = unitOfWork;
         _enrollmentOptions = enrollmentOptions;
+        _enrollmentCodes = enrollmentCodes;
         _timeProvider = timeProvider;
     }
 
@@ -50,11 +53,7 @@ public sealed class AgentService : IAgentService
 
     private async Task<AgentRegistration> RegisterOnceAsync(RegisterAgentRequest request, CancellationToken cancellationToken)
     {
-        var expectedToken = _enrollmentOptions.Value.EnrollmentToken;
-
-        if (string.IsNullOrEmpty(expectedToken)
-            || string.IsNullOrEmpty(request.EnrollmentToken)
-            || !AgentKey.FixedTimeEquals(request.EnrollmentToken, expectedToken))
+        if (string.IsNullOrEmpty(request.EnrollmentToken))
         {
             throw new AgentAuthenticationException("Enrollment token is not valid.");
         }
@@ -71,6 +70,27 @@ public sealed class AgentService : IAgentService
         // An agent that lost its identity (for example after a reinstall) takes over its existing device
         // instead of creating a duplicate.
         var device = await _deviceRepository.GetAgentDeviceByHostNameAsync(hostName, cancellationToken);
+
+        // The shared token, when the server has one, admits any computer. Without it every computer needs its own code.
+        var sharedToken = _enrollmentOptions.Value.EnrollmentToken;
+        EnrollmentCode? code = null;
+
+        if (string.IsNullOrEmpty(sharedToken) || !AgentKey.FixedTimeEquals(request.EnrollmentToken, sharedToken))
+        {
+            code = await _enrollmentCodes.GetByHashAsync(EnrollmentCodeText.Hash(request.EnrollmentToken), cancellationToken);
+
+            if (code is null || code.StateAt(now) != EnrollmentCodeState.Valid)
+            {
+                throw new AgentAuthenticationException("Enrollment code is not valid, was already used, expired or was revoked.");
+            }
+
+            // A code made for a device registers only that device again; one made for a new computer cannot take
+            // over a device the server already knows.
+            if (code.DeviceId != device?.Id)
+            {
+                throw new AgentAuthenticationException("The enrollment code was made for another device.");
+            }
+        }
 
         if (device is { IsEnabled: false })
         {
@@ -93,11 +113,16 @@ public sealed class AgentService : IAgentService
         device.AssignAgentIdentity(AgentKey.Hash(agentKey), request.OperatingSystem);
         device.RecordNetworkAddress(request.NetworkAddress);
 
+        // Spent in the same save as the registration; two agents racing with one code conflict on its row.
+        code?.Use(hostName, now);
+
         _history.AddEvent(new MonitoringEvent(
             now,
             MonitoringEventType.AgentRegistered,
             EventSeverity.Info,
-            $"Agent on device '{device.Name}' registered.",
+            code is null
+                ? $"Agent on device '{device.Name}' registered."
+                : $"Agent on device '{device.Name}' registered with an enrollment code{EnrollmentCodeService.DescribeNote(code)}.",
             device.Id));
         await _recorder.RecordOnlineAsync(device, now, cancellationToken: cancellationToken);
 

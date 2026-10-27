@@ -322,6 +322,36 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
     }
 
     [Fact]
+    public async Task EnrollmentCode_MadeByAdministrator_RegistersTheDeviceAgainOnce_AndShowsWhoUsedIt()
+    {
+        await CreateReporter(Token).ReportOnceAsync(CancellationToken.None);
+        var original = _identityStore.Load()!;
+        _identityStore.Clear();
+        await MarkDeviceOfflineAsync(original.DeviceId);
+        var admin = new AdminContracts.AdminApi.AdminApiClient(await Server.TestAdministrator.SignInAsync(_channel));
+
+        var created = await admin.CreateEnrollmentCodeAsync(new AdminContracts.CreateEnrollmentCodeRequest
+        {
+            Note = "Reinstalled",
+            DeviceId = original.DeviceId,
+            ValidMinutes = 60,
+        });
+        var reporter = CreateReporter(created.Code);
+        await reporter.ReportOnceAsync(CancellationToken.None);
+
+        Assert.Equal(original.DeviceId, _identityStore.Load()!.DeviceId);
+        var listed = (await admin.ListEnrollmentCodesAsync(new AdminContracts.ListEnrollmentCodesRequest())).Codes.Single(code => code.Id == created.Info.Id);
+        Assert.Equal(("Used", Environment.MachineName), (listed.State, listed.UsedByHostName));
+
+        // Spent: the same code does not register the device a second time.
+        _identityStore.Clear();
+        await MarkDeviceOfflineAsync(original.DeviceId);
+        await reporter.ReportOnceAsync(CancellationToken.None);
+        Assert.Null(_identityStore.Load());
+        await CreateReporter(Token).ReportOnceAsync(CancellationToken.None);
+    }
+
+    [Fact]
     public async Task Report_WithRejectedIdentity_ClearsIt_AndRegistersAgainOnceDeviceIsOffline()
     {
         var reporter = CreateReporter(Token);

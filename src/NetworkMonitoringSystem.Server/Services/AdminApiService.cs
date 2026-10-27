@@ -1,6 +1,7 @@
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using NetworkMonitoringSystem.Application.Access;
+using NetworkMonitoringSystem.Application.Agents;
 using NetworkMonitoringSystem.Application.Commands;
 using NetworkMonitoringSystem.Application.Devices;
 using NetworkMonitoringSystem.Domain.Commands;
@@ -27,6 +28,7 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
     private readonly IAccessManagementService _accessManagement;
     private readonly IRemoteCommandService _commandService;
     private readonly IEventLogService _eventLog;
+    private readonly IEnrollmentCodeService _enrollmentCodes;
 
     public AdminApiService(
         IDeviceService deviceService,
@@ -36,10 +38,12 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         IAccessManagementService accessManagement,
         IRemoteCommandService commandService,
         IEventLogService eventLog,
+        IEnrollmentCodeService enrollmentCodes,
         DeniedAccessLog deniedAccessLog)
     {
         _commandService = commandService;
         _eventLog = eventLog;
+        _enrollmentCodes = enrollmentCodes;
         _accessManagement = accessManagement;
         _historyService = historyService;
         _authenticationService = authenticationService;
@@ -411,6 +415,110 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         return device is null
             ? throw new RpcException(new Status(StatusCode.NotFound, "The device does not exist."))
             : ToDeviceInfo(device, AdminAuthenticationInterceptor.GetUser(context));
+    }
+
+    /// <summary>
+    /// A code for a new computer adds a device, so it needs the right to manage all devices; a code that registers an
+    /// existing device again needs the right to manage that device.
+    /// </summary>
+    public override async Task<CreatedEnrollmentCodeReply> CreateEnrollmentCode(CreateEnrollmentCodeRequest request, ServerCallContext context)
+    {
+        Guid? deviceId = null;
+
+        if (string.IsNullOrEmpty(request.DeviceId))
+        {
+            await RequireAsync(context, Permission.ManageDevices);
+        }
+        else
+        {
+            deviceId = await AuthorizeForDeviceAsync(context, Permission.ManageDevices, request.DeviceId)
+                ?? throw new RpcException(new Status(StatusCode.NotFound, "The device does not exist."));
+        }
+
+        var user = AdminAuthenticationInterceptor.GetUser(context);
+        CreatedEnrollmentCode? created;
+
+        try
+        {
+            created = await _enrollmentCodes.CreateAsync(user, request.Note, deviceId, TimeSpan.FromMinutes(request.ValidMinutes), context.CancellationToken);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
+        }
+
+        return created is null
+            ? throw new RpcException(new Status(StatusCode.NotFound, "The device does not exist."))
+            : new CreatedEnrollmentCodeReply { Code = created.Code, Info = ToEnrollmentCodeInfo(created.Info) };
+    }
+
+    public override async Task<ListEnrollmentCodesReply> ListEnrollmentCodes(ListEnrollmentCodesRequest request, ServerCallContext context)
+    {
+        var user = AdminAuthenticationInterceptor.GetUser(context);
+
+        if (!user.CanOnSomeDevice(Permission.ManageDevices))
+        {
+            throw await DenyAsync(context, user, deviceId: null);
+        }
+
+        var reply = new ListEnrollmentCodesReply();
+        reply.Codes.AddRange((await _enrollmentCodes.GetRecentAsync(context.CancellationToken))
+            .Where(code => CanManageCode(user, code.DeviceId))
+            .Select(ToEnrollmentCodeInfo));
+
+        return reply;
+    }
+
+    public override async Task<EnrollmentCodeInfo> RevokeEnrollmentCode(RevokeEnrollmentCodeRequest request, ServerCallContext context)
+    {
+        var user = AdminAuthenticationInterceptor.GetUser(context);
+
+        if (!user.CanOnSomeDevice(Permission.ManageDevices))
+        {
+            throw await DenyAsync(context, user, deviceId: null);
+        }
+
+        // Which device a code belongs to is known only once it is found, so the permission is checked after that.
+        var id = ParseId(request.Id);
+        var code = (await _enrollmentCodes.GetRecentAsync(context.CancellationToken)).FirstOrDefault(listed => listed.Id == id);
+
+        if (code is null || !CanManageCode(user, code.DeviceId))
+        {
+            throw new RpcException(new Status(StatusCode.NotFound, "The item does not exist."));
+        }
+
+        var revoked = await _enrollmentCodes.RevokeAsync(user, id, context.CancellationToken)
+            ?? throw new RpcException(new Status(StatusCode.NotFound, "The item does not exist."));
+
+        return ToEnrollmentCodeInfo(revoked);
+    }
+
+    private static bool CanManageCode(AuthenticatedUser user, Guid? deviceId)
+    {
+        return deviceId is { } id ? user.CanOnDevice(Permission.ManageDevices, id) : user.Can(Permission.ManageDevices);
+    }
+
+    private static EnrollmentCodeInfo ToEnrollmentCodeInfo(EnrollmentCodeDto code)
+    {
+        var info = new EnrollmentCodeInfo
+        {
+            Id = code.Id.ToString(),
+            Note = code.Note ?? string.Empty,
+            DeviceId = code.DeviceId?.ToString() ?? string.Empty,
+            DeviceName = code.DeviceName ?? string.Empty,
+            CreatedAt = Timestamp.FromDateTimeOffset(code.CreatedAt),
+            ExpiresAt = Timestamp.FromDateTimeOffset(code.ExpiresAt),
+            CreatedBy = code.CreatedByUserName,
+            State = code.State.ToString(),
+            UsedByHostName = code.UsedByHostName ?? string.Empty,
+        };
+
+        if (code.UsedAt is { } usedAt)
+        {
+            info.UsedAt = Timestamp.FromDateTimeOffset(usedAt);
+        }
+
+        return info;
     }
 
     public override async Task<DeviceInfo> SetDeviceTrafficCapture(SetDeviceTrafficCaptureRequest request, ServerCallContext context)

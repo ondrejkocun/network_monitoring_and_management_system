@@ -43,6 +43,8 @@ public sealed class MonitoringDbContext : DbContext
 
     public DbSet<FileTransferChunk> FileTransferChunks => Set<FileTransferChunk>();
 
+    public DbSet<EnrollmentCode> EnrollmentCodes => Set<EnrollmentCode>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MonitoringDbContext).Assembly);

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using NetworkMonitoringSystem.Application.Access;
+using NetworkMonitoringSystem.Application.Agents;
 using NetworkMonitoringSystem.Contracts.Admin;
 using NetworkMonitoringSystem.Desktop.Services;
 using NetworkMonitoringSystem.Domain.Access;
@@ -192,6 +193,45 @@ public sealed class AccessControlTests : IClassFixture<DatabaseFixture>, IDispos
         await using var dbContext = _database.CreateDbContext();
         Assert.False(await dbContext.Devices.AnyAsync(stored => stored.Id == allowed.Id));
         Assert.True(await dbContext.Devices.AnyAsync(stored => stored.Id == other.Id));
+    }
+
+    [Fact]
+    public async Task EnrollmentCodes_ForANewComputer_NeedTheRightToManageAllDevices_AndForADeviceTheRightForIt()
+    {
+        var allowed = new Device(Guid.NewGuid(), "PC-" + Guid.NewGuid().ToString("N"), DomainMonitoringMode.Agent, "pc-allowed", null, DateTimeOffset.UtcNow);
+        var other = new Device(Guid.NewGuid(), "PC-" + Guid.NewGuid().ToString("N"), DomainMonitoringMode.Agent, "pc-other", null, DateTimeOffset.UtcNow);
+
+        await using (var dbContext = _database.CreateDbContext())
+        {
+            dbContext.Devices.AddRange(allowed, other);
+            await dbContext.SaveChangesAsync();
+        }
+
+        var user = await AddUserAsync(role => role.Allow(Permission.ManageDevices, allowed.Id));
+        var session = await NewClient().LoginAsync(user.UserName, Password);
+        var raw = new AdminApi.AdminApiClient(TestAdministrator.WithToken(_channel, session.Token));
+
+        foreach (var request in new[]
+        {
+            new CreateEnrollmentCodeRequest { DeviceId = other.Id.ToString(), ValidMinutes = 60 },
+            new CreateEnrollmentCodeRequest { ValidMinutes = 60 },
+        })
+        {
+            var denied = await Assert.ThrowsAsync<RpcException>(async () => await raw.CreateEnrollmentCodeAsync(request));
+            Assert.Equal(StatusCode.PermissionDenied, denied.StatusCode);
+        }
+
+        var own = await raw.CreateEnrollmentCodeAsync(new CreateEnrollmentCodeRequest { DeviceId = allowed.Id.ToString(), ValidMinutes = 60 });
+
+        // The user sees only the codes they may manage, and can revoke them.
+        var administrator = new AdminApi.AdminApiClient(await TestAdministrator.SignInAsync(_channel));
+        await administrator.CreateEnrollmentCodeAsync(new CreateEnrollmentCodeRequest { Note = "for a new computer", ValidMinutes = 60 });
+        var listed = (await raw.ListEnrollmentCodesAsync(new ListEnrollmentCodesRequest())).Codes;
+        Assert.All(listed, code => Assert.Equal(allowed.Id.ToString(), code.DeviceId));
+        Assert.Equal("Revoked", (await raw.RevokeEnrollmentCodeAsync(new RevokeEnrollmentCodeRequest { Id = own.Info.Id })).State);
+
+        await using var check = _database.CreateDbContext();
+        Assert.DoesNotContain(EnrollmentCodeText.Normalize(own.Code), (await check.EnrollmentCodes.SingleAsync(code => code.Id == Guid.Parse(own.Info.Id))).CodeHash);
     }
 
     [Fact]

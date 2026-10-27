@@ -19,6 +19,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IAccessManagementService, AccessManagementService>();
         services.AddScoped<IAgentService, AgentService>();
+        services.AddScoped<IEnrollmentCodeService, EnrollmentCodeService>();
         services.AddScoped<IRemoteCommandService, RemoteCommandService>();
         services.AddScoped<AvailabilityRecorder>();
         services.AddScoped<DeviceActivityRecorder>();

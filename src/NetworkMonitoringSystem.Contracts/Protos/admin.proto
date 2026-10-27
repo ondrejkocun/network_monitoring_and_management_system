@@ -46,6 +46,11 @@ service AdminApi {
   // Gives a device another name. Requires ManageDevices on the device.
   rpc RenameDevice (RenameDeviceRequest) returns (DeviceInfo);
 
+  // One-time codes with which an agent registers. The code itself is returned only once, when it is created.
+  rpc CreateEnrollmentCode (CreateEnrollmentCodeRequest) returns (CreatedEnrollmentCodeReply);
+  rpc ListEnrollmentCodes (ListEnrollmentCodesRequest) returns (ListEnrollmentCodesReply);
+  rpc RevokeEnrollmentCode (RevokeEnrollmentCodeRequest) returns (EnrollmentCodeInfo);
+
   // Switches capture of network traffic on or off for a device with an agent. Requires ManageDevices on the device.
   rpc SetDeviceTrafficCapture (SetDeviceTrafficCaptureRequest) returns (DeviceInfo);
 
@@ -265,6 +270,48 @@ message RemoveDeviceReply {
 message SetDeviceEnabledRequest {
   string id = 1;
   bool is_enabled = 2;
+}
+
+message CreateEnrollmentCodeRequest {
+  // What the administrator wants to recognise the code by, for example where the computer stands; may be empty.
+  string note = 1;
+  // The existing device the code registers again; empty for a code that registers a new computer.
+  string device_id = 2;
+  int32 valid_minutes = 3;
+}
+
+message CreatedEnrollmentCodeReply {
+  // The code to give to the computer, for example "K7QM-4XTD-9HPA". The server keeps only its hash.
+  string code = 1;
+  EnrollmentCodeInfo info = 2;
+}
+
+message ListEnrollmentCodesRequest {
+}
+
+message ListEnrollmentCodesReply {
+  // Codes created in the last 30 days that the user may manage, the newest first.
+  repeated EnrollmentCodeInfo codes = 1;
+}
+
+message RevokeEnrollmentCodeRequest {
+  string id = 1;
+}
+
+message EnrollmentCodeInfo {
+  string id = 1;
+  string note = 2;
+  // Empty for a code for a new computer.
+  string device_id = 3;
+  string device_name = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  string created_by = 7;
+  // "Valid", "Used", "Expired" or "Revoked".
+  string state = 8;
+  // Set when the code was used.
+  google.protobuf.Timestamp used_at = 9;
+  string used_by_host_name = 10;
 }
 
 message RenameDeviceRequest {
