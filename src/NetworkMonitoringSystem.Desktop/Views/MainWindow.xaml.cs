@@ -48,6 +48,12 @@ public partial class MainWindow : Window
         new AccessWindow(_viewModel.CreateAccessViewModel()) { Owner = this }.ShowDialog();
     }
 
+    private void OnFindExecuted(object sender, System.Windows.Input.ExecutedRoutedEventArgs e)
+    {
+        DeviceSearchBox.Focus();
+        DeviceSearchBox.SelectAll();
+    }
+
     private void OnAddDeviceClick(object sender, RoutedEventArgs e)
     {
         new AddDeviceWindow(_viewModel) { Owner = this }.ShowDialog();

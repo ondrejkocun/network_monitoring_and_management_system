@@ -8,6 +8,14 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=viewModels:MainWindowViewModel}"
         Title="{Binding Title}" Height="860" Width="1100" MinHeight="620" MinWidth="860">
+    <Window.InputBindings>
+        <KeyBinding Key="F5" Command="{Binding RefreshCommand}" />
+        <KeyBinding Key="F2" Command="{Binding RenameDeviceCommand}" />
+        <KeyBinding Key="F" Modifiers="Control" Command="ApplicationCommands.Find" />
+    </Window.InputBindings>
+    <Window.CommandBindings>
+        <CommandBinding Command="ApplicationCommands.Find" Executed="OnFindExecuted" />
+    </Window.CommandBindings>
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="VisibleWhenTrue" />
 
@@ -87,14 +95,14 @@
 
             <!-- Devices -->
             <DockPanel Grid.Row="0" Margin="0,0,0,6">
-                <Button DockPanel.Dock="Right" Content="Obnoviť" Command="{Binding RefreshCommand}" />
+                <Button DockPanel.Dock="Right" Content="Obnoviť" ToolTip="F5" Command="{Binding RefreshCommand}" />
                 <Button DockPanel.Dock="Right" Content="+ Pridať zariadenie…" Margin="0,0,8,0" Click="OnAddDeviceClick"
                         ToolTip="Pridá zariadenie bez agenta, napríklad router alebo switch."
                         Visibility="{Binding CanAddDevices, Converter={StaticResource VisibleWhenTrue}}" />
                 <ComboBox DockPanel.Dock="Right" Width="100" Margin="0,0,16,0" ItemsSource="{Binding DeviceStatusFilters}"
                           SelectedItem="{Binding DeviceStatusFilter}" AutomationProperties.Name="Stav zariadení" ToolTip="Zobraziť len zariadenia v tomto stave." />
                 <TextBox x:Name="DeviceSearchBox" DockPanel.Dock="Right" Width="200" Margin="0,0,8,0" VerticalContentAlignment="Center"
-                         AutomationProperties.Name="Hľadať zariadenie" ToolTip="Názov, adresa alebo operačný systém."
+                         AutomationProperties.Name="Hľadať zariadenie" ToolTip="Názov, adresa alebo operačný systém (Ctrl+F)."
                          Text="{Binding DeviceFilterText, UpdateSourceTrigger=PropertyChanged}" />
                 <TextBlock DockPanel.Dock="Right" Text="Hľadať:" Style="{StaticResource Hint}" Margin="0,0,6,0" />
                 <TextBlock Text="Zariadenia" Style="{StaticResource SectionTitle}" />
@@ -102,6 +110,22 @@
             </DockPanel>
 
             <DataGrid Grid.Row="1" ItemsSource="{Binding Devices}" SelectedItem="{Binding SelectedDevice}" SelectionMode="Single">
+                <DataGrid.InputBindings>
+                    <KeyBinding Key="Delete" Command="{Binding RemoveDeviceCommand}" />
+                    <KeyBinding Key="F2" Command="{Binding RenameDeviceCommand}" />
+                </DataGrid.InputBindings>
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="_Premenovať…" InputGestureText="F2" Command="{Binding RenameDeviceCommand}" />
+                        <MenuItem Header="{Binding ToggleDeviceEnabledText}" Command="{Binding ToggleDeviceEnabledCommand}" />
+                        <MenuItem Header="{Binding ToggleTrafficCaptureText}" Command="{Binding ToggleTrafficCaptureCommand}" />
+                        <MenuItem Header="Poslať _súbor…" Command="{Binding SendFileCommand}" />
+                        <Separator />
+                        <MenuItem Header="_Odstrániť" InputGestureText="Del" Command="{Binding RemoveDeviceCommand}" />
+                        <Separator />
+                        <MenuItem Header="O_bnoviť zoznam" InputGestureText="F5" Command="{Binding RefreshCommand}" />
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
                 <DataGrid.RowStyle>
                     <Style TargetType="DataGridRow">
                         <Style.Triggers>
@@ -157,9 +181,9 @@
                                ToolTip="Obdobie pre históriu aktivity, komunikáciu, grafy, výpadky a udalosti." />
                         <ComboBox x:Name="PeriodBox" Width="150" Margin="0,0,16,0" ItemsSource="{Binding HistoryPeriods}"
                                   DisplayMemberPath="Label" SelectedItem="{Binding SelectedHistoryPeriod}" />
-                        <Button Content="Premenovať" Margin="0,0,8,0" Command="{Binding RenameDeviceCommand}" />
+                        <Button Content="Premenovať" ToolTip="F2" Margin="0,0,8,0" Command="{Binding RenameDeviceCommand}" />
                         <Button Content="{Binding ToggleDeviceEnabledText}" Margin="0,0,8,0" Command="{Binding ToggleDeviceEnabledCommand}" />
-                        <Button Content="Odstrániť" Command="{Binding RemoveDeviceCommand}" />
+                        <Button Content="Odstrániť" ToolTip="Delete v zozname zariadení" Command="{Binding RemoveDeviceCommand}" />
                     </StackPanel>
                     <TextBlock Text="{Binding SelectedDeviceHeaderText}" Style="{StaticResource SectionTitle}" TextTrimming="CharacterEllipsis" />
                 </DockPanel>
