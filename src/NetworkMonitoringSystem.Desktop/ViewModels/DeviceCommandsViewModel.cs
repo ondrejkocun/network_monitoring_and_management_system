@@ -1,3 +1,4 @@
+using NetworkMonitoringSystem.Desktop.Services;
 using NetworkMonitoringSystem.Contracts.Admin;
 
 namespace NetworkMonitoringSystem.Desktop.ViewModels;
@@ -51,7 +52,7 @@ public sealed class CommandRowViewModel
         CommandText = CommandOption.Describe(command.Type);
         Parameter = command.Parameter;
         RequestedBy = command.RequestedBy;
-        ResultMessage = command.ResultMessage;
+        ResultMessage = ServerMessages.ToSlovakText(command.ResultMessage);
 
         StatusText = command.Status switch
         {
@@ -64,7 +65,7 @@ public sealed class CommandRowViewModel
         };
 
         // The first line is enough for the list; the whole result is shown when the command is selected.
-        ResultSummary = command.ResultMessage.Split('\n', 2)[0].Trim();
+        ResultSummary = ResultMessage.Split('\n', 2)[0].Trim();
     }
 
     public string Id { get; }

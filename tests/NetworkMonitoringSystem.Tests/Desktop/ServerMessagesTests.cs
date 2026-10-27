@@ -17,6 +17,31 @@ public class ServerMessagesTests
         Assert.Equal(slovak, ServerMessages.ToSlovak(english));
     }
 
+    [Theory]
+    [InlineData("Device 'ONDREJPC' opened UDP port 5353 on 0.0.0.0 (chrome).", "Zariadenie „ONDREJPC“ otvorilo UDP port 5353 na 0.0.0.0 (chrome).")]
+    [InlineData("Device 'Router izba' is offline.", "Zariadenie „Router izba“ je offline.")]
+    [InlineData("User 'admin' signed in.", "Používateľ „admin“ sa prihlásil.")]
+    [InlineData("User 'admin' sent the command 'Ping' (8.8.8.8) to device 'PC'.", "Používateľ „admin“ poslal príkaz „Ping zo zariadenia“ (8.8.8.8) na zariadenie „PC“.")]
+    [InlineData("The command 'RestartDevice' sent by 'admin' failed on device 'PC'.", "Príkaz „Reštart zariadenia“, ktorý poslal „admin“, na zariadení „PC“ zlyhal.")]
+    [InlineData("User 'admin' allowed 'Ping' on all devices to role 'Operátor'.", "Používateľ „admin“ povolil Ping na všetkých zariadeniach role „Operátor“.")]
+    [InlineData("Synchronization interval changed from 60 s to 30 s.", "Interval synchronizácie sa zmenil z 60 s na 30 s.")]
+    [InlineData("The process 'chrome' (20852) was ended.", "Proces „chrome“ (20852) bol ukončený.")]
+    [InlineData("The agent did not pick the command up in time.", "Agent si príkaz včas neprevzal.")]
+    public void EventsAndResults_AreShownInSlovak(string english, string slovak)
+    {
+        Assert.Equal(slovak, ServerMessages.ToSlovakText(english));
+    }
+
+    [Fact]
+    public void ResultOfPing_KeepsItsLines_AndTranslatesEachOfThem()
+    {
+        var english = "Ping 8.8.8.8:\r\n  reply in 8 ms\r\n  no reply (TimedOut)\r\n";
+
+        Assert.Equal(
+            string.Join(Environment.NewLine, "Ping na 8.8.8.8:", "  odpoveď za 8 ms", "  bez odpovede (TimedOut)", string.Empty),
+            ServerMessages.ToSlovakText(english));
+    }
+
     [Fact]
     public void UnknownMessage_IsShownAsTheServerWroteIt()
     {

@@ -1,3 +1,4 @@
+using NetworkMonitoringSystem.Desktop.Services;
 using System.Globalization;
 using NetworkMonitoringSystem.Contracts.Admin;
 
@@ -240,7 +241,7 @@ public sealed class EventRowViewModel
     public EventRowViewModel(EventInfo monitoringEvent)
     {
         OccurredText = DeviceHistoryViewModel.FormatTime(monitoringEvent.OccurredAt.ToDateTimeOffset());
-        Message = monitoringEvent.Message;
+        Message = ServerMessages.ToSlovakText(monitoringEvent.Message);
         TypeText = DescribeType(monitoringEvent.Type);
         SeverityText = DescribeSeverity(monitoringEvent.Severity);
     }

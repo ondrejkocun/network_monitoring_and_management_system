@@ -155,7 +155,7 @@ public sealed class EventLogRowViewModel
         TypeText = EventRowViewModel.DescribeType(entry.Type);
         DeviceText = string.IsNullOrEmpty(entry.DeviceName) ? "–" : entry.DeviceName;
         UserText = string.IsNullOrEmpty(entry.UserName) ? "–" : entry.UserName;
-        Message = entry.Message;
+        Message = ServerMessages.ToSlovakText(entry.Message);
     }
 
     public string OccurredText { get; }

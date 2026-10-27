@@ -144,7 +144,7 @@ public class DeviceCommandsTests
         await _viewModel.RefreshAsync();
 
         var finished = _viewModel.DeviceCommands[0];
-        Assert.Equal(("Úspešný", "Ping 10.0.0.1:"), (finished.StatusText, finished.ResultSummary));
+        Assert.Equal(("Úspešný", "Ping na 10.0.0.1:"), (finished.StatusText, finished.ResultSummary));
         Assert.Contains("4 of 4 replies received.", finished.ResultMessage);
 
         // The same command stays selected, now with its result.
