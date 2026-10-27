@@ -13,6 +13,8 @@ public sealed class DeviceResourcesViewModel
         RecordedAtText = resources.RecordedAt?.ToDateTimeOffset().ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss") ?? "–";
         CpuText = resources.HasCpuUsagePercent ? ByteSize.FormatPercent(resources.CpuUsagePercent) : "–";
         MemoryText = ByteSize.FormatUsage(resources.MemoryUsedBytes, resources.MemoryTotalBytes);
+        CpuPercent = resources.HasCpuUsagePercent ? Math.Clamp(resources.CpuUsagePercent, 0, 100) : 0;
+        MemoryPercent = ByteSize.Percent(resources.MemoryUsedBytes, resources.MemoryTotalBytes);
         Disks = resources.Disks.Select(disk => new DiskRowViewModel(disk)).ToList();
         NetworkInterfaces = resources.NetworkInterfaces.Select(networkInterface => new NetworkInterfaceRowViewModel(networkInterface)).ToList();
     }
@@ -22,6 +24,12 @@ public sealed class DeviceResourcesViewModel
     public string CpuText { get; }
 
     public string MemoryText { get; }
+
+    /// <summary>Processor use for a gauge, 0 to 100; 0 when it was not measured.</summary>
+    public double CpuPercent { get; }
+
+    /// <summary>Share of memory in use for a gauge, 0 to 100.</summary>
+    public double MemoryPercent { get; }
 
     public IReadOnlyList<DiskRowViewModel> Disks { get; }
 
@@ -34,12 +42,16 @@ public sealed class DiskRowViewModel
     {
         Name = disk.Name;
         UsageText = ByteSize.FormatUsage(disk.TotalBytes - Math.Min(disk.FreeBytes, disk.TotalBytes), disk.TotalBytes);
+        UsagePercent = ByteSize.Percent(disk.TotalBytes - Math.Min(disk.FreeBytes, disk.TotalBytes), disk.TotalBytes);
         FreeText = ByteSize.Format(disk.FreeBytes);
     }
 
     public string Name { get; }
 
     public string UsageText { get; }
+
+    /// <summary>Share of the disk in use for a gauge, 0 to 100.</summary>
+    public double UsagePercent { get; }
 
     public string FreeText { get; }
 }
@@ -88,6 +100,9 @@ public static class ByteSize
 
         return string.Create(Culture, $"{value:0.#} {Units[unit]}");
     }
+
+    /// <summary>The used share in percent, 0 to 100; 0 when the total is not known.</summary>
+    public static double Percent(ulong usedBytes, ulong totalBytes) => totalBytes == 0 ? 0 : Math.Clamp(100.0 * usedBytes / totalBytes, 0, 100);
 
     public static string FormatPercent(double percent) => string.Create(Culture, $"{percent:0.#} %");
 

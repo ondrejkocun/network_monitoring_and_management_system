@@ -507,6 +507,9 @@ public class MainWindowViewModelTests
         Assert.Equal("150 GB z 200 GB (75 %)", disk.UsageText);
         Assert.Equal("50 GB", disk.FreeText);
 
+        // The gauges show the same shares.
+        Assert.Equal((12.34, 25.0, 75.0), (resources.CpuPercent, resources.MemoryPercent, disk.UsagePercent));
+
         var networkInterface = Assert.Single(resources.NetworkInterfaces);
         Assert.Equal("Ethernet", networkInterface.Name);
         Assert.Equal("Aktívne", networkInterface.StateText);

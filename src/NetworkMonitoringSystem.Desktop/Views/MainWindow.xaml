@@ -18,6 +18,15 @@
     </Window.CommandBindings>
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="VisibleWhenTrue" />
+        <controls:UsageBrushConverter x:Key="UsageBrush" />
+        <Style x:Key="Gauge" TargetType="ProgressBar">
+            <Setter Property="Minimum" Value="0" />
+            <Setter Property="Maximum" Value="100" />
+            <Setter Property="Height" Value="14" />
+            <Setter Property="Background" Value="#ECEFF1" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{Binding Value, RelativeSource={RelativeSource Self}, Converter={StaticResource UsageBrush}}" />
+        </Style>
 
         <!-- One look for every list: read-only, row lines only, no frame inside a tab. -->
         <Style TargetType="DataGrid">
@@ -214,14 +223,33 @@
                                     </Style>
                                 </StackPanel.Style>
 
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                    <TextBlock Text="Procesor: " FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding CpuText}" Margin="0,0,24,0" />
-                                    <TextBlock Text="Pamäť: " FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding MemoryText}" Margin="0,0,24,0" />
-                                    <TextBlock Text="Namerané: " FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding RecordedAtText}" />
-                                </StackPanel>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" MaxWidth="320" />
+                                        <ColumnDefinition Width="24" />
+                                        <ColumnDefinition Width="*" MaxWidth="320" />
+                                        <ColumnDefinition Width="24" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <DockPanel Margin="0,0,0,4">
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding CpuText}" />
+                                            <TextBlock Text="Procesor" FontWeight="SemiBold" />
+                                        </DockPanel>
+                                        <ProgressBar Style="{StaticResource Gauge}" Value="{Binding CpuPercent, Mode=OneWay}" AutomationProperties.Name="Využitie procesora" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <DockPanel Margin="0,0,0,4">
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding MemoryText}" />
+                                            <TextBlock Text="Pamäť" FontWeight="SemiBold" Margin="0,0,8,0" />
+                                        </DockPanel>
+                                        <ProgressBar Style="{StaticResource Gauge}" Value="{Binding MemoryPercent, Mode=OneWay}" AutomationProperties.Name="Využitie pamäte" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="4" VerticalAlignment="Bottom">
+                                        <TextBlock Text="Namerané" Foreground="Gray" />
+                                        <TextBlock Text="{Binding RecordedAtText}" />
+                                    </StackPanel>
+                                </Grid>
 
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -233,7 +261,16 @@
                                     <DataGrid Grid.Column="0" ItemsSource="{Binding Disks}" MaxHeight="220">
                                         <DataGrid.Columns>
                                             <DataGridTextColumn Header="Disk" Binding="{Binding Name}" Width="Auto" />
-                                            <DataGridTextColumn Header="Obsadené" Binding="{Binding UsageText}" Width="*" />
+                                            <DataGridTemplateColumn Header="Obsadené" Width="*" SortMemberPath="UsagePercent">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="2" ToolTip="{Binding UsageText}">
+                                                            <ProgressBar Style="{StaticResource Gauge}" Height="18" Value="{Binding UsagePercent, Mode=OneWay}" />
+                                                            <TextBlock Text="{Binding UsageText}" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
                                             <DataGridTextColumn Header="Voľné" Binding="{Binding FreeText}" Width="Auto" />
                                         </DataGrid.Columns>
                                     </DataGrid>
