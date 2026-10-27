@@ -66,6 +66,12 @@ service AdminApi {
 
   // Changes the global interval in which device state is synchronized and recorded.
   rpc UpdateSyncInterval (UpdateSyncIntervalRequest) returns (MonitoringSettingsInfo);
+
+  // Changes how many synchronizations in a row a device may miss before it is considered offline.
+  rpc UpdateOfflineThreshold (UpdateOfflineThresholdRequest) returns (MonitoringSettingsInfo);
+
+  // Changes how many days history is kept before it is deleted.
+  rpc UpdateRetention (UpdateRetentionRequest) returns (MonitoringSettingsInfo);
 }
 
 enum MonitoringMode {
@@ -423,9 +429,20 @@ message UpdateSyncIntervalRequest {
   int32 sync_interval_seconds = 1;
 }
 
+message UpdateOfflineThresholdRequest {
+  int32 offline_after_missed_syncs = 1;
+}
+
+message UpdateRetentionRequest {
+  int32 retention_days = 1;
+}
+
 message MonitoringSettingsInfo {
   int32 sync_interval_seconds = 1;
   int32 offline_after_missed_syncs = 2;
   int32 min_sync_interval_seconds = 3;
   int32 max_sync_interval_seconds = 4;
+  int32 retention_days = 5;
+  int32 max_offline_after_missed_syncs = 6;
+  int32 max_retention_days = 7;
 }

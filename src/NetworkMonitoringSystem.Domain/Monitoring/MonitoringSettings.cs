@@ -10,6 +10,12 @@ public sealed class MonitoringSettings
     public const int MinSyncIntervalSeconds = 5;
     public const int MaxSyncIntervalSeconds = 24 * 60 * 60;
 
+    public const int MinOfflineAfterMissedSyncs = 1;
+    public const int MaxOfflineAfterMissedSyncs = 100;
+
+    public const int MinRetentionDays = 1;
+    public const int MaxRetentionDays = 3650;
+
     public MonitoringSettings(
         int syncIntervalSeconds = 60,
         int offlineAfterMissedSyncs = 3,
@@ -51,14 +57,26 @@ public sealed class MonitoringSettings
 
     public void ChangeOfflineThreshold(int missedSyncs)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(missedSyncs, 1);
+        if (missedSyncs is < MinOfflineAfterMissedSyncs or > MaxOfflineAfterMissedSyncs)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(missedSyncs),
+                missedSyncs,
+                $"A device must be allowed to miss between {MinOfflineAfterMissedSyncs} and {MaxOfflineAfterMissedSyncs} synchronizations.");
+        }
 
         OfflineAfterMissedSyncs = missedSyncs;
     }
 
     public void ChangeRetention(int days)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(days, 1);
+        if (days is < MinRetentionDays or > MaxRetentionDays)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(days),
+                days,
+                $"History must be kept between {MinRetentionDays} and {MaxRetentionDays} days.");
+        }
 
         RetentionDays = days;
     }

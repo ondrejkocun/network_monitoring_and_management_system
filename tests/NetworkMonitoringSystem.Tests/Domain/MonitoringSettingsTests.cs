@@ -50,4 +50,17 @@ public class MonitoringSettingsTests
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.ChangeRetention(0));
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.ChangeTopProcessCount(0));
     }
+
+    [Fact]
+    public void OfflineThresholdAndRetention_HaveUpperLimits()
+    {
+        var settings = new MonitoringSettings();
+
+        settings.ChangeOfflineThreshold(MonitoringSettings.MaxOfflineAfterMissedSyncs);
+        settings.ChangeRetention(MonitoringSettings.MaxRetentionDays);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.ChangeOfflineThreshold(MonitoringSettings.MaxOfflineAfterMissedSyncs + 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.ChangeRetention(MonitoringSettings.MaxRetentionDays + 1));
+        Assert.Equal((100, 3650), (settings.OfflineAfterMissedSyncs, settings.RetentionDays));
+    }
 }

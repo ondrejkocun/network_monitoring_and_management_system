@@ -333,6 +333,38 @@ public sealed class AdminApiTests : IClassFixture<DatabaseFixture>, IAsyncLifeti
         Assert.Equal(25, registration.SyncIntervalSeconds);
     }
 
+    [Fact]
+    public async Task ChangedOfflineThresholdAndRetention_AreStored_AndLoggedWithTheirAuthor()
+    {
+        var before = await _client.GetSettingsAsync();
+
+        try
+        {
+            await _client.UpdateOfflineThresholdAsync(7);
+            var updated = await _client.UpdateRetentionAsync(45);
+
+            Assert.Equal((7, 45), (updated.OfflineAfterMissedSyncs, updated.RetentionDays));
+            Assert.Equal((100, 3650), (updated.MaxOfflineAfterMissedSyncs, updated.MaxRetentionDays));
+
+            await using var dbContext = _database.CreateDbContext();
+            var stored = await dbContext.MonitoringSettings.SingleAsync();
+            Assert.Equal((7, 45), (stored.OfflineAfterMissedSyncs, stored.RetentionDays));
+            Assert.True(await dbContext.Events.AnyAsync(monitoringEvent =>
+                monitoringEvent.Type == MonitoringEventType.SettingsChanged
+                && monitoringEvent.Message.Contains("45 days")
+                && monitoringEvent.UserId != null));
+
+            var exception = await Assert.ThrowsAsync<ServerClientException>(() => _client.UpdateRetentionAsync(0));
+            Assert.Equal(ServerErrorKind.InvalidInput, exception.Kind);
+        }
+        finally
+        {
+            // The settings are shared by the tests of this class.
+            await _client.UpdateOfflineThresholdAsync(before.OfflineAfterMissedSyncs);
+            await _client.UpdateRetentionAsync(before.RetentionDays);
+        }
+    }
+
     [Theory]
     [InlineData(4)]
     [InlineData(86401)]

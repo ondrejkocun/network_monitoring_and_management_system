@@ -223,6 +223,20 @@ public sealed class GrpcServerClient : IServerClient
             Headers(), cancellationToken: cancellationToken));
     }
 
+    public Task<MonitoringSettingsInfo> UpdateOfflineThresholdAsync(int missedSyncs, CancellationToken cancellationToken = default)
+    {
+        return CallAsync(() => _client.UpdateOfflineThresholdAsync(
+            new UpdateOfflineThresholdRequest { OfflineAfterMissedSyncs = missedSyncs },
+            Headers(), cancellationToken: cancellationToken));
+    }
+
+    public Task<MonitoringSettingsInfo> UpdateRetentionAsync(int days, CancellationToken cancellationToken = default)
+    {
+        return CallAsync(() => _client.UpdateRetentionAsync(
+            new UpdateRetentionRequest { RetentionDays = days },
+            Headers(), cancellationToken: cancellationToken));
+    }
+
     /// <summary>The session token is kept only in memory and sent with every call.</summary>
     private Metadata? Headers()
     {

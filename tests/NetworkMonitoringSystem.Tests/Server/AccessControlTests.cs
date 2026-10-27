@@ -163,6 +163,9 @@ public sealed class AccessControlTests : IClassFixture<DatabaseFixture>, IDispos
             () => client.GetDeviceResourcesAsync(Guid.NewGuid().ToString()),
             // Adding a device concerns no single device, so a rule for one is not enough.
             () => client.AddAgentlessDeviceAsync("Router", "192.0.2.51"),
+            // Neither do the monitoring settings.
+            () => client.UpdateOfflineThresholdAsync(5),
+            () => client.UpdateRetentionAsync(60),
         };
 
         foreach (var call in refused)

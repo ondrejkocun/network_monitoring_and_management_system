@@ -539,14 +539,29 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         return ToSettingsInfo(await _settingsService.GetAsync(context.CancellationToken));
     }
 
-    public override async Task<MonitoringSettingsInfo> UpdateSyncInterval(UpdateSyncIntervalRequest request, ServerCallContext context)
+    public override Task<MonitoringSettingsInfo> UpdateSyncInterval(UpdateSyncIntervalRequest request, ServerCallContext context)
     {
-        await RequireAsync(context, Permission.ManageSettings);
+        return ChangeSettingAsync(context, userId => _settingsService.ChangeSyncIntervalAsync(request.SyncIntervalSeconds, userId, context.CancellationToken));
+    }
+
+    public override Task<MonitoringSettingsInfo> UpdateOfflineThreshold(UpdateOfflineThresholdRequest request, ServerCallContext context)
+    {
+        return ChangeSettingAsync(context, userId => _settingsService.ChangeOfflineThresholdAsync(request.OfflineAfterMissedSyncs, userId, context.CancellationToken));
+    }
+
+    public override Task<MonitoringSettingsInfo> UpdateRetention(UpdateRetentionRequest request, ServerCallContext context)
+    {
+        return ChangeSettingAsync(context, userId => _settingsService.ChangeRetentionAsync(request.RetentionDays, userId, context.CancellationToken));
+    }
+
+    /// <summary>Changes one monitoring setting for a user who may manage settings; a value out of range is invalid input.</summary>
+    private async Task<MonitoringSettingsInfo> ChangeSettingAsync(ServerCallContext context, Func<Guid, Task<MonitoringSettingsDto>> change)
+    {
+        var user = await RequireAsync(context, Permission.ManageSettings);
 
         try
         {
-            return ToSettingsInfo(
-                await _settingsService.ChangeSyncIntervalAsync(request.SyncIntervalSeconds, context.CancellationToken));
+            return ToSettingsInfo(await change(user.Id));
         }
         catch (ArgumentOutOfRangeException exception)
         {
@@ -730,6 +745,9 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
             OfflineAfterMissedSyncs = settings.OfflineAfterMissedSyncs,
             MinSyncIntervalSeconds = settings.MinSyncIntervalSeconds,
             MaxSyncIntervalSeconds = settings.MaxSyncIntervalSeconds,
+            RetentionDays = settings.RetentionDays,
+            MaxOfflineAfterMissedSyncs = settings.MaxOfflineAfterMissedSyncs,
+            MaxRetentionDays = settings.MaxRetentionDays,
         };
     }
 }

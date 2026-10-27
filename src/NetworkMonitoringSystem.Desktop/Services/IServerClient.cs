@@ -91,6 +91,12 @@ public interface IServerClient
 
     /// <exception cref="ServerClientException">The server could not be reached or rejected the interval.</exception>
     Task<MonitoringSettingsInfo> UpdateSyncIntervalAsync(int seconds, CancellationToken cancellationToken = default);
+
+    /// <exception cref="ServerClientException">The server could not be reached or rejected the number.</exception>
+    Task<MonitoringSettingsInfo> UpdateOfflineThresholdAsync(int missedSyncs, CancellationToken cancellationToken = default);
+
+    /// <exception cref="ServerClientException">The server could not be reached or rejected the number of days.</exception>
+    Task<MonitoringSettingsInfo> UpdateRetentionAsync(int days, CancellationToken cancellationToken = default);
 }
 
 public enum ServerErrorKind

@@ -1205,14 +1205,39 @@ public class MainWindowViewModelTests
             return Task.FromResult(CreateSettings());
         }
 
+        public int OfflineAfterMissedSyncs { get; private set; } = 3;
+
+        public int RetentionDays { get; private set; } = 30;
+
+        public Task<MonitoringSettingsInfo> UpdateOfflineThresholdAsync(int missedSyncs, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            OfflineAfterMissedSyncs = missedSyncs;
+
+            return Task.FromResult(CreateSettings());
+        }
+
+        public Task<MonitoringSettingsInfo> UpdateRetentionAsync(int days, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            RetentionDays = days;
+
+            return Task.FromResult(CreateSettings());
+        }
+
         private MonitoringSettingsInfo CreateSettings()
         {
             return new MonitoringSettingsInfo
             {
                 SyncIntervalSeconds = SyncIntervalSeconds,
-                OfflineAfterMissedSyncs = 3,
+                OfflineAfterMissedSyncs = OfflineAfterMissedSyncs,
                 MinSyncIntervalSeconds = 5,
                 MaxSyncIntervalSeconds = 86400,
+                RetentionDays = RetentionDays,
+                MaxOfflineAfterMissedSyncs = 100,
+                MaxRetentionDays = 3650,
             };
         }
 

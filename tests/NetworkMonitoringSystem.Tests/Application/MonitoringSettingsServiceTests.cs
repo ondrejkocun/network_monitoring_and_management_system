@@ -21,6 +21,7 @@ public class MonitoringSettingsServiceTests
         Assert.Equal(3, settings.OfflineAfterMissedSyncs);
         Assert.Equal(MonitoringSettings.MinSyncIntervalSeconds, settings.MinSyncIntervalSeconds);
         Assert.Equal(MonitoringSettings.MaxSyncIntervalSeconds, settings.MaxSyncIntervalSeconds);
+        Assert.Equal((30, MonitoringSettings.MaxOfflineAfterMissedSyncs, MonitoringSettings.MaxRetentionDays), (settings.RetentionDays, settings.MaxOfflineAfterMissedSyncs, settings.MaxRetentionDays));
     }
 
     [Fact]
@@ -59,6 +60,46 @@ public class MonitoringSettingsServiceTests
         Assert.Equal(60, _settings.SyncIntervalSeconds);
         Assert.Empty(_history.Events);
         Assert.Equal(0, _unitOfWork.SaveCount);
+    }
+
+    [Fact]
+    public async Task ChangeOfflineThresholdAndRetention_ChangeValues_AndWriteEventsWithTheirAuthor()
+    {
+        var userId = Guid.NewGuid();
+        var service = CreateService();
+
+        await service.ChangeOfflineThresholdAsync(5, userId);
+        var result = await service.ChangeRetentionAsync(90, userId);
+
+        Assert.Equal((5, 90), (result.OfflineAfterMissedSyncs, result.RetentionDays));
+        Assert.Equal((5, 90), (_settings.OfflineAfterMissedSyncs, _settings.RetentionDays));
+        Assert.Equal(2, _unitOfWork.SaveCount);
+        Assert.All(_history.Events, settingsEvent =>
+        {
+            Assert.Equal(MonitoringEventType.SettingsChanged, settingsEvent.Type);
+            Assert.Equal(userId, settingsEvent.UserId);
+        });
+        Assert.Contains("after 5 missed synchronizations instead of 3", _history.Events[0].Message);
+        Assert.Contains("90 days instead of 30", _history.Events[1].Message);
+    }
+
+    [Theory]
+    [InlineData(0, 30)]
+    [InlineData(101, 30)]
+    [InlineData(3, 0)]
+    [InlineData(3, 3651)]
+    public async Task ChangeOfflineThresholdAndRetention_RejectValuesOutsideLimits(int missedSyncs, int days)
+    {
+        var service = CreateService();
+
+        await Assert.ThrowsAnyAsync<ArgumentOutOfRangeException>(async () =>
+        {
+            await service.ChangeOfflineThresholdAsync(missedSyncs);
+            await service.ChangeRetentionAsync(days);
+        });
+
+        Assert.Equal((3, 30), (_settings.OfflineAfterMissedSyncs, _settings.RetentionDays));
+        Assert.Empty(_history.Events);
     }
 
     private MonitoringSettingsService CreateService()
