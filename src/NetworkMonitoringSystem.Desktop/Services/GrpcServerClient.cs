@@ -196,6 +196,11 @@ public sealed class GrpcServerClient : IServerClient
             Headers(), cancellationToken: cancellationToken));
     }
 
+    public Task<DeviceInfo> RenameDeviceAsync(string id, string name, CancellationToken cancellationToken = default)
+    {
+        return CallAsync(() => _client.RenameDeviceAsync(new RenameDeviceRequest { Id = id, Name = name }, Headers(), cancellationToken: cancellationToken));
+    }
+
     public Task<DeviceInfo> SetDeviceTrafficCaptureAsync(string id, bool capture, CancellationToken cancellationToken = default)
     {
         return CallAsync(() => _client.SetDeviceTrafficCaptureAsync(

@@ -1298,6 +1298,16 @@ public class MainWindowViewModelTests
             return Task.FromResult(device);
         }
 
+        public Task<DeviceInfo> RenameDeviceAsync(string id, string name, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            var device = Devices.Single(device => device.Id == id);
+            device.Name = name.Trim();
+
+            return Task.FromResult(device);
+        }
+
         public Dictionary<string, List<TrafficEntry>> Traffic { get; } = [];
 
         public Task<DeviceInfo> SetDeviceTrafficCaptureAsync(string id, bool capture, CancellationToken cancellationToken = default)

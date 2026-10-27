@@ -11,7 +11,7 @@ internal sealed class DeviceConfiguration : IEntityTypeConfiguration<Device>
         builder.HasKey(device => device.Id);
         builder.Property(device => device.Id).ValueGeneratedNever();
 
-        builder.Property(device => device.Name).HasMaxLength(200).IsRequired();
+        builder.Property(device => device.Name).HasMaxLength(Device.MaxNameLength).IsRequired();
         builder.Property(device => device.HostName).HasMaxLength(255);
         builder.Property(device => device.IpAddress);
         builder.Property(device => device.MonitoringMode).HasConversion<string>().HasMaxLength(20);

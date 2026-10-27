@@ -231,6 +231,27 @@ public sealed class AdminApiTests : IClassFixture<DatabaseFixture>, IAsyncLifeti
     }
 
     [Fact]
+    public async Task RenamedDevice_IsListedUnderItsNewName_AndTheChangeIsLogged()
+    {
+        var name = "Switch-" + Guid.NewGuid().ToString("N");
+        await _client.AddAgentlessDeviceAsync(name, "192.0.2.97");
+        var device = Assert.Single(await _client.GetDevicesAsync(), device => device.Name == name);
+
+        var renamed = await _client.RenameDeviceAsync(device.Id, name + " (sklad)");
+
+        Assert.Equal(name + " (sklad)", renamed.Name);
+        Assert.Equal(name + " (sklad)", Assert.Single(await _client.GetDevicesAsync(), listed => listed.Id == device.Id).Name);
+
+        var empty = await Assert.ThrowsAsync<ServerClientException>(() => _client.RenameDeviceAsync(device.Id, "  "));
+        Assert.Equal(ServerErrorKind.InvalidInput, empty.Kind);
+
+        await using var dbContext = _database.CreateDbContext();
+        var deviceId = Guid.Parse(device.Id);
+        Assert.True(await dbContext.Events.AnyAsync(monitoringEvent =>
+            monitoringEvent.DeviceId == deviceId && monitoringEvent.Type == MonitoringEventType.DeviceRenamed && monitoringEvent.UserId != null));
+    }
+
+    [Fact]
     public async Task EventLog_NamesTheDevice_WhileItExists()
     {
         var from = DateTimeOffset.UtcNow.AddSeconds(-1);

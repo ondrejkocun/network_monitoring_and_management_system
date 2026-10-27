@@ -207,6 +207,36 @@ public class DeviceServiceTests
     }
 
     [Fact]
+    public async Task RenameDeviceAsync_RenamesDevice_AndWritesEventWithOldAndNewNameAndTheAuthor()
+    {
+        var registered = await _service.RegisterDeviceAsync(
+            new RegisterDeviceRequest("Router", MonitoringMode.Agentless, IpAddress: "192.168.50.1"));
+        var userId = Guid.NewGuid();
+
+        var renamed = await _service.RenameDeviceAsync(registered.Id, "  Hlavný router  ", userId);
+        await _service.RenameDeviceAsync(registered.Id, "Hlavný router", userId);
+
+        Assert.Equal("Hlavný router", renamed!.Name);
+        var renameEvent = Assert.Single(_history.Events);
+        Assert.Equal((MonitoringEventType.DeviceRenamed, registered.Id, userId), (renameEvent.Type, renameEvent.DeviceId, renameEvent.UserId));
+        Assert.Equal("Device 'Router' was renamed to 'Hlavný router'.", renameEvent.Message);
+    }
+
+    [Fact]
+    public async Task RenameDeviceAsync_RefusesEmptyOrTooLongName_AndIgnoresUnknownDevice()
+    {
+        var registered = await _service.RegisterDeviceAsync(
+            new RegisterDeviceRequest("Router", MonitoringMode.Agentless, IpAddress: "192.168.50.1"));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.RenameDeviceAsync(registered.Id, "   "));
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.RenameDeviceAsync(registered.Id, new string('x', Device.MaxNameLength + 1)));
+        Assert.Null(await _service.RenameDeviceAsync(Guid.NewGuid(), "Switch"));
+
+        Assert.Equal("Router", (await _service.GetDeviceAsync(registered.Id))!.Name);
+        Assert.Empty(_history.Events);
+    }
+
+    [Fact]
     public async Task SetTrafficCaptureAsync_SwitchesOnAndOff_WithEventsAndTheirAuthor()
     {
         var registered = await _service.RegisterDeviceAsync(new RegisterDeviceRequest("PC", MonitoringMode.Agent, "pc-01"));

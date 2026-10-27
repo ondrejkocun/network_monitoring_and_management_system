@@ -85,6 +85,10 @@ public interface IServerClient
     /// <exception cref="ServerClientException">The server could not be reached, refused the call or the device does not exist.</exception>
     Task<DeviceInfo> SetDeviceEnabledAsync(string id, bool isEnabled, CancellationToken cancellationToken = default);
 
+    /// <summary>Gives the device another name and returns it after the change.</summary>
+    /// <exception cref="ServerClientException">The server could not be reached, refused the name or the call, or the device does not exist.</exception>
+    Task<DeviceInfo> RenameDeviceAsync(string id, string name, CancellationToken cancellationToken = default);
+
     /// <summary>Switches capture of network traffic on or off for a device with an agent and returns it after the change.</summary>
     /// <exception cref="ServerClientException">The server could not be reached, refused the call or the device does not exist.</exception>
     Task<DeviceInfo> SetDeviceTrafficCaptureAsync(string id, bool capture, CancellationToken cancellationToken = default);

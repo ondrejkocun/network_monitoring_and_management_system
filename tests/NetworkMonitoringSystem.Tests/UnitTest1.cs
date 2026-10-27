@@ -102,6 +102,20 @@ public class UnitTest1
     }
 
     [Fact]
+    public void Device_CanBeRenamed_ButNotToAnEmptyOrTooLongName()
+    {
+        var device = new Device(Guid.NewGuid(), "DESKTOP-TKKTAJ2", MonitoringMode.Agent, "DESKTOP-TKKTAJ2", null, CreatedAt);
+
+        Assert.True(device.Rename("  Učebňa 3  "));
+        Assert.False(device.Rename("Učebňa 3"));
+        Assert.Throws<ArgumentException>(() => device.Rename(""));
+        Assert.Throws<ArgumentException>(() => device.Rename(new string('x', Device.MaxNameLength + 1)));
+        Assert.Throws<ArgumentException>(() => new Device(Guid.NewGuid(), new string('x', Device.MaxNameLength + 1), MonitoringMode.Agent, "pc", null, CreatedAt));
+
+        Assert.Equal(("Učebňa 3", "DESKTOP-TKKTAJ2"), (device.Name, device.HostName));
+    }
+
+    [Fact]
     public void Device_WithoutAgent_KeepsTheAddressItIsCheckedAt()
     {
         var device = new Device(Guid.NewGuid(), "Router", MonitoringMode.Agentless, null, IPAddress.Parse("192.168.50.1"), CreatedAt);

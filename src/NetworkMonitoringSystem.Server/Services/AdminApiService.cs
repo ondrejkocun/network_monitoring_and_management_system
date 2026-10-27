@@ -384,6 +384,26 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         return reply;
     }
 
+    public override async Task<DeviceInfo> RenameDevice(RenameDeviceRequest request, ServerCallContext context)
+    {
+        var id = await AuthorizeForDeviceAsync(context, Permission.ManageDevices, request.Id);
+        var user = AdminAuthenticationInterceptor.GetUser(context);
+        DeviceDto? device;
+
+        try
+        {
+            device = id is null ? null : await _deviceService.RenameDeviceAsync(id.Value, request.Name, user.Id, context.CancellationToken);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
+        }
+
+        return device is null
+            ? throw new RpcException(new Status(StatusCode.NotFound, "The device does not exist."))
+            : ToDeviceInfo(device);
+    }
+
     public override async Task<DeviceInfo> SetDeviceTrafficCapture(SetDeviceTrafficCaptureRequest request, ServerCallContext context)
     {
         var id = await AuthorizeForDeviceAsync(context, Permission.ManageDevices, request.Id);

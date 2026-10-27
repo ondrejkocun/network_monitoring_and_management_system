@@ -189,6 +189,38 @@ public sealed class DeviceService : IDeviceService
         return DeviceDto.FromDevice(device);
     }
 
+    public Task<DeviceDto?> RenameDeviceAsync(Guid id, string name, Guid? userId = null, CancellationToken cancellationToken = default)
+    {
+        return ConcurrencyRetry.RunAsync(_unitOfWork, () => RenameOnceAsync(id, name, userId, cancellationToken));
+    }
+
+    private async Task<DeviceDto?> RenameOnceAsync(Guid id, string name, Guid? userId, CancellationToken cancellationToken)
+    {
+        var device = await _deviceRepository.GetByIdAsync(id, cancellationToken);
+
+        if (device is null)
+        {
+            return null;
+        }
+
+        var previous = device.Name;
+
+        if (device.Rename(name))
+        {
+            _history.AddEvent(new MonitoringEvent(
+                _timeProvider.GetUtcNow(),
+                MonitoringEventType.DeviceRenamed,
+                EventSeverity.Info,
+                $"Device '{previous}' was renamed to '{device.Name}'.",
+                device.Id,
+                userId));
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        return DeviceDto.FromDevice(device);
+    }
+
     public Task<DeviceDto?> SetTrafficCaptureAsync(
         Guid id,
         bool capture,

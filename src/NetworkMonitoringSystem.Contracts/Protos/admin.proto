@@ -41,6 +41,9 @@ service AdminApi {
   // Disables or enables a device. A disabled device is not checked, is never reported offline and its agent is refused.
   rpc SetDeviceEnabled (SetDeviceEnabledRequest) returns (DeviceInfo);
 
+  // Gives a device another name. Requires ManageDevices on the device.
+  rpc RenameDevice (RenameDeviceRequest) returns (DeviceInfo);
+
   // Switches capture of network traffic on or off for a device with an agent. Requires ManageDevices on the device.
   rpc SetDeviceTrafficCapture (SetDeviceTrafficCaptureRequest) returns (DeviceInfo);
 
@@ -251,6 +254,11 @@ message RemoveDeviceReply {
 message SetDeviceEnabledRequest {
   string id = 1;
   bool is_enabled = 2;
+}
+
+message RenameDeviceRequest {
+  string id = 1;
+  string name = 2;
 }
 
 message SetDeviceTrafficCaptureRequest {

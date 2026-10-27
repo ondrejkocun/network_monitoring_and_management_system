@@ -17,10 +17,7 @@ public sealed class Device
             throw new ArgumentException("Device identifier must not be empty.", nameof(id));
         }
 
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            throw new ArgumentException("Device name must not be empty.", nameof(name));
-        }
+        Name = NormalizeName(name);
 
         if (!Enum.IsDefined(monitoringMode))
         {
@@ -38,7 +35,6 @@ public sealed class Device
         }
 
         Id = id;
-        Name = name.Trim();
         MonitoringMode = monitoringMode;
         HostName = string.IsNullOrWhiteSpace(hostName) ? null : hostName.Trim();
         IpAddress = ipAddress;
@@ -47,7 +43,10 @@ public sealed class Device
 
     public Guid Id { get; }
 
-    public string Name { get; }
+    public const int MaxNameLength = 200;
+
+    /// <summary>The name shown to people. For a device with an agent it starts as the computer name.</summary>
+    public string Name { get; private set; }
 
     public MonitoringMode MonitoringMode { get; }
 
@@ -179,6 +178,42 @@ public sealed class Device
         IsEnabled = true;
 
         return true;
+    }
+
+    /// <summary>
+    /// Gives the device another name. An agent is recognised by its computer name, not by this one, so it keeps
+    /// reporting to the same device.
+    /// </summary>
+    /// <returns>True when this changed the name.</returns>
+    public bool Rename(string name)
+    {
+        var normalized = NormalizeName(name);
+
+        if (normalized == Name)
+        {
+            return false;
+        }
+
+        Name = normalized;
+
+        return true;
+    }
+
+    private static string NormalizeName(string name)
+    {
+        var trimmed = name?.Trim() ?? string.Empty;
+
+        if (trimmed.Length == 0)
+        {
+            throw new ArgumentException("Device name must not be empty.", nameof(name));
+        }
+
+        if (trimmed.Length > MaxNameLength)
+        {
+            throw new ArgumentException($"Device name must have at most {MaxNameLength} characters.", nameof(name));
+        }
+
+        return trimmed;
     }
 
     /// <summary>

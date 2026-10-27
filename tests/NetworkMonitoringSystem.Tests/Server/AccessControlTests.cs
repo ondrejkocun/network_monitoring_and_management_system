@@ -162,6 +162,7 @@ public sealed class AccessControlTests : IClassFixture<DatabaseFixture>, IDispos
             () => client.GetDeviceHistoryAsync(other.Id.ToString(), now.AddHours(-1), now),
             () => client.RemoveDeviceAsync(other.Id.ToString()),
             () => client.SetDeviceEnabledAsync(other.Id.ToString(), isEnabled: false),
+            () => client.RenameDeviceAsync(other.Id.ToString(), "Renamed"),
             () => client.SetDeviceTrafficCaptureAsync(other.Id.ToString(), capture: true),
             () => client.GetDeviceTrafficAsync(other.Id.ToString(), now.AddHours(-1), now),
             () => client.GetDeviceActivityHistoryAsync(other.Id.ToString(), now.AddHours(-1), now),

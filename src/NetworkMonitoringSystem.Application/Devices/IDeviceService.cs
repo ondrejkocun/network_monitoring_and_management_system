@@ -25,6 +25,12 @@ public interface IDeviceService
     /// <returns>The device after the change, or null when no such device exists.</returns>
     Task<DeviceDto?> SetDeviceEnabledAsync(Guid id, bool isEnabled, Guid? userId = null, CancellationToken cancellationToken = default);
 
+    /// <summary>Gives the device another name; its agent keeps reporting to it, because it is recognised by host name.</summary>
+    /// <param name="userId">The user who made the change, recorded in the event.</param>
+    /// <returns>The device after the change, or null when no such device exists.</returns>
+    /// <exception cref="ArgumentException">The name is empty or too long.</exception>
+    Task<DeviceDto?> RenameDeviceAsync(Guid id, string name, Guid? userId = null, CancellationToken cancellationToken = default);
+
     /// <summary>Switches capture of network traffic on or off; the agent learns it from the reply to its next report.</summary>
     /// <param name="userId">The user who made the change, recorded in the event.</param>
     /// <returns>The device after the change, or null when no such device exists.</returns>

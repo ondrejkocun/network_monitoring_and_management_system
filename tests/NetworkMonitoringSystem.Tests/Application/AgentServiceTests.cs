@@ -119,6 +119,22 @@ public class AgentServiceTests
     }
 
     [Fact]
+    public async Task RenamedDevice_KeepsItsName_WhenItsAgentReportsAndRegistersAgain()
+    {
+        var service = CreateService();
+        var first = await service.RegisterAsync(new RegisterAgentRequest(Token, "DESKTOP-TKKTAJ2", null));
+        var device = (await _devices.GetByIdAsync(first.Credentials.DeviceId))!;
+        device.Rename("Učebňa 3 - PC 1");
+
+        await service.ReportHeartbeatAsync(first.Credentials);
+        device.MarkOffline();
+        var second = await service.RegisterAsync(new RegisterAgentRequest(Token, "DESKTOP-TKKTAJ2", null));
+
+        Assert.Equal(first.Credentials.DeviceId, second.Credentials.DeviceId);
+        Assert.Equal(("Učebňa 3 - PC 1", "DESKTOP-TKKTAJ2"), (device.Name, device.HostName));
+    }
+
+    [Fact]
     public async Task Agent_KeepsTheAddressOfItsDeviceCurrent_FromRegistrationOn()
     {
         var service = CreateService();

@@ -16,6 +16,7 @@ public enum MonitoringEventType
     DeviceDisabled = 11,
     DeviceEnabled = 12,
     TrafficCaptureChanged = 13,
+    DeviceRenamed = 14,
 }
 
 public enum EventSeverity
