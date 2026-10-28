@@ -8,6 +8,19 @@ Model pokrýva bod 2 zadania (`docs/zadanie.md`): evidenciu zariadení, ich stav
 
 ```mermaid
 erDiagram
+    Device ||--o{ FirewallRule : "požadované pravidlá"
+    FirewallRule {
+        uuid Id PK
+        uuid DeviceId FK
+        string Name
+        enum Direction "Inbound | Outbound"
+        enum Protocol "Any | Tcp | Udp | Icmp"
+        string Ports
+        string RemoteAddresses
+        enum Action "Block | Allow"
+        enum State "Pending | Applied | Failed"
+        string StateMessage
+    }
     Device ||--o{ DeviceSnapshot : "má stavy"
     Device ||--o{ Outage : "má výpadky"
     Device ||--o{ TrafficRecord : "má komunikáciu"
@@ -210,6 +223,8 @@ erDiagram
 `Device` je jediná evidencia zariadení. `MonitoringMode` rozlišuje zariadenie s agentom (posiela údaje samo) od zariadenia bez agenta (server ho kontroluje pingom). `Status` a `LastSeenAt` sú aktuálny stav, aby ho dashboard nemusel počítať z histórie. `AgentKeyHash` slúži na overenie identity agenta; ukladá sa len odtlačok kľúča, nie kľúč.
 
 Doplnené neskôr: `EnrollmentCode` je jednorazový registračný kód, ktorým sa agent zaregistruje. Ukladá sa len odtlačok SHA-256 kódu, poznámka správcu, platnosť (najviac 7 dní), autor a kedy a ktorým počítačom bol kód použitý alebo kedy bol zrušený. Kód s `DeviceId` zaregistruje znova len toto zariadenie a zmaže sa spolu s ním; kód bez neho zaregistruje len počítač, ktorý server ešte nepozná. Stĺpec `xmin` bráni tomu, aby sa jeden kód použil dvakrát naraz.
+
+Doplnené neskôr: `FirewallRule` je pravidlo Windows Defender Firewall, ktoré správca chce mať na zariadení s agentom. Server drží pravidlá ako požadovaný stav, agent ich pri hlásení použije a nahlási výsledok (`State`, `StateMessage`); dôvod, prečo pravidlá nemusia platiť (napr. vypnutý firewall), je v `Device.FirewallProblem`. Pravidlá sa zmažú spolu so zariadením.
 
 ### Stavy a systémové prostriedky
 
