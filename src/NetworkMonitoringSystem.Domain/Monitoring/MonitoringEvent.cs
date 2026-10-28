@@ -19,6 +19,9 @@ public enum MonitoringEventType
     DeviceRenamed = 14,
     EnrollmentCodeCreated = 15,
     EnrollmentCodeRevoked = 16,
+    FirewallRuleAdded = 17,
+    FirewallRuleRemoved = 18,
+    FirewallRuleFailed = 19,
 }
 
 public enum EventSeverity

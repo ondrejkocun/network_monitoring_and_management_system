@@ -20,6 +20,9 @@ public enum Permission
     /// <summary>Read the event log of the whole system, including sign-ins and refused access.</summary>
     ViewEventLog = 5,
 
+    /// <summary>Define the firewall rules of a device with an agent.</summary>
+    ManageFirewall = 6,
+
     // One permission for each remote command; a user may send only the commands they hold.
     RestartDevice = 101,
     ShutDownDevice = 102,
