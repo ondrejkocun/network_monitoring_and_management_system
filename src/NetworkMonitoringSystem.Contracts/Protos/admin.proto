@@ -51,6 +51,11 @@ service AdminApi {
   rpc ListEnrollmentCodes (ListEnrollmentCodesRequest) returns (ListEnrollmentCodesReply);
   rpc RevokeEnrollmentCode (RevokeEnrollmentCodeRequest) returns (EnrollmentCodeInfo);
 
+  // Firewall rules of a device with an agent; the agent applies them with its next report.
+  rpc GetDeviceFirewall (GetDeviceFirewallRequest) returns (DeviceFirewallReply);
+  rpc AddFirewallRule (AddFirewallRuleRequest) returns (FirewallRuleInfo);
+  rpc RemoveFirewallRule (RemoveFirewallRuleRequest) returns (RemoveFirewallRuleReply);
+
   // Switches capture of network traffic on or off for a device with an agent. Requires ManageDevices on the device.
   rpc SetDeviceTrafficCapture (SetDeviceTrafficCaptureRequest) returns (DeviceInfo);
 
@@ -270,6 +275,55 @@ message RemoveDeviceReply {
 message SetDeviceEnabledRequest {
   string id = 1;
   bool is_enabled = 2;
+}
+
+message GetDeviceFirewallRequest {
+  string device_id = 1;
+}
+
+message DeviceFirewallReply {
+  // In the order they were added.
+  repeated FirewallRuleInfo rules = 1;
+  // Why the agent cannot keep the rules in effect, for example a switched-off firewall; empty when there is no problem.
+  string problem = 2;
+}
+
+message AddFirewallRuleRequest {
+  string device_id = 1;
+  string name = 2;
+  // "Inbound" or "Outbound".
+  string direction = 3;
+  // "Any", "Tcp", "Udp" or "Icmp".
+  string protocol = 4;
+  // For example "80,443" or "8000-8100"; empty for all ports. Only for TCP and UDP.
+  string ports = 5;
+  // IP addresses and networks separated by commas, for example "10.0.0.0/8"; empty for any address.
+  string remote_addresses = 6;
+  // "Block" or "Allow".
+  string action = 7;
+}
+
+message FirewallRuleInfo {
+  string id = 1;
+  string device_id = 2;
+  string name = 3;
+  string direction = 4;
+  string protocol = 5;
+  string ports = 6;
+  string remote_addresses = 7;
+  string action = 8;
+  google.protobuf.Timestamp created_at = 9;
+  string created_by = 10;
+  // "Pending", "Applied" or "Failed".
+  string state = 11;
+  string state_message = 12;
+}
+
+message RemoveFirewallRuleRequest {
+  string id = 1;
+}
+
+message RemoveFirewallRuleReply {
 }
 
 message CreateEnrollmentCodeRequest {

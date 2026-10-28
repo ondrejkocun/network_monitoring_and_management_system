@@ -196,6 +196,57 @@ public sealed class AccessControlTests : IClassFixture<DatabaseFixture>, IDispos
     }
 
     [Fact]
+    public async Task FirewallRules_NeedTheRightToManageTheFirewallOfThatDevice_AndAreStoredAsGiven()
+    {
+        var allowed = new Device(Guid.NewGuid(), "PC-" + Guid.NewGuid().ToString("N"), DomainMonitoringMode.Agent, "fw-allowed", null, DateTimeOffset.UtcNow);
+        var other = new Device(Guid.NewGuid(), "PC-" + Guid.NewGuid().ToString("N"), DomainMonitoringMode.Agent, "fw-other", null, DateTimeOffset.UtcNow);
+
+        await using (var dbContext = _database.CreateDbContext())
+        {
+            dbContext.Devices.AddRange(allowed, other);
+            await dbContext.SaveChangesAsync();
+        }
+
+        var user = await AddUserAsync(role =>
+        {
+            role.Allow(Permission.ViewDevices);
+            role.Allow(Permission.ManageFirewall, allowed.Id);
+        });
+        var session = await NewClient().LoginAsync(user.UserName, Password);
+        var raw = new AdminApi.AdminApiClient(TestAdministrator.WithToken(_channel, session.Token));
+        AddFirewallRuleRequest Request(Device device) => new()
+        {
+            DeviceId = device.Id.ToString(),
+            Name = "No Telnet",
+            Direction = "Outbound",
+            Protocol = "Tcp",
+            Ports = " 23 ",
+            RemoteAddresses = "10.0.0.0/8",
+            Action = "Block",
+        };
+
+        var denied = await Assert.ThrowsAsync<RpcException>(async () => await raw.AddFirewallRuleAsync(Request(other)));
+        Assert.Equal(StatusCode.PermissionDenied, denied.StatusCode);
+
+        var added = await raw.AddFirewallRuleAsync(Request(allowed));
+        Assert.Equal(("23", "10.0.0.0/8", "Pending"), (added.Ports, added.RemoteAddresses, added.State));
+
+        var invalid = await Assert.ThrowsAsync<RpcException>(async () => await raw.AddFirewallRuleAsync(new AddFirewallRuleRequest(Request(allowed)) { Ports = "99999" }));
+        Assert.Equal(StatusCode.InvalidArgument, invalid.StatusCode);
+
+        // Seeing the rules needs only the right to see the device.
+        Assert.Single((await raw.GetDeviceFirewallAsync(new GetDeviceFirewallRequest { DeviceId = allowed.Id.ToString() })).Rules);
+        Assert.Empty((await raw.GetDeviceFirewallAsync(new GetDeviceFirewallRequest { DeviceId = other.Id.ToString() })).Rules);
+
+        await raw.RemoveFirewallRuleAsync(new RemoveFirewallRuleRequest { Id = added.Id });
+
+        await using var check = _database.CreateDbContext();
+        Assert.False(await check.FirewallRules.AnyAsync(rule => rule.DeviceId == allowed.Id));
+        Assert.Equal(2, await check.Events.CountAsync(monitoringEvent => monitoringEvent.DeviceId == allowed.Id
+            && (monitoringEvent.Type == MonitoringEventType.FirewallRuleAdded || monitoringEvent.Type == MonitoringEventType.FirewallRuleRemoved)));
+    }
+
+    [Fact]
     public async Task EnrollmentCodes_ForANewComputer_NeedTheRightToManageAllDevices_AndForADeviceTheRightForIt()
     {
         var allowed = new Device(Guid.NewGuid(), "PC-" + Guid.NewGuid().ToString("N"), DomainMonitoringMode.Agent, "pc-allowed", null, DateTimeOffset.UtcNow);

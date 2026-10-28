@@ -11,6 +11,9 @@ using NetworkMonitoringSystem.Contracts.Admin;
 using DomainEventSeverity = NetworkMonitoringSystem.Domain.Monitoring.EventSeverity;
 using DomainDeviceStatus =NetworkMonitoringSystem.Domain.Devices.DeviceStatus;
 using DomainMonitoringMode = NetworkMonitoringSystem.Domain.Devices.MonitoringMode;
+using FirewallAction = NetworkMonitoringSystem.Domain.Devices.FirewallAction;
+using FirewallDirection = NetworkMonitoringSystem.Domain.Devices.FirewallDirection;
+using FirewallProtocol = NetworkMonitoringSystem.Domain.Devices.FirewallProtocol;
 
 namespace NetworkMonitoringSystem.Server.Services;
 
@@ -29,6 +32,7 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
     private readonly IRemoteCommandService _commandService;
     private readonly IEventLogService _eventLog;
     private readonly IEnrollmentCodeService _enrollmentCodes;
+    private readonly IFirewallService _firewall;
 
     public AdminApiService(
         IDeviceService deviceService,
@@ -39,11 +43,13 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
         IRemoteCommandService commandService,
         IEventLogService eventLog,
         IEnrollmentCodeService enrollmentCodes,
+        IFirewallService firewall,
         DeniedAccessLog deniedAccessLog)
     {
         _commandService = commandService;
         _eventLog = eventLog;
         _enrollmentCodes = enrollmentCodes;
+        _firewall = firewall;
         _accessManagement = accessManagement;
         _historyService = historyService;
         _authenticationService = authenticationService;
@@ -491,6 +497,102 @@ public sealed class AdminApiService : AdminApi.AdminApiBase
             ?? throw new RpcException(new Status(StatusCode.NotFound, "The item does not exist."));
 
         return ToEnrollmentCodeInfo(revoked);
+    }
+
+    public override async Task<DeviceFirewallReply> GetDeviceFirewall(GetDeviceFirewallRequest request, ServerCallContext context)
+    {
+        var id = await AuthorizeForDeviceAsync(context, Permission.ViewDevices, request.DeviceId);
+        var firewall = id is null ? null : await _firewall.GetAsync(id.Value, context.CancellationToken);
+
+        if (firewall is null)
+        {
+            throw new RpcException(new Status(StatusCode.NotFound, "The device does not exist."));
+        }
+
+        var reply = new DeviceFirewallReply { Problem = firewall.Problem ?? string.Empty };
+        reply.Rules.AddRange(firewall.Rules.Select(ToFirewallRuleInfo));
+
+        return reply;
+    }
+
+    public override async Task<FirewallRuleInfo> AddFirewallRule(AddFirewallRuleRequest request, ServerCallContext context)
+    {
+        var id = await AuthorizeForDeviceAsync(context, Permission.ManageFirewall, request.DeviceId);
+
+        if (!System.Enum.TryParse<FirewallDirection>(request.Direction, out var direction) || !System.Enum.IsDefined(direction)
+            || !System.Enum.TryParse<FirewallProtocol>(request.Protocol, out var protocol) || !System.Enum.IsDefined(protocol)
+            || !System.Enum.TryParse<FirewallAction>(request.Action, out var action) || !System.Enum.IsDefined(action))
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Unknown direction, protocol or action of a firewall rule."));
+        }
+
+        FirewallRuleDto? rule;
+
+        try
+        {
+            rule = id is null
+                ? null
+                : await _firewall.AddRuleAsync(
+                    AdminAuthenticationInterceptor.GetUser(context),
+                    id.Value,
+                    new NewFirewallRule(request.Name, direction, protocol, request.Ports, request.RemoteAddresses, action),
+                    context.CancellationToken);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message.Split(" (Parameter")[0]));
+        }
+
+        return rule is null
+            ? throw new RpcException(new Status(StatusCode.NotFound, "The device does not exist."))
+            : ToFirewallRuleInfo(rule);
+    }
+
+    public override async Task<RemoveFirewallRuleReply> RemoveFirewallRule(RemoveFirewallRuleRequest request, ServerCallContext context)
+    {
+        var user = AdminAuthenticationInterceptor.GetUser(context);
+
+        if (!user.CanOnSomeDevice(Permission.ManageFirewall))
+        {
+            throw await DenyAsync(context, user, deviceId: null);
+        }
+
+        // Which device the rule belongs to is known only once it is found, so the permission for it is checked then.
+        var ruleId = ParseId(request.Id);
+        var deviceId = await _firewall.GetDeviceOfRuleAsync(ruleId, context.CancellationToken);
+
+        if (deviceId is null)
+        {
+            throw new RpcException(new Status(StatusCode.NotFound, "The item does not exist."));
+        }
+
+        if (!user.CanOnDevice(Permission.ManageFirewall, deviceId.Value))
+        {
+            throw await DenyAsync(context, user, deviceId);
+        }
+
+        await _firewall.RemoveRuleAsync(user, ruleId, context.CancellationToken);
+
+        return new RemoveFirewallRuleReply();
+    }
+
+    private static FirewallRuleInfo ToFirewallRuleInfo(FirewallRuleDto rule)
+    {
+        return new FirewallRuleInfo
+        {
+            Id = rule.Id.ToString(),
+            DeviceId = rule.DeviceId.ToString(),
+            Name = rule.Name,
+            Direction = rule.Direction.ToString(),
+            Protocol = rule.Protocol.ToString(),
+            Ports = rule.Ports ?? string.Empty,
+            RemoteAddresses = rule.RemoteAddresses ?? string.Empty,
+            Action = rule.Action.ToString(),
+            CreatedAt = Timestamp.FromDateTimeOffset(rule.CreatedAt),
+            CreatedBy = rule.CreatedByUserName,
+            State = rule.State.ToString(),
+            StateMessage = rule.StateMessage ?? string.Empty,
+        };
     }
 
     private static bool CanManageCode(AuthenticatedUser user, Guid? deviceId)
