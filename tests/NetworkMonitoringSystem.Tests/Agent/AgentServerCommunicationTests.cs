@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NetworkMonitoringSystem.Agent;
 using NetworkMonitoringSystem.Agent.Commands;
+using NetworkMonitoringSystem.Agent.Firewall;
 using NetworkMonitoringSystem.Agent.Identity;
 using NetworkMonitoringSystem.Agent.Metrics;
 using NetworkMonitoringSystem.Agent.Traffic;
@@ -322,6 +323,46 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
     }
 
     [Fact]
+    public async Task FirewallRule_AddedByAdministrator_IsAppliedByTheAgent_AndShownAsApplied()
+    {
+        var firewall = new RecordingFirewall();
+        var reporter = CreateReporter(Token, firewall);
+        await reporter.ReportOnceAsync(CancellationToken.None);
+        var identity = _identityStore.Load()!;
+        var admin = new AdminContracts.AdminApi.AdminApiClient(await Server.TestAdministrator.SignInAsync(_channel));
+
+        var rule = await admin.AddFirewallRuleAsync(new AdminContracts.AddFirewallRuleRequest
+        {
+            DeviceId = identity.DeviceId,
+            Name = "No Telnet",
+            Direction = "Outbound",
+            Protocol = "Tcp",
+            Ports = "23",
+            Action = "Block",
+        });
+
+        try
+        {
+            // The first report brings the rule, the next one tells the server it is in place.
+            await reporter.ReportOnceAsync(CancellationToken.None);
+            await reporter.ReportOnceAsync(CancellationToken.None);
+
+            var installed = Assert.Single(firewall.Rules);
+            Assert.Equal((false, 6, "23", true), (installed.Inbound, installed.Protocol, installed.Ports, installed.Block));
+            var shown = await admin.GetDeviceFirewallAsync(new AdminContracts.GetDeviceFirewallRequest { DeviceId = identity.DeviceId });
+            Assert.Equal("Applied", shown.Rules.Single(listed => listed.Id == rule.Id).State);
+        }
+        finally
+        {
+            await admin.RemoveFirewallRuleAsync(new AdminContracts.RemoveFirewallRuleRequest { Id = rule.Id });
+        }
+
+        // Removed on the server, removed from the computer with the next report.
+        await reporter.ReportOnceAsync(CancellationToken.None);
+        Assert.Empty(firewall.Rules);
+    }
+
+    [Fact]
     public async Task EnrollmentCode_MadeByAdministrator_RegistersTheDeviceAgainOnce_AndShowsWhoUsedIt()
     {
         await CreateReporter(Token).ReportOnceAsync(CancellationToken.None);
@@ -595,16 +636,19 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
             NullLogger<CommandWorker>.Instance);
     }
 
-    private AgentReporter CreateReporter(string enrollmentToken)
+    private AgentReporter CreateReporter(string enrollmentToken, IWindowsFirewall? firewall = null)
     {
+        var options = Options.Create(new AgentOptions { EnrollmentToken = enrollmentToken, RetryIntervalSeconds = 7, ServerUrl = "https://localhost:1" });
+
         return new AgentReporter(
             new AgentApi.AgentApiClient(_channel),
             _identityStore,
             new WindowsSystemMetricsCollector(),
             new WindowsSystemActivityCollector(),
             _trafficCapture,
-            Options.Create(new AgentOptions { EnrollmentToken = enrollmentToken, RetryIntervalSeconds = 7 }),
-            NullLogger<AgentReporter>.Instance);
+            options,
+            NullLogger<AgentReporter>.Instance,
+            firewall is null ? null : new FirewallManager(firewall, options, NullLogger<FirewallManager>.Instance));
     }
 
     private async Task SetTrafficCaptureAsync(Guid deviceId, bool capture)
@@ -633,6 +677,21 @@ public sealed class AgentServerCommunicationTests : IClassFixture<DatabaseFixtur
     }
 
     /// <summary>Stands in for TShark: remembers whether the server asked for capture and reports one DNS conversation.</summary>
+    /// <summary>Stands in for the Windows Firewall, which only an administrator could change.</summary>
+    private sealed class RecordingFirewall : IWindowsFirewall
+    {
+        public List<FirewallRuleToInstall> Rules { get; } = [];
+
+        public IReadOnlyList<InstalledFirewallRule> GetRules(string group) =>
+            Rules.Select(rule => new InstalledFirewallRule(rule.Name, rule.Description)).ToList();
+
+        public void AddRule(string group, FirewallRuleToInstall rule) => Rules.Add(rule);
+
+        public void RemoveRule(string name) => Rules.RemoveAll(rule => rule.Name == name);
+
+        public string? GetProblem() => null;
+    }
+
     private sealed class FakeTrafficCapture : ITrafficCapture
     {
         public bool IsEnabled { get; private set; }

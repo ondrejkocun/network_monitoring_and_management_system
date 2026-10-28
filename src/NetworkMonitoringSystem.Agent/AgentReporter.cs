@@ -21,7 +21,12 @@ public sealed class AgentReporter
     private readonly ITrafficCapture _trafficCapture;
     private readonly AgentOptions _options;
     private readonly ILogger<AgentReporter> _logger;
+    private readonly Firewall.FirewallManager? _firewall;
 
+    /// <summary>What the agent did with the firewall rules of the last reply; sent with the next report.</summary>
+    private FirewallReport? _firewallReport;
+
+    /// <param name="firewall">Keeps the firewall rules the server sends; without it the agent leaves the firewall alone.</param>
     public AgentReporter(
         AgentApi.AgentApiClient client,
         IAgentIdentityStore identityStore,
@@ -29,8 +34,10 @@ public sealed class AgentReporter
         ISystemActivityCollector activityCollector,
         ITrafficCapture trafficCapture,
         IOptions<AgentOptions> options,
-        ILogger<AgentReporter> logger)
+        ILogger<AgentReporter> logger,
+        Firewall.FirewallManager? firewall = null)
     {
+        _firewall = firewall;
         _client = client;
         _identityStore = identityStore;
         _metricsCollector = metricsCollector;
@@ -61,11 +68,13 @@ public sealed class AgentReporter
                     // Traffic counted while a report fails is lost with it; capture goes on for the next one.
                     Traffic = _trafficCapture.IsEnabled ? _trafficCapture.TakeSummary() : null,
                     IpAddress = NetworkAddress.FindPrimary(),
+                    Firewall = _firewallReport,
                 },
                 cancellationToken: cancellationToken);
 
             // The administrator switches capture on and off in the desktop app; the server passes it on here.
             _trafficCapture.SetEnabled(reply.CaptureTraffic);
+            ApplyFirewall(reply);
 
             return TimeSpan.FromSeconds(reply.SyncIntervalSeconds);
         }
@@ -96,6 +105,28 @@ public sealed class AgentReporter
         }
 
         return RetryInterval;
+    }
+
+    /// <summary>
+    /// Puts the firewall rules of the reply in place. An older server does not manage the firewall; its reply leaves the
+    /// rules on the computer as they are.
+    /// </summary>
+    private void ApplyFirewall(HeartbeatReply reply)
+    {
+        if (_firewall is null || !reply.FirewallManaged)
+        {
+            return;
+        }
+
+        try
+        {
+            _firewallReport = _firewall.Apply(reply.FirewallRules);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _logger.LogWarning(exception, "The firewall rules could not be applied.");
+            _firewallReport = new FirewallReport { Problem = $"The firewall rules could not be applied: {exception.Message}" };
+        }
     }
 
     private SystemMetrics? CollectMetrics()

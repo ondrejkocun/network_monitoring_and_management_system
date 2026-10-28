@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting.WindowsServices;
 using Microsoft.Extensions.Options;
 using NetworkMonitoringSystem.Agent;
 using NetworkMonitoringSystem.Agent.Commands;
+using NetworkMonitoringSystem.Agent.Firewall;
 using NetworkMonitoringSystem.Agent.Identity;
 using NetworkMonitoringSystem.Agent.Metrics;
 using NetworkMonitoringSystem.Agent.Traffic;
@@ -53,6 +54,8 @@ builder.Services.AddSingleton<SynchronizationSignal>();
 builder.Services.AddSingleton<ISystemProgramRunner, SystemProgramRunner>();
 builder.Services.AddSingleton<ICommandExecutor, WindowsCommandExecutor>();
 builder.Services.AddSingleton<IFileReceiver, InboxFileReceiver>();
+builder.Services.AddSingleton<IWindowsFirewall, WindowsFirewall>();
+builder.Services.AddSingleton<FirewallManager>();
 
 if (!registerOnly)
 {
