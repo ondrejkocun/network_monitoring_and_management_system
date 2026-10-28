@@ -18,6 +18,7 @@ public sealed class AgentService : IAgentService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IOptions<AgentEnrollmentOptions> _enrollmentOptions;
     private readonly IEnrollmentCodeRepository _enrollmentCodes;
+    private readonly Devices.IFirewallRuleRepository _firewallRules;
     private readonly TimeProvider _timeProvider;
 
     public AgentService(
@@ -30,6 +31,7 @@ public sealed class AgentService : IAgentService
         IUnitOfWork unitOfWork,
         IOptions<AgentEnrollmentOptions> enrollmentOptions,
         IEnrollmentCodeRepository enrollmentCodes,
+        Devices.IFirewallRuleRepository firewallRules,
         TimeProvider timeProvider)
     {
         _deviceRepository = deviceRepository;
@@ -41,6 +43,7 @@ public sealed class AgentService : IAgentService
         _unitOfWork = unitOfWork;
         _enrollmentOptions = enrollmentOptions;
         _enrollmentCodes = enrollmentCodes;
+        _firewallRules = firewallRules;
         _timeProvider = timeProvider;
     }
 
@@ -139,6 +142,7 @@ public sealed class AgentService : IAgentService
         SystemActivityReport? activity = null,
         TrafficReport? traffic = null,
         System.Net.IPAddress? networkAddress = null,
+        FirewallReport? firewall = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(credentials);
@@ -147,7 +151,7 @@ public sealed class AgentService : IAgentService
         // from the device as the check left it, so the device ends up online.
         return ConcurrencyRetry.RunAsync(
             _unitOfWork,
-            () => RecordHeartbeatAsync(credentials, metrics, activity, traffic, networkAddress, cancellationToken));
+            () => RecordHeartbeatAsync(credentials, metrics, activity, traffic, networkAddress, firewall, cancellationToken));
     }
 
     private async Task<AgentHeartbeatResult> RecordHeartbeatAsync(
@@ -156,6 +160,7 @@ public sealed class AgentService : IAgentService
         SystemActivityReport? activity,
         TrafficReport? traffic,
         System.Net.IPAddress? networkAddress,
+        FirewallReport? firewall,
         CancellationToken cancellationToken)
     {
         var device = await _deviceRepository.GetByIdAsync(credentials.DeviceId, cancellationToken);
@@ -189,8 +194,42 @@ public sealed class AgentService : IAgentService
             _activity.AddTrafficRecords(traffic.ToRecords(device.Id, now));
         }
 
+        var firewallRules = await _firewallRules.GetByDeviceAsync(device.Id, cancellationToken);
+
+        if (firewall is not null)
+        {
+            RecordFirewall(device, firewall, firewallRules, now);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return new AgentHeartbeatResult(settings.SyncIntervalSeconds, device.CaptureTraffic);
+        return new AgentHeartbeatResult(
+            settings.SyncIntervalSeconds,
+            device.CaptureTraffic,
+            firewallRules.Select(Devices.FirewallRuleDto.From).ToList());
+    }
+
+    /// <summary>
+    /// Records what the agent did with the rules. A rule it could not put in place is written to the event log once,
+    /// when that happens, not with every report.
+    /// </summary>
+    private void RecordFirewall(Device device, FirewallReport firewall, IReadOnlyList<FirewallRule> rules, DateTimeOffset now)
+    {
+        device.RecordFirewallProblem(firewall.Problem);
+
+        foreach (var result in firewall.Results)
+        {
+            var rule = rules.FirstOrDefault(rule => rule.Id == result.RuleId);
+
+            if (rule is not null && rule.RecordResult(result.Applied, result.Message, now) && !result.Applied)
+            {
+                _history.AddEvent(new MonitoringEvent(
+                    now,
+                    MonitoringEventType.FirewallRuleFailed,
+                    EventSeverity.Warning,
+                    $"The firewall rule '{rule.Name}' could not be applied on device '{device.Name}': {rule.StateMessage}",
+                    device.Id));
+            }
+        }
     }
 }

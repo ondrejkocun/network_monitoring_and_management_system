@@ -116,6 +116,7 @@ public class SystemMetricsReportTests
             new CountingUnitOfWork(),
             Options.Create(new AgentEnrollmentOptions { EnrollmentToken = "token" }),
             new InMemoryEnrollmentCodeRepository(),
+            new InMemoryFirewallRuleRepository(),
             new MutableTimeProvider(new DateTimeOffset(2026, 10, 9, 12, 0, 0, TimeSpan.Zero)));
         var registration = await service.RegisterAsync(new RegisterAgentRequest("token", "PC-01", null));
 

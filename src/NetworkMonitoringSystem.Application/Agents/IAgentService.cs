@@ -17,5 +17,6 @@ public interface IAgentService
         SystemActivityReport? activity = null,
         TrafficReport? traffic = null,
         System.Net.IPAddress? networkAddress = null,
+        FirewallReport? firewall = null,
         CancellationToken cancellationToken = default);
 }

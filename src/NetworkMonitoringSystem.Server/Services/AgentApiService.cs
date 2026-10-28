@@ -3,6 +3,8 @@ using NetworkMonitoringSystem.Application.Agents;
 using NetworkMonitoringSystem.Application.Commands;
 using NetworkMonitoringSystem.Contracts.Agents;
 using AgentCredentials = NetworkMonitoringSystem.Application.Agents.AgentCredentials;
+using FirewallReport = NetworkMonitoringSystem.Application.Agents.FirewallReport;
+using FirewallRuleResult = NetworkMonitoringSystem.Application.Agents.FirewallRuleResult;
 using DomainTransportProtocol = NetworkMonitoringSystem.Domain.Monitoring.TransportProtocol;
 using DomainTrafficTransport = NetworkMonitoringSystem.Domain.Monitoring.TrafficTransport;
 
@@ -76,9 +78,27 @@ public sealed class AgentApiService : AgentApi.AgentApiBase
                 ToReport(request.Activity),
                 ToReport(request.Traffic),
                 NetworkAddressOf(request.IpAddress, context),
+                ToReport(request.Firewall),
                 context.CancellationToken);
 
-            return new HeartbeatReply { SyncIntervalSeconds = result.SyncIntervalSeconds, CaptureTraffic = result.CaptureTraffic };
+            var reply = new HeartbeatReply
+            {
+                SyncIntervalSeconds = result.SyncIntervalSeconds,
+                CaptureTraffic = result.CaptureTraffic,
+                FirewallManaged = true,
+            };
+            reply.FirewallRules.AddRange((result.FirewallRules ?? []).Select(rule => new FirewallRuleSpec
+            {
+                Id = rule.Id.ToString(),
+                Name = rule.Name,
+                Direction = rule.Direction.ToString(),
+                Protocol = rule.Protocol.ToString(),
+                Ports = rule.Ports ?? string.Empty,
+                RemoteAddresses = rule.RemoteAddresses ?? string.Empty,
+                Action = rule.Action.ToString(),
+            }));
+
+            return reply;
         }
         catch (AgentAuthenticationException)
         {
@@ -305,6 +325,26 @@ public sealed class AgentApiService : AgentApi.AgentApiBase
                     ToInt64(conversation.BytesReceived)))
                 .ToList(),
             string.IsNullOrWhiteSpace(traffic.CaptureProblem) ? null : traffic.CaptureProblem);
+    }
+
+    /// <summary>Results for rules that are not identifiers are dropped; they cannot belong to any rule.</summary>
+    private static FirewallReport? ToReport(Contracts.Agents.FirewallReport? firewall)
+    {
+        if (firewall is null)
+        {
+            return null;
+        }
+
+        return new FirewallReport(
+            firewall.Results
+                .Where(result => Guid.TryParse(result.RuleId, out _))
+                .Take(Domain.Devices.FirewallRule.MaxRulesPerDevice)
+                .Select(result => new FirewallRuleResult(
+                    Guid.Parse(result.RuleId),
+                    result.Applied,
+                    string.IsNullOrWhiteSpace(result.Message) ? null : result.Message))
+                .ToList(),
+            string.IsNullOrWhiteSpace(firewall.Problem) ? null : firewall.Problem);
     }
 
     private static DomainTransportProtocol ToDomain(TransportProtocol protocol)

@@ -120,6 +120,8 @@ message HeartbeatRequest {
   TrafficSummary traffic = 4;
   // IPv4 address of the device's main network adapter; empty when the agent could not tell.
   string ip_address = 5;
+  // What the agent did with the firewall rules of the previous reply. Not set before the agent has received any.
+  FirewallReport firewall = 6;
 }
 
 // How much the device communicated, per conversation, between two reports. No packet contents are included.
@@ -224,4 +226,36 @@ message HeartbeatReply {
   int32 sync_interval_seconds = 1;
   // True while the agent should capture network traffic and send its summary with each report.
   bool capture_traffic = 2;
+  // The firewall rules the device should have. The agent removes its own rules that are not among them.
+  repeated FirewallRuleSpec firewall_rules = 3;
+  // True when the server manages the firewall rules, so an empty list means "no rules"; an older server leaves it false.
+  bool firewall_managed = 4;
+}
+
+message FirewallRuleSpec {
+  string id = 1;
+  string name = 2;
+  // "Inbound" or "Outbound".
+  string direction = 3;
+  // "Any", "Tcp", "Udp" or "Icmp".
+  string protocol = 4;
+  // For example "80,443" or "8000-8100"; empty for all ports. The local port of inbound and the remote port of outbound traffic.
+  string ports = 5;
+  // IP addresses and networks separated by commas; empty for any address.
+  string remote_addresses = 6;
+  // "Block" or "Allow".
+  string action = 7;
+}
+
+message FirewallReport {
+  repeated FirewallRuleResult results = 1;
+  // Why the rules may not be in effect, for example a switched-off firewall; empty when there is no problem.
+  string problem = 2;
+}
+
+message FirewallRuleResult {
+  string rule_id = 1;
+  bool applied = 2;
+  // Why the rule could not be applied; empty when it was.
+  string message = 3;
 }

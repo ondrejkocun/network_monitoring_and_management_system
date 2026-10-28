@@ -13,6 +13,7 @@ public class EnrollmentCodeTests
     private readonly InMemoryDeviceRepository _devices = new();
     private readonly InMemoryMonitoringHistoryRepository _history = new();
     private readonly InMemoryEnrollmentCodeRepository _codes = new();
+    private readonly InMemoryFirewallRuleRepository _firewallRules = new();
     private readonly CountingUnitOfWork _unitOfWork = new();
     private readonly MutableTimeProvider _time = new(new DateTimeOffset(2026, 10, 28, 9, 0, 0, TimeSpan.Zero));
     private readonly AuthenticatedUser _admin = new(Guid.NewGuid(), "admin", []);
@@ -134,6 +135,7 @@ public class EnrollmentCodeTests
             _unitOfWork,
             Options.Create(new AgentEnrollmentOptions { EnrollmentToken = null }),
             _codes,
+            _firewallRules,
             _time);
     }
 }
