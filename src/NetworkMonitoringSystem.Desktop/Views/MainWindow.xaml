@@ -504,6 +504,81 @@
                         </Grid>
                     </TabItem>
 
+                    <TabItem Header="{Binding SelectedDeviceFirewall.Header, FallbackValue=Firewall}">
+                        <TabItem.Style>
+                            <Style TargetType="TabItem">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedDeviceFirewall}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TabItem.Style>
+                        <DockPanel Margin="8" DataContext="{Binding SelectedDeviceFirewall}">
+                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,6"
+                                       Text="Pravidlá Windows Defender Firewall na tomto zariadení. Agent ich použije pri najbližšom hlásení a udržiava ich, aj keď ich niekto na počítači zmení. Pravidlo, ktoré by odrezalo agenta od servera, agent nepoužije." />
+
+                            <Border DockPanel.Dock="Top" Background="#FFF3E0" BorderBrush="#E65100" BorderThickness="1" CornerRadius="3" Padding="8,4" Margin="0,0,0,6">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Problem}" Value="">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding Problem}" Foreground="#BF360C" TextWrapping="Wrap" />
+                            </Border>
+
+                            <WrapPanel DockPanel.Dock="Top" Visibility="{Binding CanManage, Converter={StaticResource VisibleWhenTrue}}">
+                                <Label Content="_Názov:" Target="{Binding ElementName=FirewallNameBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
+                                <TextBox x:Name="FirewallNameBox" Width="150" MaxLength="100" Margin="0,0,12,4" VerticalContentAlignment="Center"
+                                         Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                                <ComboBox Width="120" Margin="0,0,8,4" ItemsSource="{Binding Directions}" SelectedItem="{Binding Direction}" AutomationProperties.Name="Smer" />
+                                <ComboBox Width="100" Margin="0,0,8,4" ItemsSource="{Binding Protocols}" SelectedItem="{Binding Protocol}" AutomationProperties.Name="Protokol" />
+                                <Label Content="_Porty:" Target="{Binding ElementName=FirewallPortsBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
+                                <TextBox x:Name="FirewallPortsBox" Width="110" Margin="0,0,12,4" VerticalContentAlignment="Center"
+                                         IsEnabled="{Binding ArePortsAllowed}" ToolTip="Napr. 23, 80,443 alebo 8000-8100. Prázdne = všetky porty."
+                                         Text="{Binding Ports, UpdateSourceTrigger=PropertyChanged}" />
+                                <Label Content="_Adresy:" Target="{Binding ElementName=FirewallAddressesBox}" Padding="0,0,6,0" VerticalAlignment="Center" />
+                                <TextBox x:Name="FirewallAddressesBox" Width="150" Margin="0,0,12,4" VerticalContentAlignment="Center"
+                                         ToolTip="Vzdialené IP adresy alebo siete oddelené čiarkou, napr. 10.0.0.0/8. Prázdne = ľubovoľná."
+                                         Text="{Binding RemoteAddresses, UpdateSourceTrigger=PropertyChanged}" />
+                                <ComboBox Width="90" Margin="0,0,8,4" ItemsSource="{Binding Actions}" SelectedItem="{Binding Action}" AutomationProperties.Name="Akcia" />
+                                <Button Content="Pridať pravidlo" Margin="0,0,0,4" Command="{Binding AddCommand}" />
+                            </WrapPanel>
+
+                            <DockPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+                                <Button DockPanel.Dock="Right" Content="Odstrániť vybrané pravidlo" Command="{Binding RemoveCommand}"
+                                        Visibility="{Binding CanManage, Converter={StaticResource VisibleWhenTrue}}" />
+                                <TextBlock Text="{Binding Message}" Style="{StaticResource Hint}" />
+                            </DockPanel>
+
+                            <DataGrid ItemsSource="{Binding Rules}" SelectedItem="{Binding SelectedRule}" SelectionMode="Single">
+                                <DataGrid.RowStyle>
+                                    <Style TargetType="DataGridRow">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsFailed}" Value="True">
+                                                <Setter Property="Foreground" Value="#C62828" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.RowStyle>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Názov" Binding="{Binding Name}" Width="2*" />
+                                    <DataGridTextColumn Header="Smer" Binding="{Binding DirectionText}" Width="Auto" />
+                                    <DataGridTextColumn Header="Protokol" Binding="{Binding ProtocolText}" Width="Auto" />
+                                    <DataGridTextColumn Header="Porty" Binding="{Binding PortsText}" Width="*" />
+                                    <DataGridTextColumn Header="Vzdialené adresy" Binding="{Binding AddressesText}" Width="2*" />
+                                    <DataGridTextColumn Header="Akcia" Binding="{Binding ActionText}" Width="Auto" />
+                                    <DataGridTextColumn Header="Pridal" Binding="{Binding CreatedBy}" Width="Auto" />
+                                    <DataGridTextColumn Header="Stav" Binding="{Binding StateText}" Width="3*" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                    </TabItem>
+
                     <TabItem Header="{Binding CommandsHeader}">
                         <DockPanel Margin="8">
                             <WrapPanel DockPanel.Dock="Top">

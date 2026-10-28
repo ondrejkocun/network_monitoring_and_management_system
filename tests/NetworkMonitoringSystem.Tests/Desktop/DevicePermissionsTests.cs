@@ -49,6 +49,27 @@ public class DevicePermissionsTests
     }
 
     [Fact]
+    public async Task FirewallTab_IsEditableWithItsPermission()
+    {
+        var viewModel = await SelectAsync("ViewDevices", "ManageFirewall");
+
+        Assert.True(viewModel.SelectedDeviceFirewall!.CanManage);
+    }
+
+    [Fact]
+    public async Task FirewallTab_OnlyShowsTheRulesWithoutThePermission_AndIsNotThereForADeviceWithoutAnAgent()
+    {
+        var viewModel = await SelectAsync("ViewDevices");
+        Assert.False(viewModel.SelectedDeviceFirewall!.CanManage);
+
+        var router = new DeviceInfo { Id = "router", Name = "Router", MonitoringMode = MonitoringMode.Agentless, IsEnabled = true };
+        _server.Devices.Add(router);
+        await viewModel.RefreshAsync();
+        viewModel.SelectedDevice = viewModel.Devices.Single(device => device.Id == "router");
+        Assert.Null(viewModel.SelectedDeviceFirewall);
+    }
+
+    [Fact]
     public async Task SendingAFile_NeedsItsOwnPermission()
     {
         var viewModel = await SelectAsync("ViewDevices", "SendFile");

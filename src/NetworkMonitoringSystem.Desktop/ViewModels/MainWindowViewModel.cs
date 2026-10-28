@@ -60,6 +60,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private DeviceHistoryViewModel? _selectedDeviceHistory;
     private DeviceTrafficViewModel? _selectedDeviceTraffic;
     private DeviceActivityHistoryViewModel? _selectedDeviceActivityHistory;
+    private DeviceFirewallViewModel? _selectedDeviceFirewall;
     private DateTimeOffset? _trafficSince;
     private HistoryPeriodOption _selectedHistoryPeriod;
     private DateTimeOffset? _historyLoadedAt;
@@ -597,6 +598,7 @@ public sealed class MainWindowViewModel : ViewModelBase
                 SelectedDeviceHistory = null;
                 SelectedDeviceTraffic = null;
                 SelectedDeviceActivityHistory = null;
+                SelectedDeviceFirewall = value is { HasAgent: true } ? new DeviceFirewallViewModel(_server, _confirmation, value.Id, value.Can("ManageFirewall")) : null;
                 SetTrafficSince(null);
                 _historyLoadedAt = null;
                 ResourcesMessage = value is null ? NoDeviceSelectedMessage : "Načítavam…";
@@ -628,6 +630,13 @@ public sealed class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanSendFile));
         SendCommandCommand.RaiseCanExecuteChanged();
         SendFileCommand.RaiseCanExecuteChanged();
+    }
+
+    /// <summary>The firewall rules of the selected device; null for a device without an agent, which has none.</summary>
+    public DeviceFirewallViewModel? SelectedDeviceFirewall
+    {
+        get => _selectedDeviceFirewall;
+        private set => SetProperty(ref _selectedDeviceFirewall, value);
     }
 
     /// <summary>The latest system resources of the selected device, or null when there are none to show.</summary>
@@ -894,6 +903,11 @@ public sealed class MainWindowViewModel : ViewModelBase
             }
 
             return;
+        }
+
+        if (SelectedDeviceFirewall is { } firewall && firewall.DeviceId == device.Id)
+        {
+            await firewall.LoadAsync();
         }
 
         await LoadSelectedDeviceCommandsAsync();
