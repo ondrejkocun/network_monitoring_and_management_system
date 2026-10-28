@@ -171,6 +171,18 @@ tshark -i <adapter> ... -p -n -l -M 100000 -T fields -E separator=/t -E occurren
 - Capturing needs the Npcap driver. The agent installed as a service runs under the local system account, which Npcap allows even when it is installed for administrators only. An agent started by an ordinary user can capture only if Npcap allows that user.
 - TShark parses every packet, which costs processor time on a busy computer. Capture should therefore be switched on only where it is needed.
 
+### Firewall rules
+
+An administrator with the permission `ManageFirewall` for a device sets rules of its Windows Defender Firewall in the desktop application, on the **Firewall** tab of a device with an agent: name, direction (inbound or outbound), protocol (TCP, UDP, ICMP or all), ports (`23`, `80,443`, `8000-8100`; only for TCP and UDP), remote addresses or networks (`10.0.0.0/8`) and whether to block or allow.
+
+- The server keeps the rules as the desired state of the device. The agent receives them with the reply to its next report and puts them into the firewall group `NetworkMonitoringSystem`; nothing outside that group is touched. With each report it checks them again and restores a rule someone changed or deleted on the computer.
+- The tab shows each rule as waiting for the agent, applied, or failed with the reason, and warns when the firewall is switched off for an active profile, in which case no rule has any effect.
+- **A rule that would block the agent's own connection to the server is never applied**: an outbound block covering TCP to the server's port and address. In the Windows Firewall a block always wins over an allow, so an exception could not help. The agent reports such a rule as failed and says why.
+- Changing the firewall needs the service account or an administrator; an agent started by an ordinary user reports each rule as failed.
+- Adding and removing rules is written to the event log with its author, and a rule the agent cannot apply too.
+- `Uninstall-Agent.ps1` removes the agent's rules, so none are left behind without anyone managing them.
+- Devices without an agent, such as routers, have no rules: changing them would need the interface of the specific device.
+
 ## 3. Desktop application on another computer
 
 Set the address and the pin in `appsettings.json` next to the application, or in an `appsettings.Local.json` beside it, which is read as well and is not committed to the repository:
@@ -192,6 +204,9 @@ Set the address and the pin in `appsettings.json` next to the application, or in
 | `The remote certificate is invalid because of errors in the certificate chain: UntrustedRoot` | No pin is set and Windows does not trust the server's certificate. Set the pin. |
 | `Server is not reachable (Unavailable)` | The address or port is wrong, the server is not running, or the firewall blocks the port. |
 | `Server refused the registration` | The enrollment code is wrong, was already used, has expired or was revoked (the desktop application shows the state of each code); a device the server already knows was given a code for a new computer instead of one made for it; the device is disabled; or the server still sees a device of this name as online. In the last case wait until it is marked offline (three synchronization intervals) and install again. |
+| Firewall rule failed: `would block the agent's connection to the server` | The rule blocks outbound TCP to the server. Give it ports or addresses that leave out the server's port (7006) or address. |
+| Firewall rule failed: `may not change the firewall` | The agent does not run as a service or as an administrator. Install it with `Install-Agent.ps1`. |
+| Firewall tab: `The firewall is switched off …` | The Windows Defender Firewall is off for the active network profile, so no rule has an effect. Switch it on, or check whether a group policy controls it. |
 | `TShark was not found at '…'` | Wireshark is not installed, or not in the default folder. Install it, or set `Agent:TsharkPath`. |
 | `No active network interface can be captured on` | Npcap is missing, or TShark cannot see any active adapter. Run `tshark -D` on the computer to see which interfaces it offers. |
 | `TShark stopped unexpectedly: …` | TShark ended on its own; its last messages follow. The agent starts it again with the next report. |
