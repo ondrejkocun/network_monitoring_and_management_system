@@ -225,6 +225,21 @@ public sealed class GrpcServerClient : IServerClient
         return CallAsync(() => _client.RevokeEnrollmentCodeAsync(new RevokeEnrollmentCodeRequest { Id = id }, Headers(), cancellationToken: cancellationToken));
     }
 
+    public Task<DeviceFirewallReply> GetDeviceFirewallAsync(string deviceId, CancellationToken cancellationToken = default)
+    {
+        return CallAsync(() => _client.GetDeviceFirewallAsync(new GetDeviceFirewallRequest { DeviceId = deviceId }, Headers(), cancellationToken: cancellationToken));
+    }
+
+    public Task<FirewallRuleInfo> AddFirewallRuleAsync(AddFirewallRuleRequest rule, CancellationToken cancellationToken = default)
+    {
+        return CallAsync(() => _client.AddFirewallRuleAsync(rule, Headers(), cancellationToken: cancellationToken));
+    }
+
+    public async Task RemoveFirewallRuleAsync(string id, CancellationToken cancellationToken = default)
+    {
+        await CallAsync(() => _client.RemoveFirewallRuleAsync(new RemoveFirewallRuleRequest { Id = id }, Headers(), cancellationToken: cancellationToken));
+    }
+
     public Task<DeviceInfo> SetDeviceTrafficCaptureAsync(string id, bool capture, CancellationToken cancellationToken = default)
     {
         return CallAsync(() => _client.SetDeviceTrafficCaptureAsync(

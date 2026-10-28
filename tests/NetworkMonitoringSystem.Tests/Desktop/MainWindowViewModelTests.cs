@@ -1345,6 +1345,52 @@ public class MainWindowViewModelTests
             return Task.CompletedTask;
         }
 
+        public List<FirewallRuleInfo> FirewallRules { get; } = [];
+
+        public string FirewallProblem { get; set; } = string.Empty;
+
+        public Task<DeviceFirewallReply> GetDeviceFirewallAsync(string deviceId, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            var reply = new DeviceFirewallReply { Problem = FirewallProblem };
+            reply.Rules.AddRange(FirewallRules.Where(rule => rule.DeviceId == deviceId).Select(rule => rule.Clone()));
+
+            return Task.FromResult(reply);
+        }
+
+        public Task<FirewallRuleInfo> AddFirewallRuleAsync(AddFirewallRuleRequest rule, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            var added = new FirewallRuleInfo
+            {
+                Id = Guid.NewGuid().ToString(),
+                DeviceId = rule.DeviceId,
+                Name = rule.Name.Trim(),
+                Direction = rule.Direction,
+                Protocol = rule.Protocol,
+                Ports = rule.Ports.Trim(),
+                RemoteAddresses = rule.RemoteAddresses.Trim(),
+                Action = rule.Action,
+                CreatedAt = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow),
+                CreatedBy = "admin",
+                State = "Pending",
+            };
+            FirewallRules.Add(added);
+
+            return Task.FromResult(added.Clone());
+        }
+
+        public Task RemoveFirewallRuleAsync(string id, CancellationToken cancellationToken = default)
+        {
+            ThrowIfFailing();
+
+            FirewallRules.RemoveAll(rule => rule.Id == id);
+
+            return Task.CompletedTask;
+        }
+
         public List<EnrollmentCodeInfo> EnrollmentCodes { get; } = [];
 
         public Task<CreatedEnrollmentCodeReply> CreateEnrollmentCodeAsync(string note, string? deviceId, int validMinutes, CancellationToken cancellationToken = default)

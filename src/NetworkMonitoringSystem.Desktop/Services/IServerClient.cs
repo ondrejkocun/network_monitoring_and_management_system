@@ -100,6 +100,14 @@ public interface IServerClient
 
     Task<EnrollmentCodeInfo> RevokeEnrollmentCodeAsync(string id, CancellationToken cancellationToken = default);
 
+    /// <summary>The firewall rules of a device with an agent and why they may not be in effect.</summary>
+    Task<DeviceFirewallReply> GetDeviceFirewallAsync(string deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>Adds a rule; the agent puts it in place with its next report.</summary>
+    Task<FirewallRuleInfo> AddFirewallRuleAsync(AddFirewallRuleRequest rule, CancellationToken cancellationToken = default);
+
+    Task RemoveFirewallRuleAsync(string id, CancellationToken cancellationToken = default);
+
     /// <summary>Switches capture of network traffic on or off for a device with an agent and returns it after the change.</summary>
     /// <exception cref="ServerClientException">The server could not be reached, refused the call or the device does not exist.</exception>
     Task<DeviceInfo> SetDeviceTrafficCaptureAsync(string id, bool capture, CancellationToken cancellationToken = default);
