@@ -3,7 +3,8 @@
     Removes the monitoring agent service from this computer.
 
 .DESCRIPTION
-    Run it as administrator. It stops and deletes the service and removes the installed files.
+    Run it as administrator. It stops and deletes the service, removes the firewall rules the agent put in
+    place and deletes the installed files.
 
     The identity the server issued is kept by default, so installing the agent again continues as the same
     device. With -RemoveIdentity it is deleted as well; the computer then has to be registered again, and
@@ -43,6 +44,14 @@ if ($service) {
 }
 else {
     Write-Host 'The service is not installed.'
+}
+
+# The firewall rules the agent put in place for the server would otherwise stay with nobody to manage them.
+$firewallRules = Get-NetFirewallRule -Group 'NetworkMonitoringSystem' -ErrorAction SilentlyContinue
+
+if ($firewallRules) {
+    $firewallRules | Remove-NetFirewallRule
+    Write-Host "The agent's firewall rules were removed ($(@($firewallRules).Count))."
 }
 
 # Only a folder that really holds the agent is deleted, whatever path was given.
