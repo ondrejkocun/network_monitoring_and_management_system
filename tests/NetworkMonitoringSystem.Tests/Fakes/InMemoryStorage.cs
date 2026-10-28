@@ -480,3 +480,22 @@ public sealed class InMemoryEnrollmentCodeRepository : IEnrollmentCodeRepository
 
     public void Add(EnrollmentCode code) => Codes.Add(code);
 }
+
+public sealed class InMemoryFirewallRuleRepository : IFirewallRuleRepository
+{
+    public List<FirewallRule> Rules { get; } = [];
+
+    public Task<IReadOnlyList<FirewallRule>> GetByDeviceAsync(Guid deviceId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<FirewallRule>>(Rules.Where(rule => rule.DeviceId == deviceId).OrderBy(rule => rule.CreatedAt).ToList());
+    }
+
+    public Task<FirewallRule?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Rules.FirstOrDefault(rule => rule.Id == id));
+    }
+
+    public void Add(FirewallRule rule) => Rules.Add(rule);
+
+    public void Remove(FirewallRule rule) => Rules.Remove(rule);
+}

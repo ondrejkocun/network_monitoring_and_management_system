@@ -36,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<IRemoteCommandRepository, EfRemoteCommandRepository>();
         services.AddScoped<IFileTransferRepository, EfFileTransferRepository>();
         services.AddScoped<IEnrollmentCodeRepository, EfEnrollmentCodeRepository>();
+        services.AddScoped<IFirewallRuleRepository, EfFirewallRuleRepository>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddSingleton<IDeviceReachabilityProbe, NetworkReachabilityProbe>();
 

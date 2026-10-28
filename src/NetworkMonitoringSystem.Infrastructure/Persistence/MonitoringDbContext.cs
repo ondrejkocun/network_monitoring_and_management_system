@@ -45,6 +45,8 @@ public sealed class MonitoringDbContext : DbContext
 
     public DbSet<EnrollmentCode> EnrollmentCodes => Set<EnrollmentCode>();
 
+    public DbSet<FirewallRule> FirewallRules => Set<FirewallRule>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MonitoringDbContext).Assembly);

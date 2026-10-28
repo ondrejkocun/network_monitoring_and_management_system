@@ -114,6 +114,18 @@ public sealed class Device
             : problem;
     }
 
+    /// <summary>Why the agent cannot keep the firewall rules in effect, for example a switched-off firewall; null when it can.</summary>
+    public string? FirewallProblem { get; private set; }
+
+    public void RecordFirewallProblem(string? problem)
+    {
+        problem = string.IsNullOrWhiteSpace(problem) ? null : problem.Trim();
+
+        FirewallProblem = problem is { Length: > MaxTrafficCaptureProblemLength }
+            ? problem[..MaxTrafficCaptureProblemLength]
+            : problem;
+    }
+
     /// <summary>Sets the TCP port checked when the device does not answer ping; null removes it.</summary>
     public void SetTcpPort(int? tcpPort)
     {
