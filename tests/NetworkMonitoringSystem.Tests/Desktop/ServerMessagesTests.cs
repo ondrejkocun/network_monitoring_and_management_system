@@ -32,6 +32,9 @@ public class ServerMessagesTests
     [InlineData("User 'admin' created an enrollment code for device 'PC' ('reinstall'), valid until 2026-10-28 10:00 UTC.", "Používateľ „admin“ vytvoril registračný kód pre zariadenie „PC“ ('reinstall') s platnosťou do 2026-10-28 10:00 UTC.")]
     [InlineData("User 'admin' revoked an enrollment code.", "Používateľ „admin“ zrušil registračný kód.")]
     [InlineData("An enrollment code must be valid for 10 minutes to 7 days.", "Registračný kód musí platiť od 10 minút do 7 dní.")]
+    [InlineData("The firewall is switched off for the Domain and Public profile, so the rules have no effect.", "Firewall je vypnutý pre profil Domain and Public, preto pravidlá neplatia.")]
+    [InlineData("User 'admin' added the firewall rule 'No Telnet' (block outbound TCP 23, any address) to device 'PC'.", "Používateľ „admin“ pridal pravidlo firewallu „No Telnet“ (block outbound TCP 23, any address) zariadeniu „PC“.")]
+    [InlineData("The firewall rule 'No Telnet' could not be applied on device 'PC': Access is denied.", "Pravidlo firewallu „No Telnet“ sa na zariadení „PC“ nepodarilo použiť: Access is denied.")]
     public void EventsAndResults_AreShownInSlovak(string english, string slovak)
     {
         Assert.Equal(slovak, ServerMessages.ToSlovakText(english));
@@ -67,6 +70,8 @@ public class ServerMessagesTests
             () => FileTransfer.NormalizeFileName("a/b.txt"),
             () => FileTransfer.NormalizeFileName("notes."),
             () => FileTransfer.NormalizeFileName("CON.txt"),
+            () => NetworkMonitoringSystem.Domain.Devices.FirewallRule.NormalizePorts("0"),
+            () => NetworkMonitoringSystem.Domain.Devices.FirewallRule.NormalizeRemoteAddresses("example.com"),
         };
 
         foreach (var failure in failures)

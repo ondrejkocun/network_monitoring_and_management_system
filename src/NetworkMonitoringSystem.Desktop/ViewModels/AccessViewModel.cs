@@ -550,6 +550,7 @@ public sealed record PermissionOption(string Name, string Label)
             "ManageSettings" => "Správa nastavení",
             "ManageUsers" => "Správa používateľov",
             "ViewEventLog" => "Zobrazenie záznamu udalostí",
+            "ManageFirewall" => "Správa firewallu zariadení",
             CommandOption.SendFileName => $"Príkaz: {CommandOption.SendFileLabel}",
 
             // Each remote command has a permission of the same name.

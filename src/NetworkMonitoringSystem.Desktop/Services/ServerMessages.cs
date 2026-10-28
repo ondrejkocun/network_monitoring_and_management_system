@@ -29,6 +29,18 @@ public static partial class ServerMessages
         ["Only a device with an agent can capture network traffic."] = "Komunikáciu možno zachytávať len na zariadení s agentom.",
         ["Only a device without an agent is checked on a TCP port."] = "TCP port sa kontroluje len pri zariadení bez agenta.",
 
+        // Firewall rules: refused by the server, or reported by the agent.
+        ["Firewall rules can be set only on a device with an agent."] = "Pravidlá firewallu sa dajú nastaviť len zariadeniu s agentom.",
+        ["Ports can be given only for TCP or UDP."] = "Porty sa dajú zadať len pre TCP alebo UDP.",
+        ["Ports must be numbers from 1 to 65535 or ranges such as 8000-8100, separated by commas."] =
+            "Porty musia byť čísla od 1 do 65535 alebo rozsahy ako 8000-8100, oddelené čiarkami.",
+        ["Unknown direction, protocol or action of a firewall rule."] = "Neznámy smer, protokol alebo akcia pravidla firewallu.",
+        ["The agent does not know this kind of rule."] = "Agent takéto pravidlo nepozná.",
+        ["The agent may not change the firewall; it has to run as a service or as an administrator."] =
+            "Agent nesmie meniť firewall; musí bežať ako služba alebo ako správca.",
+        ["The rule would block the agent's connection to the server, so the agent did not apply it. Exclude the server's address or port."] =
+            "Pravidlo by zablokovalo spojenie agenta so serverom, preto ho agent nepoužil. Vynechajte z neho adresu alebo port servera.",
+
         // Enrollment codes.
         ["An enrollment code must be valid for 10 minutes to 7 days."] = "Registračný kód musí platiť od 10 minút do 7 dní.",
         ["The note of an enrollment code must have at most 200 characters."] = "Poznámka ku kódu môže mať najviac 200 znakov.",
@@ -239,6 +251,18 @@ public static partial class ServerMessages
         (new(@"^User '(?<a>.*)' allowed '(?<b>.*)' on device '(?<c>.*)' to role '(?<d>.*)'\.$"), "Používateľ „{0}“ povolil {1} na zariadení „{2}“ role „{3}“."),
         (new(@"^User '(?<a>.*)' revoked '(?<b>.*)' on all devices from role '(?<d>.*)'\.$"), "Používateľ „{0}“ odobral role „{3}“ {1} na všetkých zariadeniach."),
         (new(@"^User '(?<a>.*)' revoked '(?<b>.*)' on one device from role '(?<d>.*)'\.$"), "Používateľ „{0}“ odobral role „{3}“ {1} na jednom zariadení."),
+
+        // Firewall rules.
+        (new(@"^The name of a firewall rule must have 1 to (?<a>\d+) characters\.$"), "Názov pravidla firewallu musí mať 1 až {0} znakov."),
+        (new(@"^'(?<a>.*)' is not an IP address or a network such as 10\.0\.0\.0/8\.$"), "„{0}“ nie je IP adresa ani sieť v tvare 10.0.0.0/8."),
+        (new(@"^A device can have at most (?<a>\d+) firewall rules\.$"), "Zariadenie môže mať najviac {0} pravidiel firewallu."),
+        (new(@"^The firewall is switched off for the (?<a>.+) profile, so the rules have no effect\.$"), "Firewall je vypnutý pre profil {0}, preto pravidlá neplatia."),
+        (new(@"^The firewall rules could not be read: (?<a>.*)$"), "Pravidlá firewallu sa nepodarilo prečítať: {0}"),
+        (new(@"^The state of the firewall could not be read: (?<a>.*)$"), "Stav firewallu sa nepodarilo zistiť: {0}"),
+        (new(@"^The firewall rules could not be applied: (?<a>.*)$"), "Pravidlá firewallu sa nepodarilo použiť: {0}"),
+        (new(@"^User '(?<a>.*)' added the firewall rule '(?<b>.*)' \((?<c>.*)\) to device '(?<d>.*)'\.$"), "Používateľ „{0}“ pridal pravidlo firewallu „{1}“ ({2}) zariadeniu „{3}“."),
+        (new(@"^User '(?<a>.*)' removed the firewall rule '(?<b>.*)' from device '(?<d>.*)'\.$"), "Používateľ „{0}“ odstránil pravidlo firewallu „{1}“ zo zariadenia „{3}“."),
+        (new(@"^The firewall rule '(?<a>.*)' could not be applied on device '(?<b>.*)': (?<c>.*)$"), "Pravidlo firewallu „{0}“ sa na zariadení „{1}“ nepodarilo použiť: {2}"),
 
         // Enrollment codes; the note keeps its brackets, so a code without one reads well too.
         (new(@"^User '(?<a>.*)' created an enrollment code for a new computer(?<b> \('.*'\))?, valid until (?<c>[\d-]+ [\d:]+) UTC\.$"),

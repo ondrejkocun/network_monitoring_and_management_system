@@ -268,6 +268,9 @@ public sealed class EventRowViewModel
             "DeviceRenamed" => "Premenovanie zariadenia",
             "EnrollmentCodeCreated" => "Vytvorenie registračného kódu",
             "EnrollmentCodeRevoked" => "Zrušenie registračného kódu",
+            "FirewallRuleAdded" => "Pridanie pravidla firewallu",
+            "FirewallRuleRemoved" => "Odstránenie pravidla firewallu",
+            "FirewallRuleFailed" => "Chyba pravidla firewallu",
             _ => type,
         };
     }
