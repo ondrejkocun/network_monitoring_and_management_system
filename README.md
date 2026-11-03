@@ -135,6 +135,8 @@ To put the server on one computer and agents on others, see [docs/deployment.md]
 dotnet test NetworkMonitoringSystem.slnx
 ```
 
+The plan for testing the whole system in a model network, with its scenarios, is in [docs/modelova-siet.md](docs/modelova-siet.md) (in Slovak).
+
 Integration tests start a temporary PostgreSQL container, so Docker has to be running. To run only the tests that do not need it:
 
 ```powershell
