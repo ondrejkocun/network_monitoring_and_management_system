@@ -88,6 +88,44 @@ public class FirewallManagerTests
         Assert.True(Assert.Single(report.Results).Applied);
     }
 
+    [Theory]
+    [InlineData("Udp", "", "")]
+    [InlineData("Udp", "53", "")]
+    [InlineData("Tcp", "53", "")]
+    [InlineData("Udp", "5000-6000", "")]
+    [InlineData("Udp", "", "10.0.0.0/8")]
+    [InlineData("Udp", "5355", "224.0.0.252")]
+    public void ServerReachedByName_KeepsItsNameLookup(string protocol, string ports, string addresses)
+    {
+        var report = ByName().Apply([Rule("1", "Rule", "Outbound", protocol, ports, addresses)]);
+
+        var result = Assert.Single(report.Results);
+        Assert.False(result.Applied);
+        Assert.Contains("looking up the name", result.Message);
+        Assert.Empty(_firewall.Rules);
+    }
+
+    [Theory]
+    [InlineData("Outbound", "Udp", "123", "", "Block")]
+    [InlineData("Outbound", "Udp", "", "192.0.2.0/24", "Block")]
+    [InlineData("Outbound", "Icmp", "", "", "Block")]
+    [InlineData("Inbound", "Udp", "", "", "Block")]
+    [InlineData("Outbound", "Udp", "", "", "Allow")]
+    public void ServerReachedByName_AllowsRulesThatLeaveNameLookupAlone(string direction, string protocol, string ports, string addresses, string action)
+    {
+        var report = ByName().Apply([Rule("1", "Rule", direction, protocol, ports, addresses, action)]);
+
+        Assert.True(Assert.Single(report.Results).Applied);
+    }
+
+    [Fact]
+    public void ServerWhoseAddressIsNotKnown_CountsAsCoveredByARuleWithAddresses()
+    {
+        var report = ByName().Apply([Rule("1", "Rule", "Outbound", "Tcp", "7006", "192.0.2.0/24")]);
+
+        Assert.Contains("connection to the server", Assert.Single(report.Results).Message);
+    }
+
     [Fact]
     public void RuleTheFirewallRefuses_IsReportedWithTheReason_AndTheProblemOfTheFirewallToo()
     {
@@ -100,6 +138,16 @@ public class FirewallManagerTests
         Assert.False(result.Applied);
         Assert.Contains("run as a service or as an administrator", result.Message);
         Assert.Equal("The firewall is switched off for the Public profile.", report.Problem);
+    }
+
+    /// <summary>A server reached by a name that cannot be looked up here, on a computer whose DNS server is 10.0.0.1.</summary>
+    private FirewallManager ByName()
+    {
+        return new FirewallManager(
+            _firewall,
+            Options.Create(new AgentOptions { ServerUrl = "https://server.invalid:7006" }),
+            NullLogger<FirewallManager>.Instance,
+            () => [IPAddress.Parse("10.0.0.1")]);
     }
 
     private static FirewallRuleSpec Rule(string id, string name, string direction, string protocol, string ports, string addresses = "", string action = "Block")

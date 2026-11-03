@@ -49,12 +49,31 @@ public sealed class FirewallManager
 
     private const string DescriptionPrefix = "nms:";
 
+    /// <summary>DNS, NetBIOS name service, mDNS and LLMNR.</summary>
+    private static readonly int[] NameLookupPorts = [53, 137, 5353, 5355];
+
+    /// <summary>Where mDNS and LLMNR ask, over IPv4 and IPv6.</summary>
+    private static readonly IPAddress[] NameLookupGroups =
+    [
+        IPAddress.Parse("224.0.0.251"),
+        IPAddress.Parse("224.0.0.252"),
+        IPAddress.Parse("ff02::fb"),
+        IPAddress.Parse("ff02::1:3"),
+    ];
+
     private readonly IWindowsFirewall _firewall;
     private readonly Uri? _server;
     private readonly ILogger<FirewallManager> _logger;
+    private readonly Func<IReadOnlyList<IPAddress>> _dnsServers;
 
-    public FirewallManager(IWindowsFirewall firewall, IOptions<AgentOptions> options, ILogger<FirewallManager> logger)
+    /// <param name="dnsServers">The DNS servers of this computer; those of its network adapters when not given.</param>
+    public FirewallManager(
+        IWindowsFirewall firewall,
+        IOptions<AgentOptions> options,
+        ILogger<FirewallManager> logger,
+        Func<IReadOnlyList<IPAddress>>? dnsServers = null)
     {
+        _dnsServers = dnsServers ?? FindDnsServers;
         _firewall = firewall;
         _server = Uri.TryCreate(options.Value.ServerUrl, UriKind.Absolute, out var server) ? server : null;
         _logger = logger;
@@ -167,6 +186,12 @@ public sealed class FirewallManager
                 + "Exclude the server's address or port.";
         }
 
+        if (!inbound && block && WouldBlockNameLookup(spec.Protocol, ports, addresses))
+        {
+            return "The rule would block looking up the name of the server, so the agent did not apply it. "
+                + "Exclude the name lookup ports (53, 137, 5353, 5355) or use the server's IP address.";
+        }
+
         var fingerprint = Fingerprint(spec);
         var shortId = spec.Id.Length >= 8 ? spec.Id[..8] : spec.Id;
 
@@ -186,8 +211,9 @@ public sealed class FirewallManager
 
     /// <summary>
     /// True when an outbound block covers the TCP connection to the server: the protocol includes TCP, the ports
-    /// include the server's port and the addresses include one of the server's. An address the agent could not look
-    /// up counts as covered whenever the rule names no addresses.
+    /// include the server's port and the addresses include one of the server's. When the agent cannot tell the server's
+    /// addresses just now, any rule with addresses counts as covering them: a rule wrongly refused can be corrected, an
+    /// agent cut off cannot be reached any more.
     /// </summary>
     public bool WouldCutOffServer(string protocol, string? ports, string? addresses, IReadOnlyList<IPAddress> serverAddresses)
     {
@@ -201,12 +227,48 @@ public sealed class FirewallManager
             return false;
         }
 
-        if (addresses is null)
+        if (addresses is null || serverAddresses.Count == 0)
         {
             return true;
         }
 
         return serverAddresses.Any(server => addresses.Split(',').Any(entry => Covers(entry, server)));
+    }
+
+    /// <summary>
+    /// True when the server is reached by name and an outbound block covers how Windows looks names up: DNS, NetBIOS,
+    /// mDNS or LLMNR, the last three being what a plain computer name such as ONDREJPC needs on a local network. A rule
+    /// limited to addresses matters only when it includes a DNS server of this computer or a group address of
+    /// these protocols; the agent's next reconnect would fail otherwise.
+    /// </summary>
+    public bool WouldBlockNameLookup(string protocol, string? ports, string? addresses)
+    {
+        if (_server is null || IPAddress.TryParse(_server.Host, out _) || protocol == "Icmp")
+        {
+            return false;
+        }
+
+        if (ports is not null && !NameLookupPorts.Any(port => CoversPort(ports, port)))
+        {
+            return false;
+        }
+
+        return addresses is null
+            || _dnsServers().Concat(NameLookupGroups).Any(address => addresses.Split(',').Any(entry => Covers(entry, address)));
+    }
+
+    private static IReadOnlyList<IPAddress> FindDnsServers()
+    {
+        try
+        {
+            return System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                .SelectMany(adapter => adapter.GetIPProperties().DnsAddresses)
+                .ToList();
+        }
+        catch (System.Net.NetworkInformation.NetworkInformationException)
+        {
+            return [];
+        }
     }
 
     private IReadOnlyList<IPAddress> ServerAddresses()

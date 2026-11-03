@@ -40,6 +40,8 @@ public static partial class ServerMessages
             "Agent nesmie meniť firewall; musí bežať ako služba alebo ako správca.",
         ["The rule would block the agent's connection to the server, so the agent did not apply it. Exclude the server's address or port."] =
             "Pravidlo by zablokovalo spojenie agenta so serverom, preto ho agent nepoužil. Vynechajte z neho adresu alebo port servera.",
+        ["The rule would block looking up the name of the server, so the agent did not apply it. Exclude the name lookup ports (53, 137, 5353, 5355) or use the server's IP address."] =
+            "Pravidlo by zablokovalo preklad mena servera, preto ho agent nepoužil. Vynechajte porty prekladu mien (53, 137, 5353, 5355) alebo použite IP adresu servera.",
 
         // Enrollment codes.
         ["An enrollment code must be valid for 10 minutes to 7 days."] = "Registračný kód musí platiť od 10 minút do 7 dní.",
